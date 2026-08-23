@@ -1,0 +1,16 @@
+{
+  "name": "@owl-memory/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/worker.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/worker.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@owl-memory/core": "workspace:*",
+    "@owl-memory/db": "workspace:*"
+  }
+}

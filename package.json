@@ -1,0 +1,32 @@
+{
+  "name": "owl-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@10.30.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "dev": "pnpm --parallel --filter @owl-memory/api --filter @owl-memory/web --filter @owl-memory/worker --filter @owl-memory/embeddings dev",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "check": "biome check . && pnpm typecheck && pnpm test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migrate": "pnpm --filter @owl-memory/db migrate",
+    "admin": "pnpm --filter @owl-memory/api admin",
+    "auth:jwks": "pnpm --filter @owl-memory/api generate-jwks"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.1",
+    "@types/node": "^24.10.13",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

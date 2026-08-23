@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "owl-memory": {
+      "url": "https://YOUR_HOST/mcp"
+    }
+  }
+}

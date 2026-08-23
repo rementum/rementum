@@ -1,0 +1,246 @@
+import type {
+  Article,
+  ArticleSummary,
+  BrainRole,
+  CreateBrainInput,
+  CreateTaskInput,
+  MaintenanceCandidate,
+  PromoteWriteInput,
+  SearchArticlesInput,
+  SourceInput,
+  StageWriteInput,
+  Task,
+  WorkspaceRole,
+} from "@owl-memory/contracts";
+import type { CipherEnvelope, WrappedKey } from "./crypto.js";
+
+export interface Actor {
+  userId: string;
+  clientId: string | null;
+  workspaceRoles: Map<string, WorkspaceRole>;
+  brainRoles: Map<string, BrainRole>;
+}
+
+export interface BrainRecord {
+  id: string;
+  workspaceId: string;
+  slug: string;
+  name: string;
+  description: string;
+  instructions: string;
+  wrappedKey: WrappedKey;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ArticleRecord extends Omit<ArticleSummary, "updatedAt"> {
+  archivedAt: Date | null;
+  verifiedAt: Date | null;
+  reviewAfter: Date | null;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface VersionRecord {
+  id: string;
+  brainId: string;
+  articleId: string;
+  version: number;
+  body: CipherEnvelope;
+  bodyAad: string;
+  bodyHash: string;
+  changeSummary: string;
+  sources: SourceInput[];
+  actorId: string;
+  clientId: string | null;
+  createdAt: Date;
+}
+
+export interface StagedWriteRecord {
+  id: string;
+  brainId: string;
+  articleId: string | null;
+  operation: StageWriteInput["operation"];
+  slug: string;
+  title: string;
+  summary: string;
+  keywords: string[];
+  kind: StageWriteInput["kind"];
+  baseVersion: number | null;
+  body: CipherEnvelope;
+  bodyAad: string;
+  bodyHash: string;
+  changeSummary: string;
+  sources: SourceInput[];
+  status: "pending" | "promoted" | "conflicted" | "withdrawn";
+  potentialConflicts: Array<{ articleId: string; slug: string; score: number }>;
+  acknowledgedConflicts: boolean;
+  stagedBy: string;
+  stagedClientId: string | null;
+  promotedBy: string | null;
+  promotedVersion: number | null;
+  decisionSummary: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SearchHit {
+  article: ArticleSummary;
+  score: number;
+  sources: string[];
+  excerpt: string | null;
+}
+
+export interface DataStore {
+  createBrain(
+    input: CreateBrainInput,
+    actor: Actor,
+    wrappedKey: WrappedKey,
+    id: string,
+  ): Promise<BrainRecord>;
+  listBrains(actor: Actor): Promise<BrainRecord[]>;
+  getBrain(id: string, actor: Actor): Promise<BrainRecord | null>;
+  listRoutingIndex(brainId: string, actor: Actor, limit: number): Promise<ArticleRecord[]>;
+  getArticle(id: string, actor: Actor): Promise<ArticleRecord | null>;
+  getArticleBySlug(brainId: string, slug: string, actor: Actor): Promise<ArticleRecord | null>;
+  getVersion(articleId: string, version: number, actor: Actor): Promise<VersionRecord | null>;
+  getCurrentVersion(articleId: string, actor: Actor): Promise<VersionRecord | null>;
+  getArticleLinks(
+    articleId: string,
+    actor: Actor,
+  ): Promise<Array<{ articleId: string; slug: string; relation: string }>>;
+  getArticleSources(
+    articleId: string,
+    version: number,
+    actor: Actor,
+  ): Promise<Array<SourceInput & { id: string }>>;
+  listArticleVersions(articleId: string, actor: Actor): Promise<VersionRecord[]>;
+  verifyArticle(articleId: string, reviewAfter: Date | null, actor: Actor): Promise<ArticleRecord>;
+  setArticleLinks(
+    articleId: string,
+    links: Array<{ toArticleId: string; relation: string }>,
+    actor: Actor,
+  ): Promise<void>;
+  createStagedWrite(
+    input: StageWriteInput,
+    actor: Actor,
+    targetArticleId: string,
+    writeId: string,
+    encrypted: CipherEnvelope,
+    bodyAad: string,
+    bodyHash: string,
+    potentialConflicts: StagedWriteRecord["potentialConflicts"],
+  ): Promise<StagedWriteRecord>;
+  getStagedWrite(id: string, actor: Actor): Promise<StagedWriteRecord | null>;
+  listStagedWrites(
+    brainId: string,
+    actor: Actor,
+    status?: StagedWriteRecord["status"],
+  ): Promise<StagedWriteRecord[]>;
+  withdrawStagedWrite(id: string, actor: Actor): Promise<StagedWriteRecord>;
+  promoteStagedWrite(
+    input: PromoteWriteInput,
+    actor: Actor,
+  ): Promise<{ write: StagedWriteRecord; article: ArticleRecord; version: VersionRecord }>;
+  findPotentialConflicts(
+    brainId: string,
+    articleId: string | undefined,
+    title: string,
+    summary: string,
+    actor: Actor,
+  ): Promise<StagedWriteRecord["potentialConflicts"]>;
+  search(
+    input: SearchArticlesInput,
+    actor: Actor,
+    embedding: number[] | null,
+  ): Promise<SearchHit[]>;
+  setEmbedding(
+    articleId: string,
+    version: number,
+    ordinal: number,
+    vector: number[],
+    actor: Actor,
+  ): Promise<void>;
+  createTask(input: CreateTaskInput, actor: Actor): Promise<Task>;
+  listTasks(brainId: string, actor: Actor): Promise<Task[]>;
+  getTask(id: string, actor: Actor): Promise<Task | null>;
+  claimTask(
+    brainId: string,
+    taskId: string | undefined,
+    actor: Actor,
+    leaseSeconds: number,
+  ): Promise<Task | null>;
+  heartbeatTask(taskId: string, actor: Actor, leaseSeconds: number): Promise<Task>;
+  releaseTask(taskId: string, actor: Actor, force: boolean): Promise<Task>;
+  updateTask(
+    taskId: string,
+    actor: Actor,
+    patch: Partial<Pick<Task, "status" | "title" | "brief" | "priority">>,
+  ): Promise<Task>;
+  addTaskComment(taskId: string, actor: Actor, body: string): Promise<void>;
+  listTaskComments(
+    taskId: string,
+    actor: Actor,
+  ): Promise<
+    Array<{ id: string; body: string; actorId: string; clientId: string | null; createdAt: string }>
+  >;
+  attachTaskLink(taskId: string, url: string, label: string | null, actor: Actor): Promise<void>;
+  linkTaskArticle(taskId: string, articleId: string, actor: Actor): Promise<void>;
+  scanMaintenance(brainId: string, actor: Actor): Promise<MaintenanceCandidate[]>;
+  listMaintenance(brainId: string, actor: Actor): Promise<MaintenanceCandidate[]>;
+  updateMaintenance(
+    candidateId: string,
+    status: "resolved" | "dismissed",
+    actor: Actor,
+  ): Promise<MaintenanceCandidate>;
+  recentActivity(
+    brainId: string,
+    actor: Actor,
+    limit: number,
+  ): Promise<
+    Array<{
+      id: string;
+      action: string;
+      resource: string;
+      actorId: string;
+      clientId: string | null;
+      detail: Record<string, unknown>;
+      createdAt: string;
+    }>
+  >;
+  createInvitation(
+    brainId: string,
+    email: string,
+    role: BrainRole,
+    tokenHash: string,
+    expiresAt: Date,
+    actor: Actor,
+  ): Promise<{ id: string; expiresAt: Date }>;
+  audit(
+    actor: Actor,
+    action: string,
+    resource: string,
+    detail?: Record<string, unknown>,
+  ): Promise<void>;
+}
+
+export interface EmbeddingClient {
+  embedQuery(value: string): Promise<number[]>;
+  embedPassages(values: string[]): Promise<number[][]>;
+  healthy(): Promise<boolean>;
+}
+
+export interface BlobStore {
+  put(path: string, body: Buffer): Promise<void>;
+  get(path: string): Promise<Buffer>;
+  delete(path: string): Promise<void>;
+}
+
+export interface BrainWithIndex {
+  brain: Omit<BrainRecord, "wrappedKey">;
+  routingIndex: ArticleSummary[];
+}
+
+export interface ReadArticleResult extends Article {}
