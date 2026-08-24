@@ -95,7 +95,7 @@ export interface SearchHit {
 
 export interface DataStore {
   createBrain(
-    input: CreateBrainInput,
+    input: CreateBrainInput & { workspaceId: string },
     actor: Actor,
     wrappedKey: WrappedKey,
     id: string,

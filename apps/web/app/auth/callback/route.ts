@@ -2,13 +2,14 @@ import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const publicUrl = process.env.NEXT_PUBLIC_OWL_API_URL ?? "http://localhost:3000";
+  const apiUrl = process.env.OWL_API_INTERNAL_URL ?? publicUrl;
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
   const verifier = request.cookies.get("owl_pkce")?.value;
   if (!code || !state || !verifier || state !== request.cookies.get("owl_state")?.value) {
     return new NextResponse("Invalid OAuth callback", { status: 400 });
   }
-  const tokenResponse = await fetch(`${publicUrl.replace(/\/$/, "")}/oauth/token`, {
+  const tokenResponse = await fetch(`${apiUrl.replace(/\/$/, "")}/oauth/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -54,7 +55,7 @@ export function setTokenCookies(
       httpOnly: true,
       secure,
       sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60,
+      maxAge: 60 * 24 * 60 * 60,
       path: "/",
     });
 }

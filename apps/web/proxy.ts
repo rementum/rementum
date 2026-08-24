@@ -5,7 +5,8 @@ export async function proxy(request: NextRequest) {
   const refresh = request.cookies.get("owl_refresh")?.value;
   if (!refresh || (access && !expiresSoon(access))) return NextResponse.next();
   const publicUrl = process.env.NEXT_PUBLIC_OWL_API_URL ?? request.nextUrl.origin;
-  const tokenResponse = await fetch(`${publicUrl.replace(/\/$/, "")}/oauth/token`, {
+  const apiUrl = process.env.OWL_API_INTERNAL_URL ?? publicUrl;
+  const tokenResponse = await fetch(`${apiUrl.replace(/\/$/, "")}/oauth/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -40,7 +41,7 @@ export async function proxy(request: NextRequest) {
       httpOnly: true,
       secure,
       sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60,
+      maxAge: 60 * 24 * 60 * 60,
       path: "/",
     });
   return response;

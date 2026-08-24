@@ -98,7 +98,8 @@ export function createMcpServer(service: OwlService, actor: Actor): McpServer {
     "create_brain",
     {
       title: "Create a brain",
-      description: "Creates a personal or shared brain in an accessible workspace.",
+      description:
+        "Creates a personal or shared brain. Omit workspaceId when exactly one workspace is accessible.",
       inputSchema: createBrainSchema.shape,
       annotations: write,
     },

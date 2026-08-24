@@ -137,9 +137,10 @@ export class OidcPostgresAdapter {
 
   async upsert(id: string, payload: Record<string, unknown>, expiresIn: number): Promise<void> {
     const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
+    const storedPayload = normalizeOidcAdapterPayload(this.model, payload);
     await this.sql`
       INSERT INTO oauth_records (model, id, payload, expires_at)
-      VALUES (${this.model}, ${id}, ${JSON.stringify(payload)}::jsonb, ${expiresAt})
+      VALUES (${this.model}, ${id}, ${JSON.stringify(storedPayload)}::jsonb, ${expiresAt})
       ON CONFLICT (model, id) DO UPDATE SET
         payload = excluded.payload, expires_at = excluded.expires_at, consumed_at = NULL
     `;
@@ -189,6 +190,16 @@ export class OidcPostgresAdapter {
     `;
     return row ? this.find(row.id) : undefined;
   }
+}
+
+export function normalizeOidcAdapterPayload(
+  model: string,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  if (model !== "RefreshToken" || typeof payload.scope !== "string") return payload;
+  const scopes = payload.scope.split(/\s+/).filter(Boolean);
+  if (scopes.includes("offline_access")) return payload;
+  return { ...payload, scope: [...scopes, "offline_access"].join(" ") };
 }
 
 function mapUser(row: any): UserRecord {

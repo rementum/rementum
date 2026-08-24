@@ -81,7 +81,7 @@ export const articleSchema = articleSummarySchema.extend({
 export type Article = z.infer<typeof articleSchema>;
 
 export const createBrainSchema = z.object({
-  workspaceId: idSchema,
+  workspaceId: idSchema.optional(),
   slug: slugSchema,
   name: z.string().min(1).max(160),
   description: z.string().max(1000).default(""),

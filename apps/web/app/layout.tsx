@@ -2,6 +2,7 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { hasSession } from "../lib/api";
 import "./styles.css";
 import "./invite.css";
 import "./management.css";
@@ -11,7 +12,9 @@ export const metadata: Metadata = {
   description: "One versioned brain behind every agent.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const signedIn = await hasSession();
+
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body>
@@ -23,10 +26,18 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <span>Owl Memory</span>
           </Link>
           <nav aria-label="Primary navigation">
-            <Link href="/">Brains</Link>
-            <Link href="/connections">Connections</Link>
-            <a href="/docs">API</a>
-            <Link href="/auth/logout">Sign out</Link>
+            {signedIn ? (
+              <>
+                <Link href="/">Brains</Link>
+                <Link href="/connections">Connections</Link>
+                <a href="/docs">API</a>
+                <form action="/auth/logout" method="post" className="nav-logout">
+                  <button type="submit">Sign out</button>
+                </form>
+              </>
+            ) : (
+              <Link href="/auth/login">Sign in</Link>
+            )}
           </nav>
         </header>
         {children}

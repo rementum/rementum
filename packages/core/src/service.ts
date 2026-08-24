@@ -37,10 +37,12 @@ export class OwlService {
   ) {}
 
   async createBrain(input: CreateBrainInput, actor: Actor): Promise<BrainWithIndex> {
-    requireWorkspaceRole(actor, input.workspaceId, ["owner", "admin", "member"]);
+    const workspaceId = resolveWorkspaceId(input.workspaceId, actor);
+    const resolvedInput = { ...input, workspaceId };
+    requireWorkspaceRole(actor, workspaceId, ["owner", "admin", "member"]);
     const brainId = randomUUID();
     const record = await this.store.createBrain(
-      input,
+      resolvedInput,
       actor,
       wrapDataKey(generateDataKey(), this.masterKey, brainId),
       brainId,
@@ -419,6 +421,18 @@ export function requireBrainRole(actor: Actor, brainId: string, allowed: string[
 export function requireWorkspaceRole(actor: Actor, workspaceId: string, allowed: string[]): void {
   const role = actor.workspaceRoles.get(workspaceId);
   if (!role || !allowed.includes(role)) throw new ForbiddenError();
+}
+
+export function resolveWorkspaceId(workspaceId: string | undefined, actor: Actor): string {
+  if (workspaceId) return workspaceId;
+  const workspaceIds = [...actor.workspaceRoles.keys()];
+  if (workspaceIds.length === 1) return workspaceIds[0] as string;
+  if (workspaceIds.length === 0) {
+    throw new ForbiddenError("No accessible workspace is available for a new brain");
+  }
+  throw new ConflictError("workspaceId is required when more than one workspace is accessible", {
+    workspaceIds,
+  });
 }
 
 function withoutWrappedKey<T extends { wrappedKey: unknown }>(record: T): Omit<T, "wrappedKey"> {

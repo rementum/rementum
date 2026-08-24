@@ -104,7 +104,7 @@ export async function buildOauthRuntime(
       AuthorizationCode: 60,
       Interaction: 15 * 60,
       Session: 14 * 24 * 60 * 60,
-      RefreshToken: 30 * 24 * 60 * 60,
+      RefreshToken: 60 * 24 * 60 * 60,
     },
     interactions: {
       url: (_ctx, interaction) => `/oauth/interaction/${interaction.uid}`,

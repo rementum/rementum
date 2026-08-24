@@ -55,7 +55,7 @@ export class PostgresStore implements DataStore {
   }
 
   async createBrain(
-    input: CreateBrainInput,
+    input: CreateBrainInput & { workspaceId: string },
     actor: Actor,
     wrappedKey: WrappedKey,
     id: string,

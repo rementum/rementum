@@ -55,12 +55,26 @@ a {
 }
 nav {
   display: flex;
+  align-items: center;
   gap: 24px;
   font-size: 14px;
 }
 nav a:hover,
+nav button:hover,
 .back:hover {
   color: var(--accent);
+}
+.nav-logout {
+  margin: 0;
+}
+.nav-logout button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 .shell {
   width: min(1380px, calc(100% - 40px));
