@@ -68,6 +68,30 @@
   line-height: 1.5;
 }
 
+.invite-form > p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.invite-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.invite-summary strong {
+  color: var(--text);
+}
+
+.invite-summary span {
+  color: var(--text-tertiary);
+  font: 10px / 1.5 var(--font-mono);
+  text-transform: uppercase;
+}
+
 @media (max-width: 820px) {
   .invite-shell {
     min-height: auto;

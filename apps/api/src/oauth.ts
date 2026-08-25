@@ -11,6 +11,8 @@ export interface OauthRuntime {
   publicJwks: { keys: JWK[] };
   issuer: string;
   resource: string;
+  publicUrl: string;
+  allowSignup: boolean;
 }
 
 export async function buildOauthRuntime(
@@ -129,7 +131,14 @@ export async function buildOauthRuntime(
   provider.on("server_error", (_ctx, error) => {
     console.error("OAuth provider error", error);
   });
-  return { provider, publicJwks, issuer, resource };
+  return {
+    provider,
+    publicJwks,
+    issuer,
+    resource,
+    publicUrl: config.OWL_PUBLIC_URL.replace(/\/$/, ""),
+    allowSignup: config.OWL_ALLOW_SIGNUP,
+  };
 }
 
 export async function registerOauthRoutes(
@@ -145,7 +154,8 @@ export async function registerOauthRoutes(
     const body =
       prompt === "login"
         ? `<label>Email<input name="email" type="email" autocomplete="username" required></label>
-         <label>Password<input name="password" type="password" autocomplete="current-password" required></label>`
+         <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+         <div class="auth-links"><a href="${escapeHtml(`${runtime.publicUrl}/forgot-password`)}">Forgot password?</a>${runtime.allowSignup ? `<a href="${escapeHtml(`${runtime.publicUrl}/register`)}">Create account</a>` : ""}</div>`
         : `<p><strong>${escapeHtml(client?.clientName ?? String(details.params.client_id))}</strong> requests access to Owl Memory.</p>
          <p class="scope">${escapeHtml(String(details.params.scope ?? ""))}</p>`;
     return reply
@@ -168,6 +178,22 @@ export async function registerOauthRoutes(
             `<p class="error">Invalid email or password.</p>
            <label>Email<input name="email" type="email" required></label>
            <label>Password<input name="password" type="password" required></label>`,
+          ),
+        );
+    }
+    if (!user.emailVerifiedAt) {
+      return reply
+        .code(403)
+        .type("text/html")
+        .send(
+          interactionPage(
+            "login",
+            `/oauth/interaction/${request.params && (request.params as any).uid}/login`,
+            String((request.params as any).uid),
+            `<p class="error">Verify your email before signing in.</p>
+           <label>Email<input name="email" type="email" value="${escapeHtml(user.email)}" required></label>
+           <label>Password<input name="password" type="password" required></label>
+           <div class="auth-links"><a href="${escapeHtml(`${runtime.publicUrl}/resend-verification`)}">Resend verification</a></div>`,
           ),
         );
     }
@@ -266,7 +292,7 @@ function interactionPage(prompt: string, action: string, uid: string, body: stri
   h1{margin:0;color:var(--text);font-size:30px;font-weight:620;letter-spacing:-.04em;line-height:1.1}.intro{margin:10px 0 24px;color:var(--muted)}
   label{display:grid;gap:7px;margin:16px 0;color:var(--muted);font-size:12px;font-weight:600}input{min-height:43px;padding:0 11px;border:1px solid var(--line);border-radius:8px;outline:0;background:#101013;color:var(--text);font:14px ui-sans-serif,system-ui,sans-serif;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}input:focus{border-color:rgb(255 255 255 / 34%);background:var(--raised);box-shadow:0 0 0 3px rgb(255 255 255 / 6%)}
   button{width:100%;min-height:43px;margin-top:8px;border:1px solid var(--text);border-radius:8px;background:var(--text);color:#111114;cursor:pointer;font:650 13px/1 ui-sans-serif,system-ui,sans-serif;transition:background .15s ease,border-color .15s ease,transform .15s ease}button:hover{border-color:#d7d7d9;background:#d7d7d9}button:active{transform:scale(.985)}button:focus-visible,input:focus-visible{outline:2px solid var(--text);outline-offset:3px}.deny{margin-top:8px;border-color:transparent;background:transparent;color:var(--muted)}.deny:hover{border-color:var(--line);background:var(--raised);color:var(--text)}
-  .scope{overflow-wrap:anywhere;padding:12px;border:1px solid var(--line);border-radius:8px;background:#101013;color:var(--quiet);font:11px/1.7 ui-monospace,monospace}.error{padding:10px 12px;border:1px solid rgb(226 182 182 / 18%);border-radius:8px;background:#261c1e;color:var(--danger);font-size:12px}.foot{margin:22px 0 0;color:var(--quiet);font:10px/1.5 ui-monospace,monospace;text-align:center}
+  .scope{overflow-wrap:anywhere;padding:12px;border:1px solid var(--line);border-radius:8px;background:#101013;color:var(--quiet);font:11px/1.7 ui-monospace,monospace}.error{padding:10px 12px;border:1px solid rgb(226 182 182 / 18%);border-radius:8px;background:#261c1e;color:var(--danger);font-size:12px}.auth-links{display:flex;justify-content:space-between;gap:16px;margin:2px 0 16px}.auth-links a{color:var(--muted);font-size:12px;text-decoration:none}.auth-links a:hover{color:var(--text)}.foot{margin:22px 0 0;color:var(--quiet);font:10px/1.5 ui-monospace,monospace;text-align:center}
   @media(max-width:480px){body{align-items:start;padding:16px}main{margin-top:8vh;padding:21px}.brand{margin-bottom:28px}}
   @media(prefers-reduced-motion:reduce){*{transition-duration:.01ms}}
   </style></head><body><main><div class="brand"><p class="mark">O</p><span>Owl Memory</span></div><h1>${prompt === "login" ? "Sign in" : "Approve connection"}</h1>

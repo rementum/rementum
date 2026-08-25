@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const publicUrl = process.env.NEXT_PUBLIC_OWL_API_URL ?? "http://localhost:3000";
   const verifier = randomBytes(48).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
@@ -34,5 +34,15 @@ export async function GET() {
     maxAge: 600,
     path: "/",
   });
+  const returnTo = request.nextUrl.searchParams.get("returnTo");
+  if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
+    response.cookies.set("owl_return_to", returnTo, {
+      httpOnly: true,
+      secure,
+      sameSite: "lax",
+      maxAge: 600,
+      path: "/",
+    });
+  }
   return response;
 }

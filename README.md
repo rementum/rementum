@@ -55,6 +55,11 @@ docker compose run --rm \
   --email you@example.com --password-file /run/secrets/owl-owner-password
 ```
 
+To allow anyone to register, set `OWL_ALLOW_SIGNUP=true` together with a Resend API key and a
+verified sender in `OWL_RESEND_API_KEY` and `OWL_MAIL_FROM`. New accounts verify their email and
+create their first team during registration; invitation acceptance remains available when public
+signup is disabled.
+
 The remote MCP endpoint is `https://<your-host>/mcp`. OAuth Protected Resource Metadata is
 served from `/.well-known/oauth-protected-resource`.
 

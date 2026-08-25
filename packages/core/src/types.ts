@@ -34,6 +34,31 @@ export interface BrainRecord {
   updatedAt: Date;
 }
 
+export interface TeamRecord {
+  id: string;
+  slug: string;
+  name: string;
+  role: WorkspaceRole;
+  createdAt: Date;
+}
+
+export interface TeamMemberRecord {
+  userId: string;
+  email: string;
+  displayName: string;
+  role: WorkspaceRole;
+  createdAt: Date;
+}
+
+export interface TeamInvitationRecord {
+  id: string;
+  workspaceId: string;
+  email: string;
+  role: "admin" | "member";
+  expiresAt: Date;
+  createdAt: Date;
+}
+
 export interface ArticleRecord extends Omit<ArticleSummary, "updatedAt"> {
   archivedAt: Date | null;
   verifiedAt: Date | null;
@@ -100,13 +125,33 @@ export interface SummaryGenerator {
 export type ResolvedStageWriteInput = StageWriteInput & { summary: string };
 
 export interface DataStore {
+  createTeam(name: string, slug: string, actor: Actor, id: string): Promise<TeamRecord>;
+  listTeams(actor: Actor): Promise<TeamRecord[]>;
+  listTeamMembers(teamId: string, actor: Actor): Promise<TeamMemberRecord[]>;
+  updateTeamMemberRole(
+    teamId: string,
+    userId: string,
+    role: "admin" | "member",
+    actor: Actor,
+  ): Promise<TeamMemberRecord>;
+  removeTeamMember(teamId: string, userId: string, actor: Actor): Promise<void>;
+  listTeamInvitations(teamId: string, actor: Actor): Promise<TeamInvitationRecord[]>;
+  createTeamInvitation(
+    teamId: string,
+    email: string,
+    role: "admin" | "member",
+    tokenHash: string,
+    expiresAt: Date,
+    actor: Actor,
+  ): Promise<TeamInvitationRecord>;
+  revokeTeamInvitation(invitationId: string, actor: Actor): Promise<TeamInvitationRecord>;
   createBrain(
     input: CreateBrainInput & { workspaceId: string },
     actor: Actor,
     wrappedKey: WrappedKey,
     id: string,
   ): Promise<BrainRecord>;
-  listBrains(actor: Actor): Promise<BrainRecord[]>;
+  listBrains(actor: Actor, workspaceId?: string): Promise<BrainRecord[]>;
   getBrain(id: string, actor: Actor): Promise<BrainRecord | null>;
   listRoutingIndex(brainId: string, actor: Actor, limit: number): Promise<ArticleRecord[]>;
   getArticle(id: string, actor: Actor): Promise<ArticleRecord | null>;

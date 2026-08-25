@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { BrainRole, WorkspaceRole } from "@owl-memory/contracts";
 import type postgres from "postgres";
 import type { DatabaseClient } from "./client.js";
@@ -8,6 +9,7 @@ export interface UserRecord {
   displayName: string;
   passwordHash: string;
   systemOwner: boolean;
+  emailVerifiedAt: Date | null;
   disabledAt: Date | null;
 }
 
@@ -40,8 +42,8 @@ export class AuthRepository {
       if ((countRows[0]?.count ?? 0) > 0)
         throw new Error("The first owner has already been created");
       const [userRow] = await tx<any[]>`
-        INSERT INTO users (email, display_name, password_hash, system_owner)
-        VALUES (${email}, ${displayName}, ${passwordHash}, true) RETURNING *
+        INSERT INTO users (email, display_name, password_hash, system_owner, email_verified_at)
+        VALUES (${email}, ${displayName}, ${passwordHash}, true, now()) RETURNING *
       `;
       const [workspace] = await tx<any[]>`
         INSERT INTO workspaces (slug, name, created_by)
@@ -55,6 +57,155 @@ export class AuthRepository {
     })) as { user: UserRecord; workspaceId: string };
   }
 
+  async registerAccount(
+    email: string,
+    displayName: string,
+    passwordHash: string,
+    teamName: string,
+    teamSlug: string,
+  ): Promise<{ user: UserRecord; workspaceId: string } | null> {
+    return (await this.client.sql.begin(async (tx) => {
+      const [userRow] = await tx<any[]>`
+        INSERT INTO users (email, display_name, password_hash)
+        VALUES (${email}, ${displayName}, ${passwordHash})
+        ON CONFLICT ((lower(email))) DO NOTHING
+        RETURNING *
+      `;
+      if (!userRow) return null;
+      const workspaceId = randomUUID();
+      await tx`SELECT set_config('app.user_id', ${userRow.id}, true)`;
+      await tx`SELECT set_config('app.workspace_ids', ${workspaceId}, true)`;
+      await tx`SELECT set_config('app.manage_workspace_ids', ${workspaceId}, true)`;
+      await tx`SELECT set_config('app.owner_workspace_ids', ${workspaceId}, true)`;
+      await tx<any[]>`
+        INSERT INTO workspaces (id, slug, name, created_by)
+        VALUES (${workspaceId}, ${teamSlug}, ${teamName}, ${userRow.id})
+      `;
+      await tx`
+        INSERT INTO workspace_members (workspace_id, user_id, role)
+        VALUES (${workspaceId}, ${userRow.id}, 'owner')
+      `;
+      return { user: mapUser(userRow), workspaceId };
+    })) as { user: UserRecord; workspaceId: string } | null;
+  }
+
+  async createAuthToken(
+    userId: string,
+    purpose: "verify_email" | "reset_password",
+    tokenHash: string,
+    expiresAt: Date,
+  ): Promise<{ id: string }> {
+    return (await this.client.sql.begin(async (tx) => {
+      await tx`
+        UPDATE auth_tokens SET consumed_at = now()
+        WHERE user_id = ${userId} AND purpose = ${purpose} AND consumed_at IS NULL
+      `;
+      const [row] = await tx<Array<{ id: string }>>`
+        INSERT INTO auth_tokens (user_id, purpose, token_hash, expires_at)
+        VALUES (${userId}, ${purpose}, ${tokenHash}, ${expiresAt.toISOString()})
+        RETURNING id
+      `;
+      if (!row) throw new Error("Auth token insert did not return a row");
+      return row;
+    })) as { id: string };
+  }
+
+  async verifyEmail(tokenHash: string): Promise<boolean> {
+    return (await this.client.sql.begin(async (tx) => {
+      const [token] = await tx<Array<{ id: string; user_id: string }>>`
+        SELECT id, user_id FROM auth_tokens
+        WHERE token_hash = ${tokenHash} AND purpose = 'verify_email'
+          AND consumed_at IS NULL AND expires_at > now()
+        FOR UPDATE
+      `;
+      if (!token) return false;
+      await tx`UPDATE users SET email_verified_at = now() WHERE id = ${token.user_id}`;
+      await tx`UPDATE auth_tokens SET consumed_at = now() WHERE id = ${token.id}`;
+      return true;
+    })) as boolean;
+  }
+
+  async resetPassword(tokenHash: string, passwordHash: string): Promise<boolean> {
+    return (await this.client.sql.begin(async (tx) => {
+      const [token] = await tx<Array<{ id: string; user_id: string }>>`
+        SELECT id, user_id FROM auth_tokens
+        WHERE token_hash = ${tokenHash} AND purpose = 'reset_password'
+          AND consumed_at IS NULL AND expires_at > now()
+        FOR UPDATE
+      `;
+      if (!token) return false;
+      const grants = await tx<Array<{ id: string }>>`
+        SELECT id FROM oauth_records
+        WHERE model = 'Grant' AND payload->>'accountId' = ${token.user_id}
+      `;
+      const grantIds = grants.map((grant) => grant.id);
+      if (grantIds.length) {
+        await tx`DELETE FROM oauth_records WHERE payload->>'grantId' = ANY(${grantIds})`;
+      }
+      await tx`DELETE FROM oauth_records WHERE payload->>'accountId' = ${token.user_id}`;
+      await tx`
+        UPDATE users SET password_hash = ${passwordHash}, email_verified_at = coalesce(email_verified_at, now())
+        WHERE id = ${token.user_id}
+      `;
+      await tx`UPDATE auth_tokens SET consumed_at = now() WHERE user_id = ${token.user_id}`;
+      return true;
+    })) as boolean;
+  }
+
+  async inspectTeamInvitation(tokenHash: string) {
+    const [row] = await this.client.sql<
+      any[]
+    >`SELECT * FROM owl_inspect_team_invitation(${tokenHash})`;
+    return row
+      ? {
+          workspaceId: row.workspace_id as string,
+          name: row.team_name as string,
+          email: row.invite_email as string,
+          role: row.invite_role as "admin" | "member",
+        }
+      : null;
+  }
+
+  async inspectBrainInvitation(tokenHash: string) {
+    const [row] = await this.client.sql<
+      any[]
+    >`SELECT * FROM owl_inspect_brain_invitation(${tokenHash})`;
+    return row
+      ? {
+          brainId: row.brain_id as string,
+          name: row.brain_name as string,
+          email: row.invite_email as string,
+          role: row.invite_role as BrainRole,
+        }
+      : null;
+  }
+
+  async acceptTeamInvitation(
+    tokenHash: string,
+    userId: string | null,
+    displayName: string | null,
+    passwordHash: string | null,
+  ) {
+    const [row] = await this.client.sql<
+      Array<{ user_id: string; user_email: string; workspace_id: string }>
+    >`SELECT * FROM owl_accept_team_invitation(${tokenHash}, ${userId}, ${displayName}, ${passwordHash})`;
+    if (!row) throw new Error("Team invitation acceptance did not return a user");
+    return { userId: row.user_id, email: row.user_email, workspaceId: row.workspace_id };
+  }
+
+  async acceptBrainInvitation(
+    tokenHash: string,
+    userId: string | null,
+    displayName: string | null,
+    passwordHash: string | null,
+  ) {
+    const [row] = await this.client.sql<
+      Array<{ user_id: string; user_email: string; brain_id: string }>
+    >`SELECT * FROM owl_accept_brain_invitation(${tokenHash}, ${userId}, ${displayName}, ${passwordHash})`;
+    if (!row) throw new Error("Brain invitation acceptance did not return a user");
+    return { userId: row.user_id, email: row.user_email, brainId: row.brain_id };
+  }
+
   async inviteUser(
     email: string,
     displayName: string,
@@ -64,8 +215,8 @@ export class AuthRepository {
   ): Promise<UserRecord> {
     return (await this.client.sql.begin(async (tx) => {
       const [row] = await tx<any[]>`
-        INSERT INTO users (email, display_name, password_hash)
-        VALUES (${email}, ${displayName}, ${passwordHash})
+        INSERT INTO users (email, display_name, password_hash, email_verified_at)
+        VALUES (${email}, ${displayName}, ${passwordHash}, now())
         ON CONFLICT ((lower(email))) DO UPDATE SET display_name = excluded.display_name
         RETURNING *
       `;
@@ -209,6 +360,7 @@ function mapUser(row: any): UserRecord {
     displayName: row.display_name,
     passwordHash: row.password_hash,
     systemOwner: row.system_owner,
+    emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at) : null,
     disabledAt: row.disabled_at ? new Date(row.disabled_at) : null,
   };
 }

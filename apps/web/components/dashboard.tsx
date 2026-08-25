@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { api } from "../lib/api";
+import { api, teamContext } from "../lib/api";
 
 interface Brain {
   id: string;
+  workspaceId: string;
   slug: string;
   name: string;
   description: string;
@@ -41,8 +42,14 @@ interface BrainOverview {
 const OVERVIEW_LIMIT = 12;
 
 export async function Dashboard() {
-  const brains = await api<Brain[]>("/api/v1/brains");
-  if (!brains.length) return <EmptyWorkspace />;
+  const { teams, activeTeam } = await teamContext();
+  const allBrains = await api<Brain[]>("/api/v1/brains");
+  const teamIds = new Set(teams.map((team) => team.id));
+  const sharedBrains = allBrains.filter((brain) => !teamIds.has(brain.workspaceId));
+  if (!activeTeam) return <NoTeam sharedBrains={sharedBrains} />;
+  const brains = allBrains.filter((brain) => brain.workspaceId === activeTeam.id);
+  if (!brains.length)
+    return <EmptyWorkspace teamName={activeTeam.name} sharedBrains={sharedBrains} />;
 
   const recentFirst = [...brains].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
@@ -85,7 +92,7 @@ export async function Dashboard() {
     <main className="shell dash">
       <header className="page-intro dash-intro">
         <div>
-          <p className="kicker">Workspace</p>
+          <p className="kicker">{activeTeam.name}</p>
           <h1>Overview</h1>
           <p>What changed across your brains, and what waits for your review.</p>
         </div>
@@ -192,16 +199,67 @@ export async function Dashboard() {
           )}
         </aside>
       </div>
+      <SharedBrains brains={sharedBrains} />
     </main>
   );
 }
 
-function EmptyWorkspace() {
+function SharedBrains({ brains }: { brains: Brain[] }) {
+  if (!brains.length) return null;
+  return (
+    <section aria-labelledby="dash-shared-title">
+      <div className="dash-section-head">
+        <h2 id="dash-shared-title">Shared with me</h2>
+        <span>Guest access outside your teams</span>
+      </div>
+      <div className="dash-brain-grid">
+        {brains.map((brain) => (
+          <Link className="dash-brain-card" href={`/brains/${brain.id}`} key={brain.id}>
+            <div className="dash-brain-top">
+              <span className="mono">{brain.slug}</span>
+              <span className="role-badge">Guest</span>
+            </div>
+            <h3>{brain.name}</h3>
+            <p>{brain.description || "No description yet."}</p>
+            <div className="dash-brain-meta">
+              <time dateTime={brain.updatedAt}>Updated {relativeTime(brain.updatedAt)}</time>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NoTeam({ sharedBrains }: { sharedBrains: Brain[] }) {
   return (
     <main className="shell dash">
       <header className="page-intro dash-intro">
         <div>
           <p className="kicker">Workspace</p>
+          <h1>Overview</h1>
+        </div>
+      </header>
+      <section className="empty-state">
+        <h2>No team yet</h2>
+        <p>Create a team to collect brains and invite members.</p>
+        <div className="dash-empty-actions">
+          <Link className="button" href="/teams">
+            Set up your team
+          </Link>
+        </div>
+      </section>
+      <SharedBrains brains={sharedBrains} />
+    </main>
+  );
+}
+
+function EmptyWorkspace({ teamName, sharedBrains }: { teamName: string; sharedBrains: Brain[] }) {
+  return (
+    <main className="shell dash">
+      <header className="page-intro dash-intro">
+        <div>
+          <p className="kicker">{teamName}</p>
           <h1>Overview</h1>
         </div>
       </header>
@@ -220,6 +278,7 @@ function EmptyWorkspace() {
           </a>
         </div>
       </section>
+      <SharedBrains brains={sharedBrains} />
     </main>
   );
 }

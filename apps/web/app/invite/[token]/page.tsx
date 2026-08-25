@@ -1,3 +1,4 @@
+import { hasSession } from "../../../lib/api";
 import { InviteForm } from "./invite-form";
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
@@ -12,7 +13,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
           selected by its owner.
         </p>
       </section>
-      <InviteForm token={token} />
+      <InviteForm token={token} signedIn={await hasSession()} />
     </main>
   );
 }

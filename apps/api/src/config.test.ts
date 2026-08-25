@@ -41,3 +41,20 @@ describe("LLM configuration", () => {
     );
   });
 });
+
+describe("account email configuration", () => {
+  it("requires Resend when public signup is enabled", () => {
+    expect(() => loadConfig({ ...validEnv, OWL_ALLOW_SIGNUP: "true" })).toThrow(/Resend/);
+  });
+
+  it("accepts a complete Resend configuration", () => {
+    const config = loadConfig({
+      ...validEnv,
+      OWL_ALLOW_SIGNUP: "true",
+      OWL_RESEND_API_KEY: "re_test",
+      OWL_MAIL_FROM: "Owl Memory <owl@example.test>",
+    });
+    expect(config.OWL_ALLOW_SIGNUP).toBe(true);
+    expect(config.OWL_RESEND_API_KEY).toBe("re_test");
+  });
+});

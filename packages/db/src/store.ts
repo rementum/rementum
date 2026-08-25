@@ -22,6 +22,9 @@ import {
   reciprocalRankFusion,
   type SearchHit,
   type StagedWriteRecord,
+  type TeamInvitationRecord,
+  type TeamMemberRecord,
+  type TeamRecord,
   type VersionRecord,
   type WrappedKey,
 } from "@owl-memory/core";
@@ -54,6 +57,136 @@ export class PostgresStore implements DataStore {
     };
   }
 
+  async createTeam(name: string, slug: string, actor: Actor, id: string): Promise<TeamRecord> {
+    return this.withActor(
+      actor,
+      async (tx) => {
+        const [row] = await tx<any[]>`
+          INSERT INTO workspaces (id, slug, name, created_by)
+          VALUES (${id}, ${slug}, ${name}, ${actor.userId}) RETURNING *
+        `;
+        await tx`
+          INSERT INTO workspace_members (workspace_id, user_id, role)
+          VALUES (${id}, ${actor.userId}, 'owner')
+        `;
+        if (!row) throw new Error("Team insert did not return a row");
+        actor.workspaceRoles.set(id, "owner");
+        return { ...mapTeam(row), role: "owner" };
+      },
+      { ownerWorkspaceId: id },
+    );
+  }
+
+  async listTeams(actor: Actor): Promise<TeamRecord[]> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<any[]>`
+        SELECT w.*, wm.role
+        FROM workspaces w
+        JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = ${actor.userId}
+        ORDER BY w.created_at ASC, w.name ASC
+      `;
+      return rows.map(mapTeam);
+    });
+  }
+
+  async listTeamMembers(teamId: string, actor: Actor): Promise<TeamMemberRecord[]> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<any[]>`
+        SELECT wm.user_id, u.email, u.display_name, wm.role, wm.created_at
+        FROM workspace_members wm
+        JOIN users u ON u.id = wm.user_id
+        WHERE wm.workspace_id = ${teamId}
+        ORDER BY CASE wm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+          lower(u.email)
+      `;
+      return rows.map(mapTeamMember);
+    });
+  }
+
+  async updateTeamMemberRole(
+    teamId: string,
+    userId: string,
+    role: "admin" | "member",
+    actor: Actor,
+  ): Promise<TeamMemberRecord> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        UPDATE workspace_members SET role = ${role}
+        WHERE workspace_id = ${teamId} AND user_id = ${userId} AND role <> 'owner'
+        RETURNING user_id, role, created_at
+      `;
+      if (!row) throw new NotFoundError("Editable team member");
+      const [user] = await tx<any[]>`SELECT email, display_name FROM users WHERE id = ${userId}`;
+      return mapTeamMember({ ...row, ...user });
+    });
+  }
+
+  async removeTeamMember(teamId: string, userId: string, actor: Actor): Promise<void> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<any[]>`
+        DELETE FROM workspace_members
+        WHERE workspace_id = ${teamId} AND user_id = ${userId} AND role <> 'owner'
+        RETURNING user_id
+      `;
+      if (!rows.length) throw new NotFoundError("Removable team member");
+      await tx`
+        DELETE FROM brain_members bm
+        USING brains b
+        WHERE bm.brain_id = b.id AND b.workspace_id = ${teamId} AND bm.user_id = ${userId}
+      `;
+    });
+  }
+
+  async listTeamInvitations(teamId: string, actor: Actor): Promise<TeamInvitationRecord[]> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<any[]>`
+        SELECT * FROM team_invitations
+        WHERE workspace_id = ${teamId} AND accepted_at IS NULL AND revoked_at IS NULL
+          AND expires_at > now()
+        ORDER BY created_at DESC
+      `;
+      return rows.map(mapTeamInvitation);
+    });
+  }
+
+  async createTeamInvitation(
+    teamId: string,
+    email: string,
+    role: "admin" | "member",
+    tokenHash: string,
+    expiresAt: Date,
+    actor: Actor,
+  ): Promise<TeamInvitationRecord> {
+    return this.withActor(actor, async (tx) => {
+      await tx`
+        UPDATE team_invitations SET revoked_at = now()
+        WHERE workspace_id = ${teamId} AND lower(email) = lower(${email})
+          AND accepted_at IS NULL AND revoked_at IS NULL
+      `;
+      const [row] = await tx<any[]>`
+        INSERT INTO team_invitations (
+          workspace_id, email, role, token_hash, expires_at, invited_by
+        ) VALUES (
+          ${teamId}, ${email}, ${role}, ${tokenHash}, ${expiresAt.toISOString()}, ${actor.userId}
+        ) RETURNING *
+      `;
+      if (!row) throw new Error("Team invitation insert did not return a row");
+      return mapTeamInvitation(row);
+    });
+  }
+
+  async revokeTeamInvitation(invitationId: string, actor: Actor): Promise<TeamInvitationRecord> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        UPDATE team_invitations SET revoked_at = now()
+        WHERE id = ${invitationId} AND accepted_at IS NULL AND revoked_at IS NULL
+        RETURNING *
+      `;
+      if (!row) throw new NotFoundError("Pending team invitation");
+      return mapTeamInvitation(row);
+    });
+  }
+
   async createBrain(
     input: CreateBrainInput & { workspaceId: string },
     actor: Actor,
@@ -80,10 +213,13 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async listBrains(actor: Actor): Promise<BrainRecord[]> {
+  async listBrains(actor: Actor, workspaceId?: string): Promise<BrainRecord[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
-        SELECT * FROM brains WHERE deleted_at IS NULL ORDER BY updated_at DESC
+        SELECT * FROM brains
+        WHERE deleted_at IS NULL
+          AND (${workspaceId ?? null}::uuid IS NULL OR workspace_id = ${workspaceId ?? null})
+        ORDER BY updated_at DESC
       `;
       return rows.map(mapBrain);
     });
@@ -806,10 +942,13 @@ export class PostgresStore implements DataStore {
         const [row] = await tx<any[]>`SELECT brain_id FROM tasks WHERE id = ${taskId}`;
         brainId = row?.brain_id ?? null;
       }
-      const workspaceId = brainId
-        ? ((await tx<any[]>`SELECT workspace_id FROM brains WHERE id = ${brainId}`)[0]
-            ?.workspace_id ?? null)
-        : null;
+      const teamMatch = resource.match(/^team:([0-9a-f-]{36})$/i);
+      const workspaceId =
+        teamMatch?.[1] ??
+        (brainId
+          ? ((await tx<any[]>`SELECT workspace_id FROM brains WHERE id = ${brainId}`)[0]
+              ?.workspace_id ?? null)
+          : null);
       await tx`
         INSERT INTO audit_events (workspace_id, brain_id, actor_id, client_id, action, resource, detail)
         VALUES (${workspaceId}, ${brainId}, ${actor.userId}, ${actor.clientId}, ${action}, ${resource}, ${JSON.stringify(detail)}::jsonb)
@@ -890,9 +1029,13 @@ export class PostgresStore implements DataStore {
     return rows.map(mapMaintenance);
   }
 
-  private async withActor<T>(actor: Actor, callback: (tx: Tx) => Promise<T>): Promise<T> {
+  private async withActor<T>(
+    actor: Actor,
+    callback: (tx: Tx) => Promise<T>,
+    extra: { ownerWorkspaceId?: string } = {},
+  ): Promise<T> {
     return (await this.client.sql.begin(async (tx) => {
-      await setActorConfig(tx, actor);
+      await setActorConfig(tx, actor, extra);
       return callback(tx);
     })) as T;
   }
@@ -901,8 +1044,20 @@ export class PostgresStore implements DataStore {
 export async function setActorConfig(
   tx: Tx,
   actor: Actor,
-  extra: { ownerBrainId?: string } = {},
+  extra: { ownerBrainId?: string; ownerWorkspaceId?: string } = {},
 ): Promise<void> {
+  const workspaceIds = [...actor.workspaceRoles.keys()];
+  const manageWorkspaceIds = [...actor.workspaceRoles]
+    .filter(([, role]) => role === "owner" || role === "admin")
+    .map(([id]) => id);
+  const ownerWorkspaceIds = [...actor.workspaceRoles]
+    .filter(([, role]) => role === "owner")
+    .map(([id]) => id);
+  if (extra.ownerWorkspaceId) {
+    workspaceIds.push(extra.ownerWorkspaceId);
+    manageWorkspaceIds.push(extra.ownerWorkspaceId);
+    ownerWorkspaceIds.push(extra.ownerWorkspaceId);
+  }
   const brainIds = [...actor.brainRoles.keys()];
   const editBrainIds = [...actor.brainRoles]
     .filter(([, role]) => role === "owner" || role === "editor")
@@ -916,7 +1071,9 @@ export async function setActorConfig(
     ownerBrainIds.push(extra.ownerBrainId);
   }
   await tx`SELECT set_config('app.user_id', ${actor.userId}, true)`;
-  await tx`SELECT set_config('app.workspace_ids', ${[...actor.workspaceRoles.keys()].join(",")}, true)`;
+  await tx`SELECT set_config('app.workspace_ids', ${workspaceIds.join(",")}, true)`;
+  await tx`SELECT set_config('app.manage_workspace_ids', ${manageWorkspaceIds.join(",")}, true)`;
+  await tx`SELECT set_config('app.owner_workspace_ids', ${ownerWorkspaceIds.join(",")}, true)`;
   await tx`SELECT set_config('app.brain_ids', ${brainIds.join(",")}, true)`;
   await tx`SELECT set_config('app.edit_brain_ids', ${editBrainIds.join(",")}, true)`;
   await tx`SELECT set_config('app.owner_brain_ids', ${ownerBrainIds.join(",")}, true)`;
@@ -934,6 +1091,37 @@ function mapBrain(row: any): BrainRecord {
     createdBy: row.created_by,
     createdAt: asDate(row.created_at),
     updatedAt: asDate(row.updated_at),
+  };
+}
+
+function mapTeam(row: any): TeamRecord {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    role: row.role,
+    createdAt: asDate(row.created_at),
+  };
+}
+
+function mapTeamMember(row: any): TeamMemberRecord {
+  return {
+    userId: row.user_id,
+    email: row.email,
+    displayName: row.display_name,
+    role: row.role,
+    createdAt: asDate(row.created_at),
+  };
+}
+
+function mapTeamInvitation(row: any): TeamInvitationRecord {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    email: row.email,
+    role: row.role,
+    expiresAt: asDate(row.expires_at),
+    createdAt: asDate(row.created_at),
   };
 }
 

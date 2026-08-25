@@ -4,6 +4,8 @@ import {
   claimTaskSchema,
   createBrainSchema,
   createTaskSchema,
+  createTeamInvitationSchema,
+  createTeamSchema,
   promoteWriteSchema,
   searchArticlesSchema,
   stageWriteSchema,
@@ -82,6 +84,28 @@ export function createMcpServer(service: OwlService, actor: Actor): McpServer {
     idempotentHint: false,
     openWorldHint: false,
   };
+
+  server.registerTool(
+    "list_teams",
+    {
+      title: "List accessible teams",
+      description: "Lists every team visible to this connection and the actor's role in each.",
+      inputSchema: {},
+      annotations: read,
+    },
+    () => result(service.listTeams(actor)),
+  );
+
+  server.registerTool(
+    "create_team",
+    {
+      title: "Create a team",
+      description: "Creates a team owned by the current account.",
+      inputSchema: createTeamSchema.shape,
+      annotations: write,
+    },
+    (input) => result(service.createTeam(createTeamSchema.parse(input), actor)),
+  );
 
   server.registerTool(
     "list_brains",
@@ -504,6 +528,21 @@ export function createMcpServer(service: OwlService, actor: Actor): McpServer {
       annotations: read,
     },
     ({ brainId }) => result(service.listMaintenance(brainId, actor)),
+  );
+
+  server.registerTool(
+    "propose_team_invite",
+    {
+      title: "Create a team invitation",
+      description:
+        "Owner/admin action. Creates a seven-day invitation token for email delivery or manual sharing.",
+      inputSchema: {
+        teamId: z.uuid(),
+        ...createTeamInvitationSchema.shape,
+      },
+      annotations: write,
+    },
+    ({ teamId, email, role }) => result(service.proposeTeamInvite(teamId, email, role, actor)),
   );
 
   server.registerTool(

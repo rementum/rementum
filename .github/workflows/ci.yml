@@ -10,6 +10,20 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: owl_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d owl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -20,5 +34,13 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Prepare integration database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d owl_test -c "CREATE ROLE owl_app LOGIN PASSWORD 'owl';"
+          OWL_DATABASE_ADMIN_URL=postgres://postgres:postgres@127.0.0.1:5432/owl_test pnpm db:migrate
       - run: pnpm check
+        env:
+          OWL_TEST_DATABASE_URL: postgres://owl_app:owl@127.0.0.1:5432/owl_test
       - run: pnpm build

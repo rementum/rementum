@@ -14,12 +14,16 @@ import { ZodError } from "zod";
 import { createAuthenticator } from "./auth.js";
 import type { AppConfig } from "./config.js";
 import { HttpEmbeddingClient } from "./embeddings.js";
+import { ResendMailer, type TransactionalMailer } from "./mailer.js";
 import { registerMcpEndpoint } from "./mcp.js";
 import { buildOauthRuntime, registerOauthRoutes } from "./oauth.js";
 import { registerApiRoutes } from "./routes.js";
 import { OpenAICompatibleSummaryGenerator } from "./summaries.js";
 
-export async function buildApp(config: AppConfig) {
+export async function buildApp(
+  config: AppConfig,
+  overrides: { mailer?: TransactionalMailer | null } = {},
+) {
   await Promise.all([
     mkdir(config.OWL_BLOB_DIR, { recursive: true }),
     mkdir(config.OWL_EXPORT_DIR, { recursive: true }),
@@ -45,6 +49,12 @@ export async function buildApp(config: AppConfig) {
     maxInputChars: config.OWL_LLM_MAX_INPUT_CHARS,
     concurrency: config.OWL_LLM_CONCURRENCY,
   });
+  const mailer =
+    overrides.mailer !== undefined
+      ? overrides.mailer
+      : config.OWL_RESEND_API_KEY && config.OWL_MAIL_FROM
+        ? new ResendMailer(config.OWL_RESEND_API_KEY, config.OWL_MAIL_FROM)
+        : null;
   const service = new OwlService(
     store,
     embeddings,
@@ -139,7 +149,7 @@ export async function buildApp(config: AppConfig) {
   );
   app.get("/openapi.json", async () => app.swagger());
 
-  await registerApiRoutes(app, service, authenticate, authRepository, config);
+  await registerApiRoutes(app, service, authenticate, authRepository, config, mailer);
   await registerMcpEndpoint(
     app,
     service,
