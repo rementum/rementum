@@ -10,8 +10,8 @@ The product is deliberately agent-first:
 - Knowledge lives in linked Markdown articles with a compact routing index.
 - Every canonical change is staged, versioned, attributed, and conflict checked.
 - Article bodies are encrypted with a per-brain key.
-- Rementum analyzes each staged memory with your configured OpenAI-compatible AI provider and
-  creates a compact routing summary.
+- Rementum creates a compact routing summary locally or with an optional OpenAI-compatible AI
+  provider.
 - Search combines routing metadata, PostgreSQL full-text search, and local multilingual
   embeddings.
 - Agents coordinate work through leased tasks and write maintenance proposals back through
@@ -61,11 +61,11 @@ For development setup and checks, read [docs/development.md](docs/development.md
 
 ## Security boundary
 
-Article bodies and version bodies are encrypted at rest. Before Rementum encrypts a staged write,
-it sends the complete resulting article body in plaintext to the OpenAI-compatible AI provider you
-configure. The provider returns the summary used for routing and conflict checks. Routing metadata
-and embeddings remain searchable and must be treated as sensitive derived data. The master key is
-not stored in the database or included in backups.
+Article bodies and version bodies are encrypted at rest. By default, Rementum creates routing
+summaries locally and does not send staged bodies to an external LLM. If you enable an
+OpenAI-compatible provider, Rementum sends it the complete resulting article body in plaintext
+before encryption. Routing metadata and embeddings remain searchable and must be treated as
+sensitive derived data. The master key is not stored in the database or included in backups.
 
 See [SECURITY.md](SECURITY.md) and the [security checklist](docs/security.md) before storing private
 knowledge.

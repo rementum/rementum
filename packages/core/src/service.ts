@@ -19,6 +19,7 @@ import {
   wrapDataKey,
 } from "./crypto.js";
 import { ConflictError, ForbiddenError, NotFoundError, SummaryGenerationError } from "./errors.js";
+import { LocalSummaryGenerator } from "./local-summary.js";
 import { slugify, splitMarkdownByHeading } from "./markdown.js";
 import type {
   Actor,
@@ -37,7 +38,7 @@ export class RementumService {
     private readonly store: DataStore,
     private readonly embeddings: EmbeddingClient,
     private readonly masterKey: Buffer,
-    private readonly summaries?: SummaryGenerator,
+    private readonly summaries: SummaryGenerator = new LocalSummaryGenerator(),
   ) {}
 
   async createTeam(input: CreateTeamInput, actor: Actor) {
@@ -236,7 +237,6 @@ export class RementumService {
       input.operation === "append"
         ? `${(await this.readArticle(articleId, actor)).body.trimEnd()}\n\n${input.body.trimStart()}`
         : input.body;
-    if (!this.summaries) throw new SummaryGenerationError("LLM summarization is not configured");
     let summary: string;
     try {
       summary = await this.summaries.generateSummary({ title: input.title, body: bodyText });

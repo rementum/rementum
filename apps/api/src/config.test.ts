@@ -1,33 +1,50 @@
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "./config.js";
 
-const validEnv = {
+const baseEnv = {
   REMENTUM_DATABASE_URL: "postgres://owl:secret@localhost/owl",
   REMENTUM_MASTER_KEY: "master-key",
   REMENTUM_COOKIE_KEYS: "cookie-key-at-least-sixteen-characters",
+};
+
+const llmEnv = {
+  ...baseEnv,
   REMENTUM_LLM_ENABLED: "true",
   REMENTUM_LLM_BASE_URL: "https://llm.example.test/v1",
   REMENTUM_LLM_MODEL: "summary-model",
 };
 
 describe("LLM configuration", () => {
-  it("requires explicit enablement", () => {
-    expect(() => loadConfig({ ...validEnv, REMENTUM_LLM_ENABLED: "false" })).toThrow(
-      /REMENTUM_LLM_ENABLED/,
-    );
+  it("uses local summaries when no provider is configured", () => {
+    const config = loadConfig({
+      ...baseEnv,
+      REMENTUM_LLM_ENABLED: "false",
+      REMENTUM_LLM_BASE_URL: "",
+      REMENTUM_LLM_MODEL: "",
+    });
+    expect(config.REMENTUM_LLM_ENABLED).toBe(false);
+    expect(config.REMENTUM_LLM_BASE_URL).toBeUndefined();
+    expect(config.REMENTUM_LLM_MODEL).toBeUndefined();
   });
 
-  it("requires an API base URL and model", () => {
-    const { REMENTUM_LLM_MODEL: _model, ...withoutModel } = validEnv;
+  it("requires an API base URL and model only when enabled", () => {
+    const { REMENTUM_LLM_MODEL: _model, ...withoutModel } = llmEnv;
     expect(() => loadConfig(withoutModel)).toThrow(/REMENTUM_LLM_MODEL/);
-    expect(() => loadConfig({ ...validEnv, REMENTUM_LLM_BASE_URL: "not-a-url" })).toThrow(
+    expect(() =>
+      loadConfig({
+        ...baseEnv,
+        REMENTUM_LLM_ENABLED: "true",
+        REMENTUM_LLM_MODEL: "summary-model",
+      }),
+    ).toThrow(/REMENTUM_LLM_BASE_URL/);
+    expect(() => loadConfig({ ...llmEnv, REMENTUM_LLM_BASE_URL: "not-a-url" })).toThrow(
       /REMENTUM_LLM_BASE_URL/,
     );
   });
 
   it("allows an unauthenticated compatible endpoint and applies safe defaults", () => {
     const config = loadConfig({
-      ...validEnv,
+      ...llmEnv,
       REMENTUM_LLM_API_KEY: "",
       REMENTUM_LLM_REASONING_EFFORT: "",
     });
@@ -40,9 +57,9 @@ describe("LLM configuration", () => {
   });
 
   it("accepts a known reasoning effort and rejects unknown values", () => {
-    const config = loadConfig({ ...validEnv, REMENTUM_LLM_REASONING_EFFORT: "high" });
+    const config = loadConfig({ ...llmEnv, REMENTUM_LLM_REASONING_EFFORT: "high" });
     expect(config.REMENTUM_LLM_REASONING_EFFORT).toBe("high");
-    expect(() => loadConfig({ ...validEnv, REMENTUM_LLM_REASONING_EFFORT: "maximum" })).toThrow(
+    expect(() => loadConfig({ ...llmEnv, REMENTUM_LLM_REASONING_EFFORT: "maximum" })).toThrow(
       /REMENTUM_LLM_REASONING_EFFORT/,
     );
   });
@@ -50,12 +67,12 @@ describe("LLM configuration", () => {
 
 describe("account email configuration", () => {
   it("requires Resend when public signup is enabled", () => {
-    expect(() => loadConfig({ ...validEnv, REMENTUM_ALLOW_SIGNUP: "true" })).toThrow(/Resend/);
+    expect(() => loadConfig({ ...baseEnv, REMENTUM_ALLOW_SIGNUP: "true" })).toThrow(/Resend/);
   });
 
   it("accepts a complete Resend configuration", () => {
     const config = loadConfig({
-      ...validEnv,
+      ...baseEnv,
       REMENTUM_ALLOW_SIGNUP: "true",
       REMENTUM_RESEND_API_KEY: "re_test",
       REMENTUM_MAIL_FROM: "Rementum <rementum@example.test>",

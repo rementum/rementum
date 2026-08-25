@@ -9,7 +9,8 @@
 
 ## Run the container stack
 
-Copy the example environment and fill the required keys and AI provider values:
+Copy the example environment and fill the required keys. The default configuration uses local
+routing summaries; configure the optional AI provider only when you want model-generated summaries:
 
 ```bash
 cp .env.example .env

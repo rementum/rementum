@@ -7,7 +7,9 @@ You need:
 - A Linux host with Docker Engine, Docker Compose v2, and OpenSSL
 - A domain with an A or AAAA record pointing to the host
 - Inbound TCP ports 80 and 443
-- An OpenAI-compatible API endpoint and model name
+
+An OpenAI-compatible API endpoint and model name are optional. Without them, Rementum creates local
+routing summaries and does not send article bodies to an external LLM.
 
 Public registration also needs a Resend API key and a verified sender. Invitation-only instances do
 not need an email provider for the first owner.
@@ -20,7 +22,7 @@ cd rementum
 ./scripts/install.sh
 ```
 
-The installer asks for the domain, owner account, model, and optional mail settings. It then:
+The installer asks for the domain, owner account, optional LLM, and optional mail settings. It then:
 
 1. Generates database passwords, a 32-byte master key, cookie keys, and a persistent OAuth signing
    key.

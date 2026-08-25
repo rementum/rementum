@@ -80,14 +80,25 @@ printf '%s' "$owner_email" | grep -Eq '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space
   || fail "Enter a valid owner email"
 owner_name=$(prompt "Owner display name" "Owner")
 
-llm_base_url=$(prompt "OpenAI-compatible API base URL" "https://api.openai.com/v1")
-case "$llm_base_url" in
-  http://*|https://*) ;;
-  *) fail "The API base URL must start with http:// or https://" ;;
+llm_enabled=$(prompt "Use an external LLM for routing summaries? (yes/no)" "no")
+llm_base_url=""
+llm_model=""
+llm_api_key=""
+case "$llm_enabled" in
+  yes|y)
+    llm_enabled=true
+    llm_base_url=$(prompt "OpenAI-compatible API base URL" "https://api.openai.com/v1")
+    case "$llm_base_url" in
+      http://*|https://*) ;;
+      *) fail "The API base URL must start with http:// or https://" ;;
+    esac
+    llm_model=$(prompt "Model name" "")
+    [ -n "$llm_model" ] || fail "A model name is required"
+    llm_api_key=$(prompt_secret "API key (leave empty for a keyless local provider)")
+    ;;
+  no|n) llm_enabled=false ;;
+  *) fail "Answer yes or no for external LLM summaries" ;;
 esac
-llm_model=$(prompt "Model name" "")
-[ -n "$llm_model" ] || fail "A model name is required"
-llm_api_key=$(prompt_secret "API key (leave empty for a keyless local provider)")
 
 allow_signup=$(prompt "Allow public account registration? (yes/no)" "no")
 case "$allow_signup" in
@@ -155,7 +166,7 @@ REMENTUM_LOG_LEVEL='info'
 REMENTUM_EMBEDDINGS_URL='http://embeddings:8790'
 REMENTUM_EMBEDDING_MODEL='intfloat/multilingual-e5-small'
 
-REMENTUM_LLM_ENABLED='true'
+REMENTUM_LLM_ENABLED='$llm_enabled'
 REMENTUM_LLM_BASE_URL='$llm_base_url'
 REMENTUM_LLM_MODEL='$llm_model'
 REMENTUM_LLM_API_KEY='$llm_api_key'

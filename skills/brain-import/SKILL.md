@@ -11,7 +11,6 @@ description: Scope and import Markdown or an Obsidian vault into Rementum withou
    material, and article count before staging.
 4. Evergreen topics become canonical articles. Confirm daily/journal classification before using logs.
 5. Every import change summary starts with `import:` and carries the original path as a source.
-6. Staging sends each imported article body to Rementum's configured AI provider to generate its
-   routing summary.
+6. Staging creates each routing summary locally or through the instance's optional AI provider.
 7. The import produces staged writes only. List every staged id, conflict, unresolved link, and skipped
    file so the user can finish the batch deliberately.

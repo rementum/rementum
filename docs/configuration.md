@@ -21,10 +21,11 @@ or a missing persistent JWKS in that mode.
 Do not replace `REMENTUM_MASTER_KEY` on an existing instance. Rementum will lose access to every
 wrapped brain key. Keep the original value with your disaster-recovery material.
 
-## AI provider
+## Routing summaries
 
 | Variable | Purpose |
 | --- | --- |
+| `REMENTUM_LLM_ENABLED` | Uses an external OpenAI-compatible provider when set to `true`; defaults to `false` |
 | `REMENTUM_LLM_BASE_URL` | API root that contains `/chat/completions` |
 | `REMENTUM_LLM_MODEL` | Provider model identifier |
 | `REMENTUM_LLM_API_KEY` | Provider credential; keyless local endpoints may leave it empty |
@@ -33,8 +34,14 @@ wrapped brain key. Keep the original value with your disaster-recovery material.
 | `REMENTUM_LLM_MAX_INPUT_CHARS` | Maximum staged body size sent for analysis |
 | `REMENTUM_LLM_CONCURRENCY` | Maximum concurrent summary requests |
 
-The API requires the provider because every staged write needs a routing summary and conflict check.
-The provider receives the complete candidate article body in plaintext.
+With the default `REMENTUM_LLM_ENABLED=false`, Rementum derives a deterministic routing summary from
+the article text inside the instance. It does not make an external LLM request. Local summaries are
+less semantic than model-generated summaries, but staging, conflict checks, routing, and search all
+remain available.
+
+Set `REMENTUM_LLM_ENABLED=true` together with a base URL and model to use an external provider. The
+provider then receives the complete candidate article body in plaintext. If an enabled provider is
+unavailable or returns an invalid response, staging fails instead of silently changing to local mode.
 
 ## Email
 

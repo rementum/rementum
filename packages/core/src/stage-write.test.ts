@@ -145,3 +145,27 @@ describe("AI-generated staged-write summaries", () => {
     expect(store.createStagedWrite).not.toHaveBeenCalled();
   });
 });
+
+describe("local staged-write summaries", () => {
+  it("stages a write when no external summary generator is configured", async () => {
+    const store = {
+      getBrain: vi.fn(async () => brain()),
+      getStagedWriteByIdempotencyKey: vi.fn(async () => null),
+      findPotentialConflicts: vi.fn(async () => []),
+      createStagedWrite: vi.fn(async (input) => write(input.summary)),
+      audit: vi.fn(async () => undefined),
+    } as unknown as DataStore;
+    const service = new RementumService(store, {} as EmbeddingClient, masterKey);
+
+    await expect(service.stageWrite(createInput(), actor)).resolves.toMatchObject({
+      summary: "Canonical body",
+    });
+    expect(store.findPotentialConflicts).toHaveBeenCalledWith(
+      brainId,
+      undefined,
+      "Architecture",
+      "Canonical body",
+      actor,
+    );
+  });
+});

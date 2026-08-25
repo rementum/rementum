@@ -189,7 +189,7 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
     {
       title: "Stage an article write",
       description:
-        "Stages a create, full canonical update, or log append. Rementum sends the resulting plaintext body to the configured AI provider and stores its generated summary. Read the current article first and pass its version for edits.",
+        "Stages a create, full canonical update, or log append. Rementum creates and stores a routing summary locally or through the configured optional AI provider. Read the current article first and pass its version for edits.",
       inputSchema: stageWriteSchema.shape,
       annotations: write,
     },
@@ -270,7 +270,7 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
     {
       title: "Stage Markdown documents",
       description:
-        "Stages a reviewed batch of Markdown documents and generates each summary with the configured AI provider. It never promotes the imported writes.",
+        "Stages a reviewed batch of Markdown documents and creates each routing summary locally or through the configured optional AI provider. It never promotes the imported writes.",
       inputSchema: {
         brainId: z.uuid(),
         documents: z

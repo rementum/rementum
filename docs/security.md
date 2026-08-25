@@ -22,11 +22,15 @@ PostgreSQL or the embedding service to the public network.
 Rementum encrypts article content at the application layer. PostgreSQL still stores routing
 summaries, titles, links, audit metadata, and embeddings. Use encrypted disks and encrypted backups.
 
-## AI provider
+## Routing summary mode
 
-The API sends each complete staged candidate body to the configured OpenAI-compatible provider for
-summary and conflict analysis. Review that provider's retention, training, regional processing, and
-access policies before you connect it.
+The default local mode derives routing summaries inside the API process and does not send staged
+candidate bodies to an external LLM. The derived summary remains searchable metadata and is not
+covered by article-body encryption.
+
+When `REMENTUM_LLM_ENABLED=true`, the API sends each complete staged candidate body to the configured
+OpenAI-compatible provider for summary generation. Review that provider's retention, training,
+regional processing, and access policies before you connect it.
 
 ## Accounts
 
