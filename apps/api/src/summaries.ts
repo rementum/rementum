@@ -24,6 +24,7 @@ interface SummaryClientOptions {
   baseUrl: string;
   model: string;
   apiKey?: string;
+  reasoningEffort?: string;
   timeoutMs: number;
   maxInputChars: number;
   concurrency: number;
@@ -102,7 +103,13 @@ export class OpenAICompatibleSummaryGenerator implements SummaryGenerator {
               { role: "user", content: user },
             ],
             temperature: 0,
-            max_tokens: 350,
+            // Reasoning models spend part of this budget on reasoning tokens
+            // before emitting content, so the cap must stay far above the
+            // 1,000-character summary target.
+            max_tokens: 10_000,
+            ...(this.options.reasoningEffort
+              ? { reasoning_effort: this.options.reasoningEffort }
+              : {}),
           }),
           signal: AbortSignal.timeout(this.options.timeoutMs),
         });

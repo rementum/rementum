@@ -2451,8 +2451,7 @@ summary:focus-visible {
   overflow: hidden;
   border: 1px solid var(--glass-border);
   border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgb(20 20 26 / 92%), rgb(12 12 16 / 96%));
+  background: linear-gradient(180deg, rgb(20 20 26 / 92%), rgb(12 12 16 / 96%));
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   box-shadow:
@@ -2678,7 +2677,13 @@ summary:focus-visible {
   inset: 0;
   border-radius: 16px;
   padding: 1px;
-  background: linear-gradient(140deg, var(--accent-1), transparent 42%, transparent 58%, var(--accent-2));
+  background: linear-gradient(
+    140deg,
+    var(--accent-1),
+    transparent 42%,
+    transparent 58%,
+    var(--accent-2)
+  );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -2860,9 +2865,7 @@ summary:focus-visible {
   padding: 48px;
   border: 1px solid var(--glass-border);
   border-radius: 20px;
-  background:
-    linear-gradient(135deg, rgb(99 102 241 / 14%), rgb(34 211 238 / 6%)),
-    var(--surface);
+  background: linear-gradient(135deg, rgb(99 102 241 / 14%), rgb(34 211 238 / 6%)), var(--surface);
 }
 
 .cta-glow {

@@ -20,6 +20,10 @@ const configSchema = z
       (value) => (value === "" ? undefined : value),
       z.string().min(1).optional(),
     ),
+    OWL_LLM_REASONING_EFFORT: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.enum(["none", "minimal", "low", "medium", "high"]).optional(),
+    ),
     OWL_LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(45_000),
     OWL_LLM_MAX_INPUT_CHARS: z.coerce.number().int().min(8000).max(200_000).default(24_000),
     OWL_LLM_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
