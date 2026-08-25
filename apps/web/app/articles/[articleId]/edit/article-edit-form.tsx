@@ -63,8 +63,8 @@ export function ArticleEditForm({ article }: { article: Article }) {
         <input name="title" defaultValue={article.title} required maxLength={240} />
       </label>
       <p className="form-note">
-        Rementum will send this draft to your configured AI provider and generate its routing
-        summary when you stage the edit.
+        Rementum generates a routing summary when you stage this edit. Instances with an external
+        LLM enabled send the complete draft to that provider.
       </p>
       <label>
         Keywords

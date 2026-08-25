@@ -16,9 +16,11 @@ Until 1.0, only the most recent release receives security fixes.
 - The root wrapping key is supplied as `REMENTUM_MASTER_KEY` and never persisted or backed up.
 - OAuth access tokens are audience restricted and short lived; refresh tokens rotate.
 - Agent writes never bypass the staged-write and promotion protocol.
-- The API requires `REMENTUM_LLM_ENABLED=true`. It sends each staged candidate body in plaintext to the
+- The default local summary mode does not send staged candidate bodies to an external LLM.
+- When `REMENTUM_LLM_ENABLED=true`, the API sends each staged candidate body in plaintext to the
   configured OpenAI-compatible provider before encrypting the staged body.
 
 Metadata and embeddings are not covered by article-body encryption. Administrators should use
-full-disk and backup encryption in addition to Rementum's application-layer encryption. They
-must also choose an AI provider whose retention and training policies fit their data requirements.
+full-disk and backup encryption in addition to Rementum's application-layer encryption. Instances
+that enable an AI provider must also choose one whose retention and training policies fit their data
+requirements.

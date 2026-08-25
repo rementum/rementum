@@ -3,8 +3,8 @@
 ![Rementum](assets/rementum-banner.png){ .rementum-banner }
 
 Rementum gives AI agents a self-hosted knowledge base with versioned Markdown, staged writes,
-task coordination, and OAuth-protected MCP access. You control the database, encryption key, AI
-provider, and backups.
+task coordination, and OAuth-protected MCP access. You control the database, encryption key,
+optional AI provider, and backups.
 
 ## Install on your server
 
@@ -42,5 +42,7 @@ Rementum encrypts article bodies, version bodies, and staged bodies with per-bra
 instance master key wraps those keys. Search metadata and embeddings remain visible to the database
 operator.
 
-Each staged write goes to the configured OpenAI-compatible provider in plaintext before Rementum
-encrypts it. Choose a provider whose retention policy fits your data.
+By default, Rementum creates routing summaries locally and staged article bodies stay inside the
+instance. If you enable an OpenAI-compatible provider, each complete candidate body goes to that
+provider in plaintext before Rementum encrypts it. Choose a provider whose retention policy fits
+your data.

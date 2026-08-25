@@ -38,17 +38,20 @@ export async function buildApp(
   const store = new PostgresStore(database);
   const authRepository = new AuthRepository(database);
   const embeddings = new HttpEmbeddingClient(config.REMENTUM_EMBEDDINGS_URL);
-  const summaries = new OpenAICompatibleSummaryGenerator({
-    baseUrl: config.REMENTUM_LLM_BASE_URL,
-    model: config.REMENTUM_LLM_MODEL,
-    ...(config.REMENTUM_LLM_API_KEY ? { apiKey: config.REMENTUM_LLM_API_KEY } : {}),
-    ...(config.REMENTUM_LLM_REASONING_EFFORT
-      ? { reasoningEffort: config.REMENTUM_LLM_REASONING_EFFORT }
-      : {}),
-    timeoutMs: config.REMENTUM_LLM_TIMEOUT_MS,
-    maxInputChars: config.REMENTUM_LLM_MAX_INPUT_CHARS,
-    concurrency: config.REMENTUM_LLM_CONCURRENCY,
-  });
+  const summaries =
+    config.REMENTUM_LLM_ENABLED && config.REMENTUM_LLM_BASE_URL && config.REMENTUM_LLM_MODEL
+      ? new OpenAICompatibleSummaryGenerator({
+          baseUrl: config.REMENTUM_LLM_BASE_URL,
+          model: config.REMENTUM_LLM_MODEL,
+          ...(config.REMENTUM_LLM_API_KEY ? { apiKey: config.REMENTUM_LLM_API_KEY } : {}),
+          ...(config.REMENTUM_LLM_REASONING_EFFORT
+            ? { reasoningEffort: config.REMENTUM_LLM_REASONING_EFFORT }
+            : {}),
+          timeoutMs: config.REMENTUM_LLM_TIMEOUT_MS,
+          maxInputChars: config.REMENTUM_LLM_MAX_INPUT_CHARS,
+          concurrency: config.REMENTUM_LLM_CONCURRENCY,
+        })
+      : undefined;
   const mailer =
     overrides.mailer !== undefined
       ? overrides.mailer

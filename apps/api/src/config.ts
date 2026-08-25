@@ -13,9 +13,18 @@ const configSchema = z
     REMENTUM_BLOB_DIR: z.string().default("./data/blobs"),
     REMENTUM_EXPORT_DIR: z.string().default("./data/exports"),
     REMENTUM_EMBEDDINGS_URL: z.url().default("http://localhost:8790"),
-    REMENTUM_LLM_ENABLED: z.literal("true").transform(() => true),
-    REMENTUM_LLM_BASE_URL: z.url(),
-    REMENTUM_LLM_MODEL: z.string().min(1),
+    REMENTUM_LLM_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    REMENTUM_LLM_BASE_URL: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.url().optional(),
+    ),
+    REMENTUM_LLM_MODEL: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
     REMENTUM_LLM_API_KEY: z.preprocess(
       (value) => (value === "" ? undefined : value),
       z.string().min(1).optional(),
@@ -48,6 +57,20 @@ const configSchema = z
       .default("info"),
   })
   .superRefine((value, ctx) => {
+    if (value.REMENTUM_LLM_ENABLED && !value.REMENTUM_LLM_BASE_URL) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["REMENTUM_LLM_BASE_URL"],
+        message: "An OpenAI-compatible API base URL is required when LLM summaries are enabled",
+      });
+    }
+    if (value.REMENTUM_LLM_ENABLED && !value.REMENTUM_LLM_MODEL) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["REMENTUM_LLM_MODEL"],
+        message: "A model name is required when LLM summaries are enabled",
+      });
+    }
     if (value.NODE_ENV === "production" && !value.REMENTUM_JWT_JWKS) {
       ctx.addIssue({
         code: "custom",
