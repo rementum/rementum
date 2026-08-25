@@ -11,6 +11,7 @@ import { DomainError, parseMasterKey, RementumService } from "@rementum/core";
 import { AuthRepository, createDatabaseClient, PostgresStore } from "@rementum/db";
 import Fastify from "fastify";
 import { ZodError } from "zod";
+import { accessScopeDescriptions } from "./access.js";
 import { createAuthenticator } from "./auth.js";
 import type { AppConfig } from "./config.js";
 import { HttpEmbeddingClient } from "./embeddings.js";
@@ -94,12 +95,7 @@ export async function buildApp(
               authorizationCode: {
                 authorizationUrl: `${oauth.issuer}/auth`,
                 tokenUrl: `${oauth.issuer}/token`,
-                scopes: {
-                  "brain:read": "Read brains and articles",
-                  "brain:write": "Stage and promote brain changes",
-                  "task:read": "Read task queues",
-                  "task:write": "Coordinate tasks",
-                },
+                scopes: accessScopeDescriptions,
               },
             },
           },
@@ -121,13 +117,14 @@ export async function buildApp(
     oauth.provider.callback()(request, response).catch(next);
   });
 
-  app.get("/healthz", async (_request, reply) => {
+  app.get("/healthz", async (request, reply) => {
     try {
       await database.sql`SELECT 1`;
       const semantic = await embeddings.healthy();
       return reply.code(200).send({ ok: true, version: "0.1.0", semanticSearch: semantic });
     } catch (error) {
-      return reply.code(503).send({ ok: false, error: (error as Error).message });
+      request.log.error(error, "Health check failed");
+      return reply.code(503).send({ ok: false, error: "dependency_unavailable" });
     }
   });
   app.get("/readyz", async (_request, reply) => {
@@ -157,7 +154,7 @@ export async function buildApp(
     app,
     service,
     authenticate,
-    `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource`,
+    `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource/mcp`,
   );
 
   app.setErrorHandler((error, request, reply) => {
@@ -182,6 +179,12 @@ export async function buildApp(
         reply.header(
           "WWW-Authenticate",
           `Bearer resource_metadata="${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource"`,
+        );
+      }
+      if (error.code === "insufficient_scope") {
+        reply.header(
+          "WWW-Authenticate",
+          `Bearer error="insufficient_scope", scope="${String(error.detail?.requiredScope ?? "")}"`,
         );
       }
       return reply

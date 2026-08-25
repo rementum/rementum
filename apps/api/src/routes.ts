@@ -11,7 +11,6 @@ import {
   taskStatusSchema,
 } from "@rementum/contracts";
 import {
-  type Actor,
   DomainError,
   hashContent,
   inspectMarkdownArchive,
@@ -24,11 +23,12 @@ import { hash, verify } from "argon2";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import JSZip from "jszip";
 import { z } from "zod";
+import { type AccessScope, requireAccessScope, type ScopedActor } from "./access.js";
 import type { AppConfig } from "./config.js";
 import type { TransactionalMailer } from "./mailer.js";
 import { sanitize } from "./mcp.js";
 
-type Authenticate = (request: FastifyRequest) => Promise<Actor>;
+type Authenticate = (request: FastifyRequest) => Promise<ScopedActor>;
 
 export async function registerApiRoutes(
   app: FastifyInstance,
@@ -40,6 +40,8 @@ export async function registerApiRoutes(
 ): Promise<void> {
   const publicUrl = config.REMENTUM_PUBLIC_URL.replace(/\/$/, "");
   const authRateLimit = { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } };
+  const authorize = async (request: FastifyRequest, scope: AccessScope) =>
+    requireAccessScope(await authenticate(request), scope);
 
   app.get("/api/v1/auth/config", async () => ({ signupEnabled: config.REMENTUM_ALLOW_SIGNUP }));
 
@@ -184,7 +186,7 @@ export async function registerApiRoutes(
       request,
       input,
       invitation.email,
-      authenticate,
+      (target) => authorize(target, "team:write"),
       authRepository,
     );
     const accepted = await authRepository.acceptTeamInvitation(
@@ -220,7 +222,7 @@ export async function registerApiRoutes(
       request,
       input,
       invitation.email,
-      authenticate,
+      (target) => authorize(target, "brain:write"),
       authRepository,
     );
     const accepted = await authRepository.acceptBrainInvitation(
@@ -232,38 +234,48 @@ export async function registerApiRoutes(
     return reply.code(201).send(accepted);
   });
 
-  app.get("/api/v1/teams", async (request) => service.listTeams(await authenticate(request)));
+  app.get("/api/v1/teams", async (request) =>
+    service.listTeams(await authorize(request, "team:read")),
+  );
   app.post("/api/v1/teams", async (request, reply) =>
     reply
       .code(201)
       .send(
-        await service.createTeam(createTeamSchema.parse(request.body), await authenticate(request)),
+        await service.createTeam(
+          createTeamSchema.parse(request.body),
+          await authorize(request, "team:write"),
+        ),
       ),
   );
   app.get("/api/v1/teams/:teamId/members", async (request) => {
     const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
-    return service.listTeamMembers(teamId, await authenticate(request));
+    return service.listTeamMembers(teamId, await authorize(request, "team:read"));
   });
   app.patch("/api/v1/teams/:teamId/members/:userId", async (request) => {
     const { teamId, userId } = z
       .object({ teamId: z.uuid(), userId: z.uuid() })
       .parse(request.params);
     const { role } = z.object({ role: z.enum(["admin", "member"]) }).parse(request.body);
-    return service.updateTeamMemberRole(teamId, userId, role, await authenticate(request));
+    return service.updateTeamMemberRole(
+      teamId,
+      userId,
+      role,
+      await authorize(request, "team:write"),
+    );
   });
   app.delete("/api/v1/teams/:teamId/members/:userId", async (request, reply) => {
     const { teamId, userId } = z
       .object({ teamId: z.uuid(), userId: z.uuid() })
       .parse(request.params);
-    await service.removeTeamMember(teamId, userId, await authenticate(request));
+    await service.removeTeamMember(teamId, userId, await authorize(request, "team:write"));
     return reply.code(204).send();
   });
   app.get("/api/v1/teams/:teamId/invitations", async (request) => {
     const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
-    return service.listTeamInvitations(teamId, await authenticate(request));
+    return service.listTeamInvitations(teamId, await authorize(request, "team:read"));
   });
   app.post("/api/v1/teams/:teamId/invitations", async (request, reply) => {
-    const actor = await authenticate(request);
+    const actor = await authorize(request, "team:write");
     const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
     const input = createTeamInvitationSchema.parse(request.body);
     const invitation = await service.proposeTeamInvite(teamId, input.email, input.role, actor);
@@ -280,7 +292,7 @@ export async function registerApiRoutes(
     return reply.code(201).send({ ...invitation, token: undefined, acceptanceUrl, emailSent });
   });
   app.post("/api/v1/team-invitations/:invitationId/resend", async (request) => {
-    const actor = await authenticate(request);
+    const actor = await authorize(request, "team:write");
     const { invitationId } = z.object({ invitationId: z.uuid() }).parse(request.params);
     const invitation = await service.resendTeamInvite(invitationId, actor);
     const acceptanceUrl = `${publicUrl}/team-invite/${invitation.token}`;
@@ -297,56 +309,61 @@ export async function registerApiRoutes(
   });
   app.delete("/api/v1/team-invitations/:invitationId", async (request, reply) => {
     const { invitationId } = z.object({ invitationId: z.uuid() }).parse(request.params);
-    await service.revokeTeamInvite(invitationId, await authenticate(request));
+    await service.revokeTeamInvite(invitationId, await authorize(request, "team:write"));
     return reply.code(204).send();
   });
 
   app.get("/api/v1/brains", async (request) => {
     const { workspaceId } = z.object({ workspaceId: z.uuid().optional() }).parse(request.query);
-    return service.listBrains(await authenticate(request), workspaceId);
+    return service.listBrains(await authorize(request, "brain:read"), workspaceId);
   });
   app.post("/api/v1/brains", async (request, reply) => {
-    const actor = await authenticate(request);
+    const actor = await authorize(request, "brain:write");
     return reply
       .code(201)
       .send(await service.createBrain(createBrainSchema.parse(request.body), actor));
   });
   app.get("/api/v1/brains/:brainId", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
-    return service.getBrain(brainId, await authenticate(request));
+    return service.getBrain(brainId, await authorize(request, "brain:read"));
   });
   app.get("/api/v1/brains/:brainId/activity", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     const { limit } = z
       .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
       .parse(request.query);
-    return service.recentActivity(brainId, limit, await authenticate(request));
+    return service.recentActivity(brainId, limit, await authorize(request, "brain:read"));
   });
   app.get("/api/v1/articles/:articleId", async (request) => {
     const { articleId } = z.object({ articleId: z.uuid() }).parse(request.params);
-    return service.readArticle(articleId, await authenticate(request));
+    return service.readArticle(articleId, await authorize(request, "brain:read"));
   });
   app.get("/api/v1/articles/:articleId/history", async (request) => {
     const { articleId } = z.object({ articleId: z.uuid() }).parse(request.params);
-    return sanitize(await service.listArticleHistory(articleId, await authenticate(request)));
+    return sanitize(
+      await service.listArticleHistory(articleId, await authorize(request, "brain:read")),
+    );
   });
   app.post("/api/v1/search", async (request) =>
-    service.search(searchArticlesSchema.parse(request.body), await authenticate(request)),
+    service.search(
+      searchArticlesSchema.parse(request.body),
+      await authorize(request, "brain:read"),
+    ),
   );
   app.post("/api/v1/writes", async (request, reply) => {
     const value = await service.stageWrite(
       stageWriteSchema.parse(request.body),
-      await authenticate(request),
+      await authorize(request, "brain:write"),
     );
     return reply.code(201).send(sanitize(value));
   });
   app.get("/api/v1/writes/:writeId", async (request) => {
     const { writeId } = z.object({ writeId: z.uuid() }).parse(request.params);
-    return sanitize(await service.getWriteStatus(writeId, await authenticate(request)));
+    return sanitize(await service.getWriteStatus(writeId, await authorize(request, "brain:read")));
   });
   app.get("/api/v1/writes/:writeId/review", async (request) => {
     const { writeId } = z.object({ writeId: z.uuid() }).parse(request.params);
-    const review = await service.reviewStagedWrite(writeId, await authenticate(request));
+    const review = await service.reviewStagedWrite(writeId, await authorize(request, "brain:read"));
     return {
       write: sanitize(review.write),
       currentBody: review.currentBody,
@@ -360,39 +377,41 @@ export async function registerApiRoutes(
         status: z.enum(["pending", "promoted", "conflicted", "withdrawn"]).optional(),
       })
       .parse(request.query);
-    return sanitize(await service.listStagedWrites(brainId, status, await authenticate(request)));
+    return sanitize(
+      await service.listStagedWrites(brainId, status, await authorize(request, "brain:read")),
+    );
   });
   app.post("/api/v1/writes/:writeId/promote", async (request) => {
     const { writeId } = z.object({ writeId: z.uuid() }).parse(request.params);
     return sanitize(
       await service.promoteWrite(
         promoteWriteSchema.parse({ ...(request.body as object), writeId }),
-        await authenticate(request),
+        await authorize(request, "brain:write"),
       ),
     );
   });
   app.post("/api/v1/writes/:writeId/withdraw", async (request) => {
     const { writeId } = z.object({ writeId: z.uuid() }).parse(request.params);
-    return sanitize(await service.withdrawWrite(writeId, await authenticate(request)));
+    return sanitize(await service.withdrawWrite(writeId, await authorize(request, "brain:write")));
   });
   app.get("/api/v1/brains/:brainId/tasks", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
-    return service.listTasks(brainId, await authenticate(request));
+    return service.listTasks(brainId, await authorize(request, "task:read"));
   });
   app.post("/api/v1/tasks", async (request, reply) => {
     const task = await service.createTask(
       createTaskSchema.parse(request.body),
-      await authenticate(request),
+      await authorize(request, "task:write"),
     );
     return reply.code(201).send(task);
   });
   app.get("/api/v1/tasks/:taskId", async (request) => {
     const { taskId } = z.object({ taskId: z.uuid() }).parse(request.params);
-    return service.getTask(taskId, await authenticate(request));
+    return service.getTask(taskId, await authorize(request, "task:read"));
   });
   app.get("/api/v1/tasks/:taskId/comments", async (request) => {
     const { taskId } = z.object({ taskId: z.uuid() }).parse(request.params);
-    return service.listTaskComments(taskId, await authenticate(request));
+    return service.listTaskComments(taskId, await authorize(request, "task:read"));
   });
   app.post("/api/v1/tasks/claim", async (request) => {
     const input = claimTaskSchema.parse(request.body);
@@ -400,7 +419,7 @@ export async function registerApiRoutes(
       input.brainId,
       input.taskId,
       input.leaseSeconds,
-      await authenticate(request),
+      await authorize(request, "task:write"),
     );
   });
   app.post("/api/v1/tasks/:taskId/heartbeat", async (request) => {
@@ -408,12 +427,12 @@ export async function registerApiRoutes(
     const { leaseSeconds } = z
       .object({ leaseSeconds: z.number().int().min(60).max(3600).default(600) })
       .parse(request.body);
-    return service.heartbeatTask(taskId, leaseSeconds, await authenticate(request));
+    return service.heartbeatTask(taskId, leaseSeconds, await authorize(request, "task:write"));
   });
   app.post("/api/v1/tasks/:taskId/release", async (request) => {
     const { taskId } = z.object({ taskId: z.uuid() }).parse(request.params);
     const { force } = z.object({ force: z.boolean().default(false) }).parse(request.body ?? {});
-    return service.releaseTask(taskId, force, await authenticate(request));
+    return service.releaseTask(taskId, force, await authorize(request, "task:write"));
   });
   app.patch("/api/v1/tasks/:taskId", async (request) => {
     const { taskId } = z.object({ taskId: z.uuid() }).parse(request.params);
@@ -428,42 +447,42 @@ export async function registerApiRoutes(
     return service.updateTask(
       taskId,
       Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
-      await authenticate(request),
+      await authorize(request, "task:write"),
     );
   });
   app.post("/api/v1/tasks/:taskId/comments", async (request, reply) => {
     const { taskId } = z.object({ taskId: z.uuid() }).parse(request.params);
     const { body } = z.object({ body: z.string().min(1).max(20_000) }).parse(request.body);
-    await service.commentTask(taskId, body, await authenticate(request));
+    await service.commentTask(taskId, body, await authorize(request, "task:write"));
     return reply.code(201).send({ ok: true });
   });
   app.post("/api/v1/brains/:brainId/maintenance/scan", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
-    return service.scanMaintenance(brainId, await authenticate(request));
+    return service.scanMaintenance(brainId, await authorize(request, "brain:write"));
   });
   app.get("/api/v1/brains/:brainId/maintenance", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
-    return service.listMaintenance(brainId, await authenticate(request));
+    return service.listMaintenance(brainId, await authorize(request, "brain:read"));
   });
   app.patch("/api/v1/maintenance/:candidateId", async (request) => {
     const { candidateId } = z.object({ candidateId: z.uuid() }).parse(request.params);
     const { status } = z.object({ status: z.enum(["resolved", "dismissed"]) }).parse(request.body);
-    return service.updateMaintenance(candidateId, status, await authenticate(request));
+    return service.updateMaintenance(candidateId, status, await authorize(request, "brain:write"));
   });
 
   app.get("/api/v1/connections", async (request) => {
-    const actor = await authenticate(request);
+    const actor = await authorize(request, "connection:read");
     return authRepository.listConnections(actor.userId);
   });
   app.delete("/api/v1/connections/:grantId", async (request, reply) => {
-    const actor = await authenticate(request);
+    const actor = await authorize(request, "connection:write");
     const { grantId } = z.object({ grantId: z.string().min(1).max(240) }).parse(request.params);
     const revoked = await authRepository.revokeConnection(actor.userId, grantId);
     return revoked ? reply.code(204).send() : reply.code(404).send();
   });
 
   app.post("/api/v1/brains/:brainId/invitations", async (request, reply) => {
-    const actor = await authenticate(request);
+    const actor = await authorize(request, "brain:write");
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     const input = z
       .object({
@@ -491,7 +510,7 @@ export async function registerApiRoutes(
   });
 
   app.post("/api/v1/brains/:brainId/imports/preview", async (request) => {
-    const actor = await authenticate(request);
+    const actor = await authorize(request, "brain:write");
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     requireBrainRole(actor, brainId, ["owner", "editor"]);
     const upload = await request.file();
@@ -501,7 +520,7 @@ export async function registerApiRoutes(
   });
 
   app.post("/api/v1/brains/:brainId/imports/stage", async (request, reply) => {
-    const actor = await authenticate(request);
+    const actor = await authorize(request, "brain:write");
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     requireBrainRole(actor, brainId, ["owner", "editor"]);
     const upload = await request.file();
@@ -547,7 +566,7 @@ export async function registerApiRoutes(
   });
 
   app.get("/api/v1/brains/:brainId/export", async (request, reply) => {
-    const actor = await authenticate(request);
+    const actor = await authorize(request, "brain:read");
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     requireBrainRole(actor, brainId, ["owner"]);
     const brain = await service.getBrain(brainId, actor, 10_000);

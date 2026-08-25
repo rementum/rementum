@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       redirect_uri: `${publicUrl.replace(/\/$/, "")}/auth/callback`,
       code,
       code_verifier: verifier,
-      resource: `${publicUrl.replace(/\/$/, "")}/mcp`,
+      resource: `${publicUrl.replace(/\/$/, "")}/api`,
     }),
     cache: "no-store",
   });
