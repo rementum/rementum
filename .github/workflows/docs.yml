@@ -2,6 +2,8 @@ name: Documentation
 
 on:
   push:
+    branches:
+      - main
     paths:
       - ".github/workflows/docs.yml"
       - "docs/**"
@@ -18,7 +20,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
