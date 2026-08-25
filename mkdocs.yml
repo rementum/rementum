@@ -9,7 +9,7 @@ copyright: Copyright &copy; Rementum contributors
 theme:
   name: material
   logo: assets/logo.svg
-  favicon: assets/logo.svg
+  favicon: assets/favicon.svg
   features:
     - content.code.copy
     - navigation.footer
