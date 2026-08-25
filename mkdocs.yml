@@ -1,5 +1,6 @@
 site_name: Owl Memory
 site_description: Self-hosted, versioned memory for AI agents
+site_url: https://yibudak.github.io/owl-memory/
 repo_url: https://github.com/yibudak/owl-memory
 repo_name: yibudak/owl-memory
 edit_uri: edit/main/docs/
