@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArticleMarkdown } from "../../../components/article-markdown";
 import { api } from "../../../lib/api";
 
 interface Article {
@@ -49,7 +50,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ articl
       </header>
       <div className="article-columns">
         <article className="markdown">
-          <Markdown body={article.body} />
+          <ArticleMarkdown body={article.body} />
         </article>
         <aside className="provenance">
           <span>Latest change</span>
@@ -81,20 +82,4 @@ export default async function ArticlePage({ params }: { params: Promise<{ articl
       </div>
     </main>
   );
-}
-
-function Markdown({ body }: { body: string }) {
-  const blocks = body.split(/\n{2,}/);
-  let offset = 0;
-  return blocks.map((block) => {
-    const start = body.indexOf(block, offset);
-    offset = start + block.length;
-    const key = `${start}:${block.slice(0, 24)}`;
-    if (block.startsWith("### ")) return <h3 key={key}>{block.slice(4)}</h3>;
-    if (block.startsWith("## ")) return <h2 key={key}>{block.slice(3)}</h2>;
-    if (block.startsWith("# ")) return <h1 key={key}>{block.slice(2)}</h1>;
-    if (block.startsWith("```"))
-      return <pre key={key}>{block.replace(/^```\w*\n?|```$/g, "")}</pre>;
-    return <p key={key}>{block}</p>;
-  });
 }
