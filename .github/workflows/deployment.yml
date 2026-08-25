@@ -44,6 +44,7 @@ jobs:
         run: |
           shellcheck scripts/*.sh deploy/backup/*.sh deploy/postgres/*.sh
           sh -n scripts/*.sh deploy/backup/*.sh deploy/postgres/*.sh
+          ./scripts/test_install.sh
           node --check deploy/setup/generate-jwks.mjs
       - name: Validate Compose files
         run: |
