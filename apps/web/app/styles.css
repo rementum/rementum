@@ -14,6 +14,7 @@
   --accent-ink: #17211e;
   --brand: #2f6f5e;
   --brand-light: #79aa98;
+  --brand-mark: #2f8a70;
   --danger: #e2b6b6;
   --danger-surface: #261c1e;
   --success: #c8d6cb;
@@ -101,8 +102,12 @@ summary:focus-visible {
   fill: currentcolor;
 }
 
+.brand-mark-tile {
+  fill: #17211e;
+}
+
 .brand-mark-accent {
-  fill: var(--brand-light);
+  fill: var(--brand-mark);
 }
 
 .public-site {
