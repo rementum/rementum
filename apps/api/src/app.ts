@@ -38,6 +38,9 @@ export async function buildApp(config: AppConfig) {
     baseUrl: config.OWL_LLM_BASE_URL,
     model: config.OWL_LLM_MODEL,
     ...(config.OWL_LLM_API_KEY ? { apiKey: config.OWL_LLM_API_KEY } : {}),
+    ...(config.OWL_LLM_REASONING_EFFORT
+      ? { reasoningEffort: config.OWL_LLM_REASONING_EFFORT }
+      : {}),
     timeoutMs: config.OWL_LLM_TIMEOUT_MS,
     maxInputChars: config.OWL_LLM_MAX_INPUT_CHARS,
     concurrency: config.OWL_LLM_CONCURRENCY,

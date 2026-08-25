@@ -24,11 +24,20 @@ describe("LLM configuration", () => {
   });
 
   it("allows an unauthenticated compatible endpoint and applies safe defaults", () => {
-    const config = loadConfig({ ...validEnv, OWL_LLM_API_KEY: "" });
+    const config = loadConfig({ ...validEnv, OWL_LLM_API_KEY: "", OWL_LLM_REASONING_EFFORT: "" });
     expect(config.OWL_LLM_ENABLED).toBe(true);
     expect(config.OWL_LLM_API_KEY).toBeUndefined();
+    expect(config.OWL_LLM_REASONING_EFFORT).toBeUndefined();
     expect(config.OWL_LLM_TIMEOUT_MS).toBe(45_000);
     expect(config.OWL_LLM_MAX_INPUT_CHARS).toBe(24_000);
     expect(config.OWL_LLM_CONCURRENCY).toBe(4);
+  });
+
+  it("accepts a known reasoning effort and rejects unknown values", () => {
+    const config = loadConfig({ ...validEnv, OWL_LLM_REASONING_EFFORT: "high" });
+    expect(config.OWL_LLM_REASONING_EFFORT).toBe("high");
+    expect(() => loadConfig({ ...validEnv, OWL_LLM_REASONING_EFFORT: "maximum" })).toThrow(
+      /OWL_LLM_REASONING_EFFORT/,
+    );
   });
 });
