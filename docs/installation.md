@@ -28,12 +28,16 @@ The installer asks for the domain, owner account, model, and optional mail setti
 3. Builds the containers, runs every pending migration, and waits for the API and web health checks.
 4. Creates the first owner and default workspace.
 
-The installer refuses to replace an existing `.env`. Use the deployment command for an existing
-instance:
+The installer refuses to replace an existing `.env`. Update an existing instance from its Git
+checkout with:
 
 ```bash
-./scripts/deploy.sh
+./scripts/update.sh
 ```
+
+The updater requires an encrypted backup recipient before it changes the source. Follow the
+[backup and upgrade guide](operations.md) to configure it. Use `./scripts/deploy.sh` when you only
+changed `.env` or want to rebuild the currently checked-out version without fetching an update.
 
 If deployment succeeds but first-owner creation fails, retry that step without changing the
 instance secrets:

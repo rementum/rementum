@@ -35,6 +35,16 @@ The installer generates the instance secrets, builds the stack, runs migrations,
 checks, and creates the first owner. Caddy provisions HTTPS. See the
 [installation guide](docs/installation.md) for requirements and recovery steps.
 
+After configuring encrypted backups, update an installed instance with:
+
+```bash
+./scripts/update.sh
+```
+
+It backs up the instance, fast-forwards the source, runs migrations, rebuilds the services, and
+waits for their health checks. See the [operations guide](docs/operations.md) for backup setup and
+recovery.
+
 ## Documentation
 
 The [MkDocs site](docs/index.md) covers configuration, backups, upgrades, security, and agent

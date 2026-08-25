@@ -43,16 +43,32 @@ encrypted secrets system.
 
 ## Upgrade
 
-Create a backup, then update the source and deploy:
+Set `OWL_BACKUP_AGE_RECIPIENT` as described above, then update the instance with one command:
 
 ```bash
-git pull --ff-only
-./scripts/deploy.sh
+./scripts/update.sh
 ```
 
-The deployment command rebuilds the images, runs pending migrations, replaces changed services, and
-waits for their health checks. Owl Memory uses forward-only database migrations. Read the release
-notes before you upgrade across several releases.
+The updater:
+
+1. Refuses to overwrite tracked local changes or a diverged branch.
+2. Fetches the branch's configured upstream and exits without rebuilding when it is already current.
+3. Creates an encrypted backup before changing the source.
+4. Fast-forwards the source, rebuilds the images, runs pending migrations, replaces changed
+   services, and waits for their health checks.
+
+Owl Memory uses forward-only database migrations. Read the release notes before upgrading across
+several releases. If you have made your own source changes, update and deploy that checkout manually
+instead of bypassing the updater's clean-tree check.
+
+In an emergency, you can explicitly skip the backup:
+
+```bash
+./scripts/update.sh --no-backup
+```
+
+This is not recommended. If deployment fails after the source is updated, inspect the service logs
+and restore the encrypted backup when recovery is required.
 
 ## Restore
 
