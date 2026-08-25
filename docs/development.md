@@ -16,7 +16,7 @@ cp .env.example .env
 docker compose up -d --build --wait
 ```
 
-Use `OWL_PUBLIC_URL=http://localhost` and `OWL_DOMAIN=localhost` for this path. The base Compose file
+Use `REMENTUM_PUBLIC_URL=http://localhost` and `REMENTUM_DOMAIN=localhost` for this path. The base Compose file
 keeps the API in development mode, serves the app at `http://localhost`, and runs migrations before
 the API and worker start.
 
@@ -27,7 +27,7 @@ Install dependencies and start PostgreSQL:
 ```bash
 pnpm install --frozen-lockfile
 docker compose up -d postgres
-OWL_DATABASE_ADMIN_URL=postgres://postgres:YOUR_ADMIN_PASSWORD@127.0.0.1:55432/owl pnpm db:migrate
+REMENTUM_DATABASE_ADMIN_URL=postgres://postgres:YOUR_ADMIN_PASSWORD@127.0.0.1:55432/owl pnpm db:migrate
 pnpm dev
 ```
 

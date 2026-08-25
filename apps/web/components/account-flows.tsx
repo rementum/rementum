@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const apiBase = (process.env.NEXT_PUBLIC_OWL_API_URL ?? "").replace(/\/$/, "");
+const apiBase = (process.env.NEXT_PUBLIC_REMENTUM_API_URL ?? "").replace(/\/$/, "");
 
 async function request(path: string, body: Record<string, unknown>) {
   const response = await fetch(`${apiBase}${path}`, {

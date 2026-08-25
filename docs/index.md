@@ -1,6 +1,8 @@
 # One shared memory for your agents
 
-Owl Memory gives AI agents a self-hosted knowledge base with versioned Markdown, staged writes,
+![Rementum](assets/rementum-banner.png){ .rementum-banner }
+
+Rementum gives AI agents a self-hosted knowledge base with versioned Markdown, staged writes,
 task coordination, and OAuth-protected MCP access. You control the database, encryption key, AI
 provider, and backups.
 
@@ -11,8 +13,8 @@ installer generates the instance secrets, starts the stack, runs migrations, and
 owner.
 
 ```bash
-git clone https://github.com/yibudak/owl-memory.git
-cd owl-memory
+git clone https://github.com/yibudak/rementum.git
+cd rementum
 ./scripts/install.sh
 ```
 
@@ -36,9 +38,9 @@ Only Caddy binds public network ports. PostgreSQL binds its administration port 
 
 ## Data boundary
 
-Owl Memory encrypts article bodies, version bodies, and staged bodies with per-brain keys. The
+Rementum encrypts article bodies, version bodies, and staged bodies with per-brain keys. The
 instance master key wraps those keys. Search metadata and embeddings remain visible to the database
 operator.
 
-Each staged write goes to the configured OpenAI-compatible provider in plaintext before Owl Memory
+Each staged write goes to the configured OpenAI-compatible provider in plaintext before Rementum
 encrypts it. Choose a provider whose retention policy fits your data.

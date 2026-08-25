@@ -56,13 +56,13 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(zod@4.4.3)
-      '@owl-memory/contracts':
+      '@rementum/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@owl-memory/core':
+      '@rementum/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@owl-memory/db':
+      '@rementum/db':
         specifier: workspace:*
         version: link:../../packages/db
       argon2:
@@ -136,10 +136,10 @@ importers:
 
   apps/worker:
     dependencies:
-      '@owl-memory/core':
+      '@rementum/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@owl-memory/db':
+      '@rementum/db':
         specifier: workspace:*
         version: link:../../packages/db
 
@@ -154,7 +154,7 @@ importers:
       '@iarna/toml':
         specifier: ^2.2.5
         version: 2.2.5
-      '@owl-memory/contracts':
+      '@rementum/contracts':
         specifier: workspace:*
         version: link:../contracts
       gray-matter:
@@ -172,10 +172,10 @@ importers:
 
   packages/db:
     dependencies:
-      '@owl-memory/contracts':
+      '@rementum/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@owl-memory/core':
+      '@rementum/core':
         specifier: workspace:*
         version: link:../core
       drizzle-orm:

@@ -1,39 +1,15 @@
 "use client";
 
-import { motion, useMotionValue, useSpring, useTransform } from "motion/react";
+import { motion, useMotionValue, useSpring } from "motion/react";
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { TerminalDemo } from "./terminal-demo";
 
 const HEADLINE = ["Your", "agents", "should", "remember."];
 
 export function Hero() {
-  const ref = useRef<HTMLElement>(null);
-  const mx = useMotionValue(0);
-  const my = useMotionValue(0);
-  const sx = useSpring(mx, { stiffness: 60, damping: 18 });
-  const sy = useSpring(my, { stiffness: 60, damping: 18 });
-  const auroraX = useTransform(sx, [-1, 1], ["-6%", "6%"]);
-  const auroraY = useTransform(sy, [-1, 1], ["-6%", "6%"]);
-  const gridX = useTransform(sx, [-1, 1], ["2.5%", "-2.5%"]);
-  const gridY = useTransform(sy, [-1, 1], ["2.5%", "-2.5%"]);
-
-  useEffect(() => {
-    function onMove(event: MouseEvent) {
-      const el = ref.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      mx.set(((event.clientX - rect.left) / rect.width - 0.5) * 2);
-      my.set(((event.clientY - rect.top) / rect.height - 0.5) * 2);
-    }
-    window.addEventListener("mousemove", onMove, { passive: true });
-    return () => window.removeEventListener("mousemove", onMove);
-  }, [mx, my]);
-
   return (
-    <section className="hero" ref={ref}>
-      <motion.div className="hero-aurora" style={{ x: auroraX, y: auroraY }} aria-hidden="true" />
-      <motion.div className="hero-grid" style={{ x: gridX, y: gridY }} aria-hidden="true" />
+    <section className="hero">
       <div className="hero-glow" aria-hidden="true" />
       <div className="hero-inner">
         <motion.span
@@ -42,8 +18,7 @@ export function Hero() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.6, delay: 0.05 }}
         >
-          <span className="hero-badge-dot" />
-          Self-hosted · AGPL · MCP-native
+          Open source memory infrastructure
         </motion.span>
         <h1 className="hero-title">
           {HEADLINE.map((word, i) => (
@@ -65,9 +40,8 @@ export function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.62 }}
         >
-          One versioned knowledge layer for Codex, Claude Code, OpenCode, and any MCP client. Read a
-          compact index, load current canon, and propose changes that never silently overwrite your
-          agents' memory.
+          One versioned knowledge layer for every MCP client, with staged writes that never silently
+          overwrite shared memory.
         </motion.p>
         <motion.div
           className="hero-actions"
@@ -79,18 +53,6 @@ export function Hero() {
           <a className="text-link" href="#workflow">
             See how it works
           </a>
-        </motion.div>
-        <motion.div
-          className="hero-clients"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.92 }}
-        >
-          <span className="hero-clients-label">Works with</span>
-          <span className="hero-client">Codex</span>
-          <span className="hero-client">Claude Code</span>
-          <span className="hero-client">OpenCode</span>
-          <span className="hero-client">any MCP client</span>
         </motion.div>
       </div>
       <motion.div

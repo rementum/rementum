@@ -1,5 +1,5 @@
 {
-  "name": "@owl-memory/worker",
+  "name": "@rementum/worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@owl-memory/core": "workspace:*",
-    "@owl-memory/db": "workspace:*"
+    "@rementum/core": "workspace:*",
+    "@rementum/db": "workspace:*"
   }
 }

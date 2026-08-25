@@ -7,8 +7,8 @@ import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
-import { DomainError, OwlService, parseMasterKey } from "@owl-memory/core";
-import { AuthRepository, createDatabaseClient, PostgresStore } from "@owl-memory/db";
+import { DomainError, parseMasterKey, RementumService } from "@rementum/core";
+import { AuthRepository, createDatabaseClient, PostgresStore } from "@rementum/db";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { createAuthenticator } from "./auth.js";
@@ -25,40 +25,40 @@ export async function buildApp(
   overrides: { mailer?: TransactionalMailer | null } = {},
 ) {
   await Promise.all([
-    mkdir(config.OWL_BLOB_DIR, { recursive: true }),
-    mkdir(config.OWL_EXPORT_DIR, { recursive: true }),
+    mkdir(config.REMENTUM_BLOB_DIR, { recursive: true }),
+    mkdir(config.REMENTUM_EXPORT_DIR, { recursive: true }),
   ]);
   const app = Fastify({
-    logger: { level: config.OWL_LOG_LEVEL },
+    logger: { level: config.REMENTUM_LOG_LEVEL },
     bodyLimit: 2_000_000,
     trustProxy: true,
     genReqId: (request) => String(request.headers["x-request-id"] ?? crypto.randomUUID()),
   });
-  const database = createDatabaseClient(config.OWL_DATABASE_URL);
+  const database = createDatabaseClient(config.REMENTUM_DATABASE_URL);
   const store = new PostgresStore(database);
   const authRepository = new AuthRepository(database);
-  const embeddings = new HttpEmbeddingClient(config.OWL_EMBEDDINGS_URL);
+  const embeddings = new HttpEmbeddingClient(config.REMENTUM_EMBEDDINGS_URL);
   const summaries = new OpenAICompatibleSummaryGenerator({
-    baseUrl: config.OWL_LLM_BASE_URL,
-    model: config.OWL_LLM_MODEL,
-    ...(config.OWL_LLM_API_KEY ? { apiKey: config.OWL_LLM_API_KEY } : {}),
-    ...(config.OWL_LLM_REASONING_EFFORT
-      ? { reasoningEffort: config.OWL_LLM_REASONING_EFFORT }
+    baseUrl: config.REMENTUM_LLM_BASE_URL,
+    model: config.REMENTUM_LLM_MODEL,
+    ...(config.REMENTUM_LLM_API_KEY ? { apiKey: config.REMENTUM_LLM_API_KEY } : {}),
+    ...(config.REMENTUM_LLM_REASONING_EFFORT
+      ? { reasoningEffort: config.REMENTUM_LLM_REASONING_EFFORT }
       : {}),
-    timeoutMs: config.OWL_LLM_TIMEOUT_MS,
-    maxInputChars: config.OWL_LLM_MAX_INPUT_CHARS,
-    concurrency: config.OWL_LLM_CONCURRENCY,
+    timeoutMs: config.REMENTUM_LLM_TIMEOUT_MS,
+    maxInputChars: config.REMENTUM_LLM_MAX_INPUT_CHARS,
+    concurrency: config.REMENTUM_LLM_CONCURRENCY,
   });
   const mailer =
     overrides.mailer !== undefined
       ? overrides.mailer
-      : config.OWL_RESEND_API_KEY && config.OWL_MAIL_FROM
-        ? new ResendMailer(config.OWL_RESEND_API_KEY, config.OWL_MAIL_FROM)
+      : config.REMENTUM_RESEND_API_KEY && config.REMENTUM_MAIL_FROM
+        ? new ResendMailer(config.REMENTUM_RESEND_API_KEY, config.REMENTUM_MAIL_FROM)
         : null;
-  const service = new OwlService(
+  const service = new RementumService(
     store,
     embeddings,
-    parseMasterKey(config.OWL_MASTER_KEY),
+    parseMasterKey(config.REMENTUM_MASTER_KEY),
     summaries,
   );
   const oauth = await buildOauthRuntime(config, database);
@@ -78,11 +78,11 @@ export async function buildApp(
   await app.register(swagger, {
     openapi: {
       info: {
-        title: "Owl Memory API",
+        title: "Rementum API",
         version: "0.1.0",
         description: "Versioned shared knowledge, tasks, imports, and maintenance for AI agents.",
       },
-      servers: [{ url: config.OWL_PUBLIC_URL }],
+      servers: [{ url: config.REMENTUM_PUBLIC_URL }],
       components: {
         securitySchemes: {
           oauth2: {
@@ -140,9 +140,9 @@ export async function buildApp(
       .type("text/plain; version=0.0.4")
       .send(
         [
-          "# HELP owl_memory_info Build information.",
-          "# TYPE owl_memory_info gauge",
-          'owl_memory_info{version="0.1.0"} 1',
+          "# HELP rementum_info Build information.",
+          "# TYPE rementum_info gauge",
+          'rementum_info{version="0.1.0"} 1',
           "",
         ].join("\n"),
       ),
@@ -154,7 +154,7 @@ export async function buildApp(
     app,
     service,
     authenticate,
-    `${config.OWL_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource`,
+    `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource`,
   );
 
   app.setErrorHandler((error, request, reply) => {
@@ -164,7 +164,7 @@ export async function buildApp(
         .code(400)
         .type("application/problem+json")
         .send({
-          type: "https://owl-memory.dev/problems/validation",
+          type: "urn:rementum:problem:validation",
           title: "Request validation failed",
           status: 400,
           detail: error.issues
@@ -178,14 +178,14 @@ export async function buildApp(
       if (error.status === 401) {
         reply.header(
           "WWW-Authenticate",
-          `Bearer resource_metadata="${config.OWL_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource"`,
+          `Bearer resource_metadata="${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource"`,
         );
       }
       return reply
         .code(error.status)
         .type("application/problem+json")
         .send({
-          type: `https://owl-memory.dev/problems/${error.code}`,
+          type: `urn:rementum:problem:${error.code}`,
           title: error.message,
           status: error.status,
           detail: error.detail,
@@ -194,7 +194,7 @@ export async function buildApp(
         });
     }
     return reply.code(500).type("application/problem+json").send({
-      type: "https://owl-memory.dev/problems/internal",
+      type: "urn:rementum:problem:internal",
       title: "Internal server error",
       status: 500,
       instance: request.url,

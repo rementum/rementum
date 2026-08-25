@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { AuthRepository, createDatabaseClient } from "@owl-memory/db";
+import { AuthRepository, createDatabaseClient } from "@rementum/db";
 import { hash } from "argon2";
 
 const argv = process.argv.slice(2);
@@ -18,18 +18,18 @@ if (command !== "create-owner") {
 }
 
 const email = value("--email");
-const passwordFile = value("--password-file") ?? process.env.OWL_ADMIN_PASSWORD_FILE;
-const passwordFromEnv = process.env.OWL_ADMIN_PASSWORD;
+const passwordFile = value("--password-file") ?? process.env.REMENTUM_ADMIN_PASSWORD_FILE;
+const passwordFromEnv = process.env.REMENTUM_ADMIN_PASSWORD;
 if (!email || (!passwordFile && !passwordFromEnv)) {
-  throw new Error("--email and --password-file (or OWL_ADMIN_PASSWORD) are required");
+  throw new Error("--email and --password-file (or REMENTUM_ADMIN_PASSWORD) are required");
 }
 const password = passwordFile
   ? (await readFile(passwordFile, "utf8")).trim()
   : (passwordFromEnv ?? "");
 if (password.length < 12) throw new Error("Owner password must be at least 12 characters");
 
-const url = process.env.OWL_DATABASE_ADMIN_URL ?? process.env.OWL_DATABASE_URL;
-if (!url) throw new Error("OWL_DATABASE_ADMIN_URL is required");
+const url = process.env.REMENTUM_DATABASE_ADMIN_URL ?? process.env.REMENTUM_DATABASE_URL;
+if (!url) throw new Error("REMENTUM_DATABASE_ADMIN_URL is required");
 const database = createDatabaseClient(url, 1);
 try {
   const repository = new AuthRepository(database);

@@ -1,0 +1,61 @@
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/Geist-Variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/GeistMono-Variable.woff2") format("woff2");
+}
+
+:root {
+  --md-primary-fg-color: #17211e;
+  --md-primary-fg-color--light: #2f6f5e;
+  --md-primary-fg-color--dark: #101815;
+  --md-accent-fg-color: #2f6f5e;
+  --rementum-mist: #dce6e0;
+  --rementum-cloud: #f3f5f1;
+  --md-text-font: "Geist";
+  --md-code-font: "Geist Mono";
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #101815;
+  --md-default-fg-color: #f3f5f1;
+  --md-default-fg-color--light: #bdcbc5;
+  --md-code-bg-color: #17211e;
+  --md-accent-fg-color: #79aa98;
+}
+
+.md-header,
+.md-tabs {
+  background: #17211e;
+}
+
+.md-typeset a {
+  text-underline-offset: 0.16em;
+}
+
+.md-typeset .md-button--primary {
+  border-color: #2f6f5e;
+  background: #2f6f5e;
+  color: #f3f5f1;
+}
+
+.md-typeset .md-button--primary:hover {
+  border-color: #255849;
+  background: #255849;
+}
+
+.rementum-banner {
+  display: block;
+  width: 100%;
+  margin: 1.5rem 0 2rem;
+  border-radius: 0.7rem;
+}

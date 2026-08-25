@@ -1,5 +1,5 @@
 {
-  "name": "@owl-memory/db",
+  "name": "@rementum/db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,8 +15,8 @@
     "migrate": "tsx src/migrate.ts"
   },
   "dependencies": {
-    "@owl-memory/contracts": "workspace:*",
-    "@owl-memory/core": "workspace:*",
+    "@rementum/contracts": "workspace:*",
+    "@rementum/core": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.8"
   }

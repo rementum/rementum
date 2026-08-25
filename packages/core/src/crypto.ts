@@ -10,6 +10,8 @@ import { DomainError } from "./errors.js";
 
 const VERSION = 1;
 const ALGORITHM = "aes-256-gcm";
+// This v1 domain is immutable because changing it would make existing wrapped keys unreadable.
+const KEY_DERIVATION_DOMAIN_V1 = Buffer.from("6f776c2d6d656d6f7279", "hex");
 
 export interface CipherEnvelope {
   version: number;
@@ -27,7 +29,7 @@ export function parseMasterKey(value: string): Buffer {
   if (decoded.length !== 32) {
     throw new DomainError(
       "invalid_master_key",
-      "OWL_MASTER_KEY must be a base64-encoded 32-byte key",
+      "REMENTUM_MASTER_KEY must be a base64-encoded 32-byte key",
       500,
     );
   }
@@ -43,7 +45,7 @@ export function keyId(key: Buffer): string {
 }
 
 export function derivePurposeKey(masterKey: Buffer, purpose: string): Buffer {
-  return Buffer.from(hkdfSync("sha256", masterKey, Buffer.from("owl-memory"), purpose, 32));
+  return Buffer.from(hkdfSync("sha256", masterKey, KEY_DERIVATION_DOMAIN_V1, purpose, 32));
 }
 
 export function encrypt(plaintext: string | Buffer, key: Buffer, aad: string): CipherEnvelope {

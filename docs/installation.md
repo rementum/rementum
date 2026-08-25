@@ -1,4 +1,4 @@
-# Install Owl Memory
+# Install Rementum
 
 ## Before you start
 
@@ -15,8 +15,8 @@ not need an email provider for the first owner.
 ## Run the installer
 
 ```bash
-git clone https://github.com/yibudak/owl-memory.git
-cd owl-memory
+git clone https://github.com/yibudak/rementum.git
+cd rementum
 ./scripts/install.sh
 ```
 
@@ -59,8 +59,8 @@ show healthy API, web, embedding, and PostgreSQL services.
 ## Save the master key
 
 Copy `.env` into an encrypted secrets manager before you add knowledge. The encrypted backup does
-not contain `OWL_MASTER_KEY`. A database and blob backup cannot recover article bodies without the
-same master key.
+not contain `REMENTUM_MASTER_KEY`. A database and blob backup cannot recover article bodies without
+the same master key.
 
 Limit `.env` access to the system administrator. Do not send it through chat, email, issue trackers,
 or CI logs.
@@ -71,9 +71,9 @@ The installer keeps registration closed unless you enable it. To change the sett
 all three values in `.env`:
 
 ```dotenv
-OWL_ALLOW_SIGNUP='true'
-OWL_RESEND_API_KEY='re_...'
-OWL_MAIL_FROM='Owl Memory <owl@example.com>'
+REMENTUM_ALLOW_SIGNUP='true'
+REMENTUM_RESEND_API_KEY='re_...'
+REMENTUM_MAIL_FROM='Rementum <rementum@example.com>'
 ```
 
 Run `./scripts/deploy.sh` after the change. New accounts must verify their email before they create a

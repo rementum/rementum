@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "../components/brand";
 import { Dashboard } from "../components/dashboard";
 import { BentoCard } from "../components/landing/bento-card";
 import { Hero } from "../components/landing/hero";
@@ -39,10 +40,8 @@ function Landing() {
         <ArchitectureSection />
         <CTASection />
         <footer className="landing-foot">
-          <span className="brand-mark foot-mark" aria-hidden="true">
-            O
-          </span>
-          <span>Owl Memory</span>
+          <BrandMark className="brand-mark foot-mark" />
+          <span>Rementum</span>
           <span className="foot-sep" aria-hidden="true">
             ·
           </span>
@@ -63,17 +62,17 @@ function WorkflowLanding() {
     {
       code: "read",
       title: "Load current canon.",
-      body: "The full article is opened only after the index identifies it — the rest of the brain stays untouched.",
+      body: "The full article is opened only after the index identifies it. The rest of the brain stays untouched.",
     },
     {
       code: "stage",
       title: "Analyze and stage the memory.",
-      body: "Owl Memory sends the draft to your configured AI provider, creates a compact summary, and checks for conflicts before it touches canon.",
+      body: "Rementum sends the draft to your configured AI provider, creates a compact summary, and checks for conflicts before it touches canon.",
     },
     {
       code: "promote",
       title: "Keep the history.",
-      body: "Owl Memory creates an immutable version and records an audit event when a write is promoted.",
+      body: "Rementum creates an immutable version and records an audit event when a write is promoted.",
     },
   ];
 
@@ -81,7 +80,6 @@ function WorkflowLanding() {
     <section className="landing-section workflow-landing" id="workflow" tabIndex={-1}>
       <div className="section-head">
         <Reveal>
-          <span className="kicker">The loop</span>
           <h2>Load the right context.</h2>
           <p>
             Agents read a compact index, open the relevant article, and leave the rest of the brain
@@ -102,7 +100,7 @@ function ControlBento() {
           <span className="kicker">Change safely</span>
           <h2>Change knowledge without silent overwrites.</h2>
           <p>
-            Owl Memory separates proposals from canon. You review conflicts before a write replaces
+            Rementum separates proposals from canon. You review conflicts before a write replaces
             the current version.
           </p>
         </Reveal>
@@ -157,11 +155,10 @@ function ArchitectureSection() {
     <section className="landing-section arch-landing">
       <div className="section-head">
         <Reveal>
-          <span className="kicker">Self-hosted</span>
           <h2>Run it on your own stack.</h2>
           <p>
-            You control OAuth, MCP, search, embeddings, and storage. Owl Memory sends staged memory
-            to the OpenAI-compatible AI provider you configure.
+            You control OAuth, MCP, search, embeddings, and storage. Rementum sends staged memory to
+            the OpenAI-compatible AI provider you configure.
           </p>
         </Reveal>
       </div>
@@ -182,9 +179,7 @@ function CTASection() {
     <section className="landing-section cta-landing">
       <Reveal>
         <div className="cta-card">
-          <div className="cta-glow" aria-hidden="true" />
           <div>
-            <span className="kicker">Connect</span>
             <h2>Connect an agent.</h2>
             <p>Use OAuth to grant each client its own revocable access to a shared brain.</p>
           </div>

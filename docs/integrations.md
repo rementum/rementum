@@ -6,13 +6,13 @@ Every remote client uses the same Streamable HTTP MCP endpoint:
 https://memory.example.com/mcp
 ```
 
-Owl Memory advertises OAuth metadata from the same origin. Your client opens a browser for sign-in
+Rementum advertises OAuth metadata from the same origin. Your client opens a browser for sign-in
 and requests the selected brain and task scopes.
 
 ## Claude Code
 
 ```bash
-claude mcp add --transport http owl-memory https://memory.example.com/mcp
+claude mcp add --transport http rementum https://memory.example.com/mcp
 ```
 
 Complete OAuth in the browser, then ask Claude to call `list_brains` and `get_brain`.
@@ -24,7 +24,7 @@ Add this server to the MCP configuration:
 ```json
 {
   "mcpServers": {
-    "owl-memory": {
+    "rementum": {
       "url": "https://memory.example.com/mcp"
     }
   }
@@ -33,8 +33,8 @@ Add this server to the MCP configuration:
 
 ## Codex and other clients
 
-Create a remote Streamable HTTP MCP server in the client and use the Owl Memory MCP URL. Keep write
-tool approval enabled. Owl Memory marks read tools with `readOnlyHint`, while writes use the staged
+Create a remote Streamable HTTP MCP server in the client and use the Rementum MCP URL. Keep write
+tool approval enabled. Rementum marks read tools with `readOnlyHint`, while writes use the staged
 write and promotion protocol.
 
 ## First request

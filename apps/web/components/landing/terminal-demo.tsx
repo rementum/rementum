@@ -53,10 +53,7 @@ export function TerminalDemo() {
   return (
     <div className="terminal" aria-hidden="true">
       <div className="terminal-bar">
-        <span className="terminal-dot terminal-dot-red" />
-        <span className="terminal-dot terminal-dot-amber" />
-        <span className="terminal-dot terminal-dot-green" />
-        <span className="terminal-title">owl-memory · mcp</span>
+        <span className="terminal-title">rementum / mcp</span>
       </div>
       <pre className="terminal-body">
         {SCRIPT.slice(0, visible).map((l) => (

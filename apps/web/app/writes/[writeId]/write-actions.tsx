@@ -15,7 +15,7 @@ export function WriteActions({ writeId, status }: { writeId: string; status: str
       headers: { "content-type": "application/json" },
       body: JSON.stringify(
         action === "promote"
-          ? { decision: "promote", decisionSummary: "Approved in Owl Memory web" }
+          ? { decision: "promote", decisionSummary: "Approved in Rementum web" }
           : {},
       ),
     });

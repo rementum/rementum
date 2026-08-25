@@ -1,9 +1,9 @@
 ---
 name: brain-context
-description: Load durable context from Owl Memory and create a project brain when none exists.
+description: Load durable context from Rementum and create a project brain when none exists.
 ---
 
-# Load context from Owl Memory
+# Load context from Rementum
 
 Use this skill when the task depends on knowledge outside the current conversation or repository,
 or when the user asks what the brain knows.

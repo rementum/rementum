@@ -21,7 +21,7 @@ export function BentoCard({
 
   const background = useTransform(
     () =>
-      `radial-gradient(440px circle at ${sx.get() * 100}% ${sy.get() * 100}%, rgb(99 102 241 / 14%), transparent 46%)`,
+      `radial-gradient(440px circle at ${sx.get() * 100}% ${sy.get() * 100}%, rgb(47 111 94 / 18%), transparent 46%)`,
   );
 
   function onMove(event: React.MouseEvent<HTMLDivElement>) {

@@ -7,9 +7,9 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
-      "@owl-memory/contracts": path.join(root, "packages/contracts/src/index.ts"),
-      "@owl-memory/core": path.join(root, "packages/core/src/index.ts"),
-      "@owl-memory/db": path.join(root, "packages/db/src/index.ts"),
+      "@rementum/contracts": path.join(root, "packages/contracts/src/index.ts"),
+      "@rementum/core": path.join(root, "packages/core/src/index.ts"),
+      "@rementum/db": path.join(root, "packages/db/src/index.ts"),
     },
   },
   test: {

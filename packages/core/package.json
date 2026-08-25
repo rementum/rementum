@@ -1,5 +1,5 @@
 {
-  "name": "@owl-memory/core",
+  "name": "@rementum/core",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@owl-memory/contracts": "workspace:*",
+    "@rementum/contracts": "workspace:*",
     "@iarna/toml": "^2.2.5",
     "gray-matter": "^4.0.3",
     "jszip": "^3.10.1",

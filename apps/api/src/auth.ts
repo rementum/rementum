@@ -1,5 +1,5 @@
-import { type Actor, DomainError } from "@owl-memory/core";
-import type { PostgresStore } from "@owl-memory/db";
+import { type Actor, DomainError } from "@rementum/core";
+import type { PostgresStore } from "@rementum/db";
 import type { FastifyRequest } from "fastify";
 import { createLocalJWKSet, type JWK, jwtVerify } from "jose";
 import type { AppConfig } from "./config.js";
@@ -12,8 +12,8 @@ export function createAuthenticator(
 ) {
   const jwks = createLocalJWKSet(runtime.publicJwks as { keys: JWK[] });
   return async function authenticate(request: FastifyRequest): Promise<Actor> {
-    if (config.OWL_DEV_AUTH) {
-      const userId = request.headers["x-owl-user-id"];
+    if (config.REMENTUM_DEV_AUTH) {
+      const userId = request.headers["x-rementum-user-id"];
       if (typeof userId === "string") return store.loadActor(userId, "dev-header");
     }
     const authorization = request.headers.authorization;
@@ -25,7 +25,7 @@ export function createAuthenticator(
       const { payload } = await jwtVerify(token, jwks, { issuer: runtime.issuer });
       if (!payload.sub) throw new Error("Token has no subject");
       const audience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-      const accepted = [runtime.resource, `${config.OWL_PUBLIC_URL.replace(/\/$/, "")}/api`];
+      const accepted = [runtime.resource, `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/api`];
       if (!audience.some((value) => value && accepted.includes(value)))
         throw new Error("Wrong audience");
       return store.loadActor(

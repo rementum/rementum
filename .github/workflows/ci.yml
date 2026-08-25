@@ -39,8 +39,8 @@ jobs:
           PGPASSWORD: postgres
         run: |
           psql -h 127.0.0.1 -U postgres -d owl_test -c "CREATE ROLE owl_app LOGIN PASSWORD 'owl';"
-          OWL_DATABASE_ADMIN_URL=postgres://postgres:postgres@127.0.0.1:5432/owl_test pnpm db:migrate
+          REMENTUM_DATABASE_ADMIN_URL=postgres://postgres:postgres@127.0.0.1:5432/owl_test pnpm db:migrate
       - run: pnpm check
         env:
-          OWL_TEST_DATABASE_URL: postgres://owl_app:owl@127.0.0.1:5432/owl_test
+          REMENTUM_TEST_DATABASE_URL: postgres://owl_app:owl@127.0.0.1:5432/owl_test
       - run: pnpm build

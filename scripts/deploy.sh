@@ -9,7 +9,9 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-timeout=${OWL_DEPLOY_TIMEOUT:-600}
+./scripts/migrate-env.sh
+
+timeout=${REMENTUM_DEPLOY_TIMEOUT:-600}
 
 docker compose \
   -f docker-compose.yml \

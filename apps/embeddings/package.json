@@ -1,5 +1,5 @@
 {
-  "name": "@owl-memory/embeddings",
+  "name": "@rementum/embeddings",
   "version": "0.1.0",
   "private": true,
   "type": "module",

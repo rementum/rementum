@@ -2,8 +2,8 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import postgres from "postgres";
 
-const url = process.env.OWL_DATABASE_ADMIN_URL ?? process.env.OWL_DATABASE_URL;
-if (!url) throw new Error("OWL_DATABASE_ADMIN_URL or OWL_DATABASE_URL is required");
+const url = process.env.REMENTUM_DATABASE_ADMIN_URL ?? process.env.REMENTUM_DATABASE_URL;
+if (!url) throw new Error("REMENTUM_DATABASE_ADMIN_URL or REMENTUM_DATABASE_URL is required");
 
 const directory = path.resolve(import.meta.dirname, "../migrations");
 const sql = postgres(url, { max: 1, prepare: false });

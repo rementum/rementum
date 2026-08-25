@@ -11,7 +11,7 @@ import type {
   StageWriteInput,
   Task,
   WorkspaceRole,
-} from "@owl-memory/contracts";
+} from "@rementum/contracts";
 import type { CipherEnvelope, WrappedKey } from "./crypto.js";
 
 export interface Actor {

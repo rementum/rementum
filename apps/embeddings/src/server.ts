@@ -2,10 +2,10 @@ import { env, pipeline } from "@huggingface/transformers";
 import Fastify from "fastify";
 import { z } from "zod";
 
-const model = process.env.OWL_EMBEDDING_MODEL ?? "intfloat/multilingual-e5-small";
-const cacheDir = process.env.OWL_MODEL_CACHE;
+const model = process.env.REMENTUM_EMBEDDING_MODEL ?? "intfloat/multilingual-e5-small";
+const cacheDir = process.env.REMENTUM_MODEL_CACHE;
 if (cacheDir) env.cacheDir = cacheDir;
-env.allowRemoteModels = process.env.OWL_EMBEDDING_OFFLINE !== "true";
+env.allowRemoteModels = process.env.REMENTUM_EMBEDDING_OFFLINE !== "true";
 
 const app = Fastify({ logger: true, bodyLimit: 2_000_000 });
 type Extractor = (
@@ -39,7 +39,7 @@ app.post("/embed", async (request, reply) => {
   const parsed = requestSchema.safeParse(request.body);
   if (!parsed.success) {
     return reply.code(400).send({
-      type: "https://owl-memory.dev/problems/validation",
+      type: "urn:rementum:problem:validation",
       title: "Invalid embedding request",
       status: 400,
       issues: parsed.error.issues,

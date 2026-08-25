@@ -2,12 +2,12 @@ import { createHash, randomBytes } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const publicUrl = process.env.NEXT_PUBLIC_OWL_API_URL ?? "http://localhost:3000";
+  const publicUrl = process.env.NEXT_PUBLIC_REMENTUM_API_URL ?? "http://localhost:3000";
   const verifier = randomBytes(48).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   const state = randomBytes(24).toString("base64url");
   const authorization = new URL(`${publicUrl.replace(/\/$/, "")}/oauth/auth`);
-  authorization.searchParams.set("client_id", "owl-web");
+  authorization.searchParams.set("client_id", "rementum-web");
   authorization.searchParams.set("redirect_uri", `${publicUrl.replace(/\/$/, "")}/auth/callback`);
   authorization.searchParams.set("response_type", "code");
   authorization.searchParams.set(
@@ -20,14 +20,14 @@ export async function GET(request: NextRequest) {
   authorization.searchParams.set("state", state);
   const response = NextResponse.redirect(authorization);
   const secure = publicUrl.startsWith("https:");
-  response.cookies.set("owl_pkce", verifier, {
+  response.cookies.set("rementum_pkce", verifier, {
     httpOnly: true,
     secure,
     sameSite: "lax",
     maxAge: 600,
     path: "/",
   });
-  response.cookies.set("owl_state", state, {
+  response.cookies.set("rementum_state", state, {
     httpOnly: true,
     secure,
     sameSite: "lax",
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   });
   const returnTo = request.nextUrl.searchParams.get("returnTo");
   if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
-    response.cookies.set("owl_return_to", returnTo, {
+    response.cookies.set("rementum_return_to", returnTo, {
       httpOnly: true,
       secure,
       sameSite: "lax",
