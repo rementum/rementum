@@ -7,6 +7,7 @@ import { hasSession } from "../lib/api";
 import "./styles.css";
 import "./invite.css";
 import "./management.css";
+import "./dashboard.css";
 
 export const metadata: Metadata = {
   title: "Owl Memory",
