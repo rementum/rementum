@@ -1,0 +1,54 @@
+name: Deployment
+
+on:
+  push:
+    paths:
+      - ".github/workflows/deployment.yml"
+      - ".dockerignore"
+      - ".env.example"
+      - "Caddyfile"
+      - "apps/**/Dockerfile"
+      - "compose.production.yml"
+      - "deploy/**"
+      - "docker-compose.yml"
+      - "package.json"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "scripts/**"
+  pull_request:
+    paths:
+      - ".github/workflows/deployment.yml"
+      - ".dockerignore"
+      - ".env.example"
+      - "Caddyfile"
+      - "apps/**/Dockerfile"
+      - "compose.production.yml"
+      - "deploy/**"
+      - "docker-compose.yml"
+      - "package.json"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "scripts/**"
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deployment scripts
+        run: |
+          shellcheck scripts/*.sh deploy/backup/*.sh deploy/postgres/*.sh
+          sh -n scripts/*.sh deploy/backup/*.sh deploy/postgres/*.sh
+          node --check deploy/setup/generate-jwks.mjs
+      - name: Validate Compose files
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+          docker compose -f docker-compose.yml -f compose.production.yml config --quiet
+      - name: Build production images
+        run: docker compose -f docker-compose.yml -f compose.production.yml --profile "*" build

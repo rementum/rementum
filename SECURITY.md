@@ -8,7 +8,8 @@ Until 1.0, only the most recent release receives security fixes.
 
 ## Deployment invariants
 
-- Only Caddy publishes ports in the reference production Compose stack.
+- Only Caddy publishes non-loopback ports in the reference production Compose stack. PostgreSQL's
+  administration port binds to `127.0.0.1`.
 - PostgreSQL and the embedding service stay on the private Compose network.
 - Every workspace-owned row is protected by application authorization and PostgreSQL RLS.
 - Article bodies, versions, and staged bodies are encrypted with per-brain data keys.
