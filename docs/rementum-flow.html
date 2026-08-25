@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Owl Memory nasıl çalışır?</title>
+  <title>Rementum nasıl çalışır?</title>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; }
@@ -94,18 +94,18 @@
 </head>
 <body>
   <main>
-    <p class="eyebrow">Owl Memory · Data flow</p>
+    <p class="eyebrow">Rementum · Data flow</p>
     <h1>Bir bilgi, ajanlar arasında nasıl kalıcı olur?</h1>
     <p class="intro">Ajan önce küçük routing index’i okur, yalnızca gereken makaleyi çeker ve değişikliği staged protokolle güvenli biçimde sürümler.</p>
 
     <div class="diagram">
-      <svg viewBox="0 0 840 436" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="owl-memory-flow-title owl-memory-flow-desc">
-        <title id="owl-memory-flow-title">Owl Memory okuma ve yazma akışı</title>
-        <desc id="owl-memory-flow-desc">Claude, Codex ve OpenCode istemcilerinin MCP üzerinden bilgi okumasını; conflict-free staged write'ları otomatik promote edip riskli değişiklikleri kullanıcıya yönlendirmesini gösterir.</desc>
+      <svg viewBox="0 0 840 436" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="rementum-flow-title rementum-flow-desc">
+        <title id="rementum-flow-title">Rementum okuma ve yazma akışı</title>
+        <desc id="rementum-flow-desc">Claude, Codex ve OpenCode istemcilerinin MCP üzerinden bilgi okumasını; conflict-free staged write'ları otomatik promote edip riskli değişiklikleri kullanıcıya yönlendirmesini gösterir.</desc>
         <defs>
-          <marker id="owl-memory-flow-arr-muted" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#646d68"/></marker>
-          <marker id="owl-memory-flow-arr-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#ce4f2f"/></marker>
-          <marker id="owl-memory-flow-arr-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#315d49"/></marker>
+          <marker id="rementum-flow-arr-muted" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#646d68"/></marker>
+          <marker id="rementum-flow-arr-accent" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#ce4f2f"/></marker>
+          <marker id="rementum-flow-arr-link" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#315d49"/></marker>
         </defs>
 
         <rect width="840" height="436" fill="#efede7"/>
@@ -136,13 +136,13 @@
         </g>
 
         <!-- Connectors render before nodes. -->
-        <path d="M196 108 V124" fill="none" stroke="#315d49" stroke-width="1.2" marker-end="url(#owl-memory-flow-arr-link)"/>
-        <path d="M246 156 H300 Q308 156 308 164 V204" fill="none" stroke="#646d68" marker-end="url(#owl-memory-flow-arr-muted)"/>
-        <path d="M358 236 H370" fill="none" stroke="#646d68" marker-end="url(#owl-memory-flow-arr-muted)"/>
-        <path d="M470 236 H482" fill="none" stroke="#646d68" marker-end="url(#owl-memory-flow-arr-muted)"/>
-        <path d="M582 236 H636 Q644 236 644 244 V284" fill="none" stroke="#ce4f2f" stroke-width="1.2" marker-end="url(#owl-memory-flow-arr-accent)"/>
-        <path d="M694 316 H706" fill="none" stroke="#646d68" marker-end="url(#owl-memory-flow-arr-muted)"/>
-        <path d="M756 284 V268" fill="none" stroke="#315d49" stroke-width="1.2" marker-end="url(#owl-memory-flow-arr-link)"/>
+        <path d="M196 108 V124" fill="none" stroke="#315d49" stroke-width="1.2" marker-end="url(#rementum-flow-arr-link)"/>
+        <path d="M246 156 H300 Q308 156 308 164 V204" fill="none" stroke="#646d68" marker-end="url(#rementum-flow-arr-muted)"/>
+        <path d="M358 236 H370" fill="none" stroke="#646d68" marker-end="url(#rementum-flow-arr-muted)"/>
+        <path d="M470 236 H482" fill="none" stroke="#646d68" marker-end="url(#rementum-flow-arr-muted)"/>
+        <path d="M582 236 H636 Q644 236 644 244 V284" fill="none" stroke="#ce4f2f" stroke-width="1.2" marker-end="url(#rementum-flow-arr-accent)"/>
+        <path d="M694 316 H706" fill="none" stroke="#646d68" marker-end="url(#rementum-flow-arr-muted)"/>
+        <path d="M756 284 V268" fill="none" stroke="#315d49" stroke-width="1.2" marker-end="url(#rementum-flow-arr-link)"/>
         <rect x="584" y="216" width="48" height="12" rx="2" fill="#efede7"/>
         <text x="608" y="224" fill="#ce4f2f" font-size="8" font-family="ui-monospace, monospace" font-weight="700" text-anchor="middle" letter-spacing="0.06em">ÖNERİ</text>
 
@@ -216,9 +216,9 @@
         <text x="468" y="396" class="legend-text">sol = girdi · sağ = çıktı</text>
 
         <text x="132" y="420" class="legend-label">AKIŞ</text>
-        <line x1="148" y1="416" x2="172" y2="416" stroke="#646d68" marker-end="url(#owl-memory-flow-arr-muted)"/><text x="180" y="420" class="legend-text">Standart</text>
-        <line x1="280" y1="416" x2="304" y2="416" stroke="#ce4f2f" stroke-width="1.2" marker-end="url(#owl-memory-flow-arr-accent)"/><text x="312" y="420" class="legend-text">Staged proposal</text>
-        <line x1="440" y1="416" x2="464" y2="416" stroke="#315d49" stroke-width="1.2" marker-end="url(#owl-memory-flow-arr-link)"/><text x="472" y="420" class="legend-text">Yetkili geçiş</text>
+        <line x1="148" y1="416" x2="172" y2="416" stroke="#646d68" marker-end="url(#rementum-flow-arr-muted)"/><text x="180" y="420" class="legend-text">Standart</text>
+        <line x1="280" y1="416" x2="304" y2="416" stroke="#ce4f2f" stroke-width="1.2" marker-end="url(#rementum-flow-arr-accent)"/><text x="312" y="420" class="legend-text">Staged proposal</text>
+        <line x1="440" y1="416" x2="464" y2="416" stroke="#315d49" stroke-width="1.2" marker-end="url(#rementum-flow-arr-link)"/><text x="472" y="420" class="legend-text">Yetkili geçiş</text>
       </svg>
     </div>
 
@@ -233,7 +233,7 @@
       </article>
     </section>
 
-    <footer>Owl Memory · MCP shared agent memory · static architecture diagram</footer>
+    <footer>Rementum · MCP shared agent memory · static architecture diagram</footer>
   </main>
 </body>
 </html>

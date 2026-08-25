@@ -8,7 +8,7 @@ import type {
   SourceInput,
   Task,
   WorkspaceRole,
-} from "@owl-memory/contracts";
+} from "@rementum/contracts";
 import {
   type Actor,
   type ArticleRecord,
@@ -27,7 +27,7 @@ import {
   type TeamRecord,
   type VersionRecord,
   type WrappedKey,
-} from "@owl-memory/core";
+} from "@rementum/core";
 import type postgres from "postgres";
 import type { DatabaseClient } from "./client.js";
 

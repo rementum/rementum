@@ -1,12 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const publicUrl = process.env.NEXT_PUBLIC_OWL_API_URL ?? "http://localhost:3000";
-  const apiUrl = process.env.OWL_API_INTERNAL_URL ?? publicUrl;
+  const publicUrl = process.env.NEXT_PUBLIC_REMENTUM_API_URL ?? "http://localhost:3000";
+  const apiUrl = process.env.REMENTUM_API_INTERNAL_URL ?? publicUrl;
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
-  const verifier = request.cookies.get("owl_pkce")?.value;
-  if (!code || !state || !verifier || state !== request.cookies.get("owl_state")?.value) {
+  const verifier = request.cookies.get("rementum_pkce")?.value;
+  if (!code || !state || !verifier || state !== request.cookies.get("rementum_state")?.value) {
     return new NextResponse("Invalid OAuth callback", { status: 400 });
   }
   const tokenResponse = await fetch(`${apiUrl.replace(/\/$/, "")}/oauth/token`, {
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
-      client_id: "owl-web",
+      client_id: "rementum-web",
       redirect_uri: `${publicUrl.replace(/\/$/, "")}/auth/callback`,
       code,
       code_verifier: verifier,
@@ -31,13 +31,13 @@ export async function GET(request: NextRequest) {
     refresh_token?: string;
     expires_in: number;
   };
-  const returnTo = request.cookies.get("owl_return_to")?.value;
+  const returnTo = request.cookies.get("rementum_return_to")?.value;
   const destination = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
   const response = NextResponse.redirect(new URL(destination, publicUrl));
   setTokenCookies(response, tokens, publicUrl.startsWith("https:"));
-  response.cookies.delete("owl_pkce");
-  response.cookies.delete("owl_state");
-  response.cookies.delete("owl_return_to");
+  response.cookies.delete("rementum_pkce");
+  response.cookies.delete("rementum_state");
+  response.cookies.delete("rementum_return_to");
   return response;
 }
 
@@ -46,7 +46,7 @@ export function setTokenCookies(
   tokens: { access_token: string; refresh_token?: string; expires_in: number },
   secure: boolean,
 ) {
-  response.cookies.set("owl_access", tokens.access_token, {
+  response.cookies.set("rementum_access", tokens.access_token, {
     httpOnly: true,
     secure,
     sameSite: "lax",
@@ -54,7 +54,7 @@ export function setTokenCookies(
     path: "/",
   });
   if (tokens.refresh_token)
-    response.cookies.set("owl_refresh", tokens.refresh_token, {
+    response.cookies.set("rementum_refresh", tokens.refresh_token, {
       httpOnly: true,
       secure,
       sameSite: "lax",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   contentAad,
   decrypt,
+  derivePurposeKey,
   encrypt,
   generateDataKey,
   keyId,
@@ -10,6 +11,12 @@ import {
 } from "./crypto.js";
 
 describe("envelope encryption", () => {
+  it("preserves the version-one wrapping domain across the product rename", () => {
+    expect(derivePurposeKey(Buffer.alloc(32, 7), "brain-key-wrap").toString("hex")).toBe(
+      "d4c7586a822e2113f60e47a8d5b065292e6b95b1367745aaff2f77c011d84d18",
+    );
+  });
+
   it("round trips a body with authenticated context", () => {
     const key = generateDataKey();
     const aad = contentAad("brain", "article", 1);

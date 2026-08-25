@@ -1,6 +1,8 @@
-# Owl Memory
+# Rementum
 
-Owl Memory is an open-source, self-hosted shared brain for AI agents. It gives Claude,
+![Rementum](docs/assets/rementum-banner.png)
+
+Rementum is an open-source, self-hosted shared brain for AI agents. It gives Claude,
 ChatGPT, Codex, Cursor, and any remote MCP client one versioned, auditable body of knowledge.
 
 The product is deliberately agent-first:
@@ -8,7 +10,7 @@ The product is deliberately agent-first:
 - Knowledge lives in linked Markdown articles with a compact routing index.
 - Every canonical change is staged, versioned, attributed, and conflict checked.
 - Article bodies are encrypted with a per-brain key.
-- Owl Memory analyzes each staged memory with your configured OpenAI-compatible AI provider and
+- Rementum analyzes each staged memory with your configured OpenAI-compatible AI provider and
   creates a compact routing summary.
 - Search combines routing metadata, PostgreSQL full-text search, and local multilingual
   embeddings.
@@ -26,8 +28,8 @@ contracts are versioned, but backward compatibility is not promised until 1.0.
 Point a domain at a Linux host with Docker Compose, open ports 80 and 443, then run:
 
 ```bash
-git clone https://github.com/yibudak/owl-memory.git
-cd owl-memory
+git clone https://github.com/yibudak/rementum.git
+cd rementum
 ./scripts/install.sh
 ```
 
@@ -59,7 +61,7 @@ For development setup and checks, read [docs/development.md](docs/development.md
 
 ## Security boundary
 
-Article bodies and version bodies are encrypted at rest. Before Owl Memory encrypts a staged write,
+Article bodies and version bodies are encrypted at rest. Before Rementum encrypts a staged write,
 it sends the complete resulting article body in plaintext to the OpenAI-compatible AI provider you
 configure. The provider returns the summary used for routing and conflict checks. Routing metadata
 and embeddings remain searchable and must be treated as sensitive derived data. The master key is
@@ -70,15 +72,15 @@ knowledge.
 
 ## Backup
 
-Set `OWL_BACKUP_AGE_RECIPIENT` to an age public recipient and run:
+Set `REMENTUM_BACKUP_AGE_RECIPIENT` to an age public recipient and run:
 
 ```bash
 docker compose --profile backup run --rm backup
 ```
 
 The encrypted archive contains PostgreSQL, local blobs, and a versioned manifest. It never contains
-`OWL_MASTER_KEY`; escrow that key separately. Read [the operations guide](docs/operations.md) before
-you test a restore.
+`REMENTUM_MASTER_KEY`; escrow that key separately. Read [the operations guide](docs/operations.md)
+before you test a restore.
 
 ## License
 

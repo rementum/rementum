@@ -1,6 +1,6 @@
 ---
 name: brain-maintenance
-description: Review Owl Memory maintenance candidates and stage safe splits, merges, deprecations, or freshness updates.
+description: Review Rementum maintenance candidates and stage safe splits, merges, deprecations, or freshness updates.
 ---
 
 # Maintain a brain

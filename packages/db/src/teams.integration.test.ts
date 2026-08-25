@@ -1,11 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { hashContent, OwlService } from "@owl-memory/core";
+import { hashContent, RementumService } from "@rementum/core";
 import { describe, expect, it } from "vitest";
 import { AuthRepository } from "./auth.js";
 import { createDatabaseClient } from "./client.js";
 import { PostgresStore } from "./store.js";
 
-const databaseUrl = process.env.OWL_TEST_DATABASE_URL;
+const databaseUrl = process.env.REMENTUM_TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
 
 integration("account and team authorization", () => {
@@ -15,7 +15,7 @@ integration("account and team authorization", () => {
     const auth = new AuthRepository(database);
     const store = new PostgresStore(database);
     const suffix = randomBytes(6).toString("hex");
-    const service = new OwlService(
+    const service = new RementumService(
       store,
       {
         embedQuery: async () => [],

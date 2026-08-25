@@ -1,5 +1,5 @@
 {
-  "name": "owl-memory",
+  "name": "rementum",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "pnpm -r --if-present build",
-    "dev": "pnpm --parallel --filter @owl-memory/api --filter @owl-memory/web --filter @owl-memory/worker --filter @owl-memory/embeddings dev",
+    "dev": "pnpm --parallel --filter @rementum/api --filter @rementum/web --filter @rementum/worker --filter @rementum/embeddings dev",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
@@ -18,9 +18,9 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:migrate": "pnpm --filter @owl-memory/db migrate",
-    "admin": "pnpm --filter @owl-memory/api admin",
-    "auth:jwks": "pnpm --filter @owl-memory/api generate-jwks"
+    "db:migrate": "pnpm --filter @rementum/db migrate",
+    "admin": "pnpm --filter @rementum/api admin",
+    "auth:jwks": "pnpm --filter @rementum/api generate-jwks"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.1",

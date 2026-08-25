@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { generateDataKey, wrapDataKey } from "./crypto.js";
-import { OwlService } from "./service.js";
+import { RementumService } from "./service.js";
 import type {
   Actor,
   BrainRecord,
@@ -54,7 +54,7 @@ function setup(summary = "Generated summary") {
     generateSummary: vi.fn(async () => summary),
   } satisfies SummaryGenerator;
   const embeddings = {} as EmbeddingClient;
-  const service = new OwlService(store, embeddings, masterKey, summaries);
+  const service = new RementumService(store, embeddings, masterKey, summaries);
   return { service, store, summaries };
 }
 

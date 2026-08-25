@@ -1,5 +1,5 @@
-import { OwlService, parseMasterKey } from "@owl-memory/core";
-import { createDatabaseClient, PostgresStore } from "@owl-memory/db";
+import { parseMasterKey, RementumService } from "@rementum/core";
+import { createDatabaseClient, PostgresStore } from "@rementum/db";
 
 class WorkerEmbeddingClient {
   constructor(private readonly baseUrl: string) {}
@@ -32,13 +32,17 @@ class WorkerEmbeddingClient {
   }
 }
 
-const databaseUrl = required("OWL_DATABASE_URL");
-const embeddingsUrl = process.env.OWL_EMBEDDINGS_URL ?? "http://localhost:8790";
+const databaseUrl = required("REMENTUM_DATABASE_URL");
+const embeddingsUrl = process.env.REMENTUM_EMBEDDINGS_URL ?? "http://localhost:8790";
 const database = createDatabaseClient(databaseUrl, 4);
 const store = new PostgresStore(database);
 const embeddings = new WorkerEmbeddingClient(embeddingsUrl);
-const service = new OwlService(store, embeddings, parseMasterKey(required("OWL_MASTER_KEY")));
-const intervalMs = Number(process.env.OWL_MAINTENANCE_INTERVAL_MS ?? 60 * 60 * 1000);
+const service = new RementumService(
+  store,
+  embeddings,
+  parseMasterKey(required("REMENTUM_MASTER_KEY")),
+);
+const intervalMs = Number(process.env.REMENTUM_MAINTENANCE_INTERVAL_MS ?? 60 * 60 * 1000);
 
 async function runPass() {
   const started = Date.now();
@@ -46,7 +50,7 @@ async function runPass() {
     SELECT * FROM owl_worker_brains()
   `;
   for (const brain of brains) {
-    const actor = await store.loadActor(brain.owner_id, "owl-worker");
+    const actor = await store.loadActor(brain.owner_id, "rementum-worker");
     await service.scanMaintenance(brain.brain_id, actor);
   }
   const missing = await database.sql<Array<{ article_id: string; owner_id: string }>>`
@@ -54,7 +58,7 @@ async function runPass() {
   `;
   for (const article of missing) {
     try {
-      const actor = await store.loadActor(article.owner_id, "owl-worker");
+      const actor = await store.loadActor(article.owner_id, "rementum-worker");
       await service.reindexArticle(article.article_id, actor);
     } catch (error) {
       process.stderr.write(`Indexing ${article.article_id} failed: ${(error as Error).message}\n`);

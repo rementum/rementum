@@ -1,4 +1,4 @@
-import type { EmbeddingClient } from "@owl-memory/core";
+import type { EmbeddingClient } from "@rementum/core";
 import { z } from "zod";
 
 const responseSchema = z.object({

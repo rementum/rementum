@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AppNavigation } from "../components/app-navigation";
+import { BrandMark } from "../components/brand";
 import { hasSession, publicAuthConfig, teamContext } from "../lib/api";
 import "./styles.css";
 import "./invite.css";
@@ -10,7 +11,10 @@ import "./management.css";
 import "./dashboard.css";
 
 export const metadata: Metadata = {
-  title: "Owl Memory",
+  title: {
+    default: "Rementum",
+    template: "%s | Rementum",
+  },
   description: "One versioned brain behind every agent.",
 };
 
@@ -34,10 +38,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <div className="public-site">
             <header className="public-nav">
               <Link className="brand" href="/">
-                <span className="brand-mark" aria-hidden="true">
-                  O
-                </span>
-                <span>Owl Memory</span>
+                <BrandMark className="brand-mark" />
+                <span>Rementum</span>
               </Link>
               <Link className="nav-action" href="/auth/login">
                 Sign in

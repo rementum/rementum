@@ -1,25 +1,25 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function proxy(request: NextRequest) {
-  const access = request.cookies.get("owl_access")?.value;
-  const refresh = request.cookies.get("owl_refresh")?.value;
+  const access = request.cookies.get("rementum_access")?.value;
+  const refresh = request.cookies.get("rementum_refresh")?.value;
   if (!refresh || (access && !expiresSoon(access))) return NextResponse.next();
-  const publicUrl = process.env.NEXT_PUBLIC_OWL_API_URL ?? request.nextUrl.origin;
-  const apiUrl = process.env.OWL_API_INTERNAL_URL ?? publicUrl;
+  const publicUrl = process.env.NEXT_PUBLIC_REMENTUM_API_URL ?? request.nextUrl.origin;
+  const apiUrl = process.env.REMENTUM_API_INTERNAL_URL ?? publicUrl;
   const tokenResponse = await fetch(`${apiUrl.replace(/\/$/, "")}/oauth/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      client_id: "owl-web",
+      client_id: "rementum-web",
       refresh_token: refresh,
       resource: `${publicUrl.replace(/\/$/, "")}/mcp`,
     }),
   });
   if (!tokenResponse.ok) {
     const response = NextResponse.redirect(new URL("/auth/login", request.url));
-    response.cookies.delete("owl_access");
-    response.cookies.delete("owl_refresh");
+    response.cookies.delete("rementum_access");
+    response.cookies.delete("rementum_refresh");
     return response;
   }
   const tokens = (await tokenResponse.json()) as {
@@ -29,7 +29,7 @@ export async function proxy(request: NextRequest) {
   };
   const response = NextResponse.next();
   const secure = publicUrl.startsWith("https:");
-  response.cookies.set("owl_access", tokens.access_token, {
+  response.cookies.set("rementum_access", tokens.access_token, {
     httpOnly: true,
     secure,
     sameSite: "lax",
@@ -37,7 +37,7 @@ export async function proxy(request: NextRequest) {
     path: "/",
   });
   if (tokens.refresh_token)
-    response.cookies.set("owl_refresh", tokens.refresh_token, {
+    response.cookies.set("rementum_refresh", tokens.refresh_token, {
       httpOnly: true,
       secure,
       sameSite: "lax",

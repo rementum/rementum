@@ -7,7 +7,7 @@ import type {
   SearchArticlesInput,
   StageWriteInput,
   Task,
-} from "@owl-memory/contracts";
+} from "@rementum/contracts";
 import {
   type CipherEnvelope,
   contentAad,
@@ -32,7 +32,7 @@ import type {
   SummaryGenerator,
 } from "./types.js";
 
-export class OwlService {
+export class RementumService {
   constructor(
     private readonly store: DataStore,
     private readonly embeddings: EmbeddingClient,

@@ -13,7 +13,7 @@ usage() {
   printf '%s\n' \
     'Usage: ./scripts/update.sh [--no-backup]' \
     '' \
-    'Fetch the configured upstream branch and deploy the latest Owl Memory version.' \
+    'Fetch the configured upstream branch and deploy the latest Rementum version.' \
     'A successful encrypted backup is required before the source is updated.' \
     '' \
     'Options:' \
@@ -38,7 +38,7 @@ esac
 
 command -v git >/dev/null 2>&1 || fail "Git is required"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-  || fail "Run this command from an Owl Memory Git checkout"
+  || fail "Run this command from a Rementum Git checkout"
 [ -f .env ] || fail "Missing .env. Run ./scripts/install.sh for a new instance"
 
 if ! git diff --quiet -- || ! git diff --cached --quiet --; then
@@ -56,7 +56,7 @@ git fetch --prune
 target=$(git rev-parse '@{upstream}')
 
 if [ "$before" = "$target" ]; then
-  printf 'Owl Memory is already up to date (%s).\n' "$(git rev-parse --short HEAD)"
+  printf 'Rementum is already up to date (%s).\n' "$(git rev-parse --short HEAD)"
   exit 0
 fi
 
@@ -69,11 +69,11 @@ docker info >/dev/null 2>&1 || fail "The Docker daemon is not available"
 
 if [ "$create_backup" = true ]; then
   backup_recipient=$(sed -n \
-    's/^[[:space:]]*OWL_BACKUP_AGE_RECIPIENT[[:space:]]*=[[:space:]]*//p' .env \
+    's/^[[:space:]]*REMENTUM_BACKUP_AGE_RECIPIENT[[:space:]]*=[[:space:]]*//p' .env \
     | tail -n 1)
   case "$backup_recipient" in
     ""|"''"|'""')
-      fail "Set OWL_BACKUP_AGE_RECIPIENT in .env, or explicitly use --no-backup"
+      fail "Set REMENTUM_BACKUP_AGE_RECIPIENT in .env, or explicitly use --no-backup"
       ;;
   esac
 
@@ -97,6 +97,6 @@ if ! ./scripts/deploy.sh; then
   exit 1
 fi
 
-printf 'Updated Owl Memory from %s to %s.\n' \
+printf 'Updated Rementum from %s to %s.\n' \
   "$(git rev-parse --short "$before")" \
   "$(git rev-parse --short HEAD)"

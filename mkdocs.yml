@@ -1,10 +1,10 @@
-site_name: Owl Memory
+site_name: Rementum
 site_description: Self-hosted, versioned memory for AI agents
-site_url: https://yibudak.github.io/owl-memory/
-repo_url: https://github.com/yibudak/owl-memory
-repo_name: yibudak/owl-memory
+site_url: https://yibudak.github.io/rementum/
+repo_url: https://github.com/yibudak/rementum
+repo_name: yibudak/rementum
 edit_uri: edit/main/docs/
-copyright: Copyright &copy; Owl Memory contributors
+copyright: Copyright &copy; Rementum contributors
 
 theme:
   name: material
@@ -21,15 +21,15 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: black
-      accent: deep purple
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-night
         name: Use dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: black
-      accent: deep purple
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Use light mode
@@ -42,8 +42,12 @@ nav:
       - Backups and upgrades: operations.md
       - Security: security.md
   - Connect agents: integrations.md
+  - Brand: brand.md
   - Development: development.md
-  - System flow: owl-memory-flow.html
+  - System flow: rementum-flow.html
+
+extra_css:
+  - stylesheets/brand.css
 
 plugins:
   - search

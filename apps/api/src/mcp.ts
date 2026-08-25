@@ -10,8 +10,14 @@ import {
   searchArticlesSchema,
   stageWriteSchema,
   taskStatusSchema,
-} from "@owl-memory/contracts";
-import { type Actor, DomainError, hashContent, type OwlService, slugify } from "@owl-memory/core";
+} from "@rementum/contracts";
+import {
+  type Actor,
+  DomainError,
+  hashContent,
+  type RementumService,
+  slugify,
+} from "@rementum/core";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
@@ -19,7 +25,7 @@ type Authenticate = (request: any) => Promise<Actor>;
 
 export async function registerMcpEndpoint(
   app: FastifyInstance,
-  service: OwlService,
+  service: RementumService,
   authenticate: Authenticate,
   resourceMetadataUrl: string,
 ): Promise<void> {
@@ -70,8 +76,8 @@ export async function registerMcpEndpoint(
   app.delete("/mcp", methodNotAllowed);
 }
 
-export function createMcpServer(service: OwlService, actor: Actor): McpServer {
-  const server = new McpServer({ name: "owl-memory", version: "0.1.0" });
+export function createMcpServer(service: RementumService, actor: Actor): McpServer {
+  const server = new McpServer({ name: "rementum", version: "0.1.0" });
   const read = {
     readOnlyHint: true,
     destructiveHint: false,
@@ -111,7 +117,7 @@ export function createMcpServer(service: OwlService, actor: Actor): McpServer {
     "list_brains",
     {
       title: "List accessible brains",
-      description: "Start here. Lists every Owl Memory brain visible to this connection.",
+      description: "Start here. Lists every Rementum brain visible to this connection.",
       inputSchema: {},
       annotations: read,
     },
@@ -183,7 +189,7 @@ export function createMcpServer(service: OwlService, actor: Actor): McpServer {
     {
       title: "Stage an article write",
       description:
-        "Stages a create, full canonical update, or log append. Owl Memory sends the resulting plaintext body to the configured AI provider and stores its generated summary. Read the current article first and pass its version for edits.",
+        "Stages a create, full canonical update, or log append. Rementum sends the resulting plaintext body to the configured AI provider and stores its generated summary. Read the current article first and pass its version for edits.",
       inputSchema: stageWriteSchema.shape,
       annotations: write,
     },

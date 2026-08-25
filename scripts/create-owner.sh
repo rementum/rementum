@@ -8,7 +8,7 @@ usage() {
   printf '%s\n' \
     'Usage: ./scripts/create-owner.sh EMAIL [DISPLAY_NAME]' \
     '' \
-    'Create the first system owner for a deployed Owl Memory instance.'
+    'Create the first system owner for a deployed Rementum instance.'
 }
 
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then

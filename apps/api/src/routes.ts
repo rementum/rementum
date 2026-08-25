@@ -9,17 +9,17 @@ import {
   searchArticlesSchema,
   stageWriteSchema,
   taskStatusSchema,
-} from "@owl-memory/contracts";
+} from "@rementum/contracts";
 import {
   type Actor,
   DomainError,
   hashContent,
   inspectMarkdownArchive,
-  type OwlService,
+  type RementumService,
   requireBrainRole,
   slugify,
-} from "@owl-memory/core";
-import type { AuthRepository } from "@owl-memory/db";
+} from "@rementum/core";
+import type { AuthRepository } from "@rementum/db";
 import { hash, verify } from "argon2";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import JSZip from "jszip";
@@ -32,19 +32,19 @@ type Authenticate = (request: FastifyRequest) => Promise<Actor>;
 
 export async function registerApiRoutes(
   app: FastifyInstance,
-  service: OwlService,
+  service: RementumService,
   authenticate: Authenticate,
   authRepository: AuthRepository,
   config: AppConfig,
   mailer: TransactionalMailer | null,
 ): Promise<void> {
-  const publicUrl = config.OWL_PUBLIC_URL.replace(/\/$/, "");
+  const publicUrl = config.REMENTUM_PUBLIC_URL.replace(/\/$/, "");
   const authRateLimit = { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } };
 
-  app.get("/api/v1/auth/config", async () => ({ signupEnabled: config.OWL_ALLOW_SIGNUP }));
+  app.get("/api/v1/auth/config", async () => ({ signupEnabled: config.REMENTUM_ALLOW_SIGNUP }));
 
   app.post("/api/v1/auth/register", authRateLimit, async (request, reply) => {
-    if (!config.OWL_ALLOW_SIGNUP) {
+    if (!config.REMENTUM_ALLOW_SIGNUP) {
       throw new DomainError("signup_disabled", "Public registration is disabled", 403);
     }
     const input = z
@@ -74,9 +74,9 @@ export async function registerApiRoutes(
       );
       await sendRequiredEmail(mailer, {
         to: email,
-        subject: "Verify your Owl Memory account",
+        subject: "Verify your Rementum account",
         heading: "Verify your email",
-        body: "Confirm this address to activate your Owl Memory account.",
+        body: "Confirm this address to activate your Rementum account.",
         url: `${publicUrl}/verify-email?token=${encodeURIComponent(token)}`,
         action: "Verify email",
         idempotencyKey: `verify-email/${record.id}`,
@@ -101,9 +101,9 @@ export async function registerApiRoutes(
       );
       await sendRequiredEmail(mailer, {
         to: user.email,
-        subject: "Verify your Owl Memory account",
+        subject: "Verify your Rementum account",
         heading: "Verify your email",
-        body: "Confirm this address to activate your Owl Memory account.",
+        body: "Confirm this address to activate your Rementum account.",
         url: `${publicUrl}/verify-email?token=${encodeURIComponent(token)}`,
         action: "Verify email",
         idempotencyKey: `verify-email/${record.id}`,
@@ -134,7 +134,7 @@ export async function registerApiRoutes(
       );
       await sendRequiredEmail(mailer, {
         to: user.email,
-        subject: "Reset your Owl Memory password",
+        subject: "Reset your Rementum password",
         heading: "Reset your password",
         body: "Use this one-time link within one hour to choose a new password.",
         url: `${publicUrl}/reset-password?token=${encodeURIComponent(token)}`,
@@ -272,7 +272,7 @@ export async function registerApiRoutes(
       mailer,
       request,
       input.email,
-      "You were invited to an Owl Memory team",
+      "You were invited to a Rementum team",
       "Join the team",
       acceptanceUrl,
       `team-invite/${invitation.id}`,
@@ -288,7 +288,7 @@ export async function registerApiRoutes(
       mailer,
       request,
       invitation.email,
-      "You were invited to an Owl Memory team",
+      "You were invited to a Rementum team",
       "Join the team",
       acceptanceUrl,
       `team-invite/${invitation.id}`,
@@ -477,7 +477,7 @@ export async function registerApiRoutes(
       mailer,
       request,
       input.email,
-      "You were invited to an Owl Memory brain",
+      "You were invited to a Rementum brain",
       "Open the shared brain",
       acceptanceUrl,
       `brain-invite/${invitation.id}`,
@@ -567,7 +567,7 @@ export async function registerApiRoutes(
       "manifest.json",
       JSON.stringify(
         {
-          format: "owl-memory-export-v1",
+          format: "rementum-export-v1",
           brain: brain.brain,
           exportedAt: new Date().toISOString(),
           articles: manifest,
@@ -702,7 +702,7 @@ async function sendInvitationEmail(
 }
 
 function linkEmailHtml(message: LinkEmail): string {
-  return `<!doctype html><html><body style="margin:0;padding:32px;background:#0c0c0f;color:#f2f2f3;font:15px/1.6 Arial,sans-serif"><main style="max-width:560px;margin:auto;padding:28px;border:1px solid #303036;border-radius:14px;background:#151518"><p style="margin:0 0 30px;color:#9b9ba4">Owl Memory</p><h1 style="margin:0 0 14px;font-size:28px">${escapeHtml(message.heading)}</h1><p style="margin:0 0 24px;color:#b7b7bf">${escapeHtml(message.body)}</p><a href="${escapeHtml(message.url)}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#f2f2f3;color:#111114;text-decoration:none;font-weight:700">${escapeHtml(message.action)}</a><p style="margin:24px 0 0;color:#71717b;font-size:12px;overflow-wrap:anywhere">${escapeHtml(message.url)}</p></main></body></html>`;
+  return `<!doctype html><html><body style="margin:0;padding:32px;background:#101815;color:#f3f5f1;font:15px/1.6 Arial,sans-serif"><main style="max-width:560px;margin:auto;padding:28px;border:1px solid #30443c;border-radius:14px;background:#17211e"><p style="margin:0 0 30px;color:#79aa98">Rementum</p><h1 style="margin:0 0 14px;font-size:28px">${escapeHtml(message.heading)}</h1><p style="margin:0 0 24px;color:#bdcbc5">${escapeHtml(message.body)}</p><a href="${escapeHtml(message.url)}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#2f6f5e;color:#f3f5f1;text-decoration:none;font-weight:700">${escapeHtml(message.action)}</a><p style="margin:24px 0 0;color:#8fa099;font-size:12px;overflow-wrap:anywhere">${escapeHtml(message.url)}</p></main></body></html>`;
 }
 
 function escapeHtml(value: string): string {

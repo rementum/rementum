@@ -63,7 +63,7 @@ export function ArticleEditForm({ article }: { article: Article }) {
         <input name="title" defaultValue={article.title} required maxLength={240} />
       </label>
       <p className="form-note">
-        Owl Memory will send this draft to your configured AI provider and generate its routing
+        Rementum will send this draft to your configured AI provider and generate its routing
         summary when you stage the edit.
       </p>
       <label>

@@ -1,5 +1,3 @@
-name: owl-memory
-
 services:
   caddy:
     image: caddy:2.10.2-alpine
@@ -9,7 +7,7 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      OWL_DOMAIN: ${OWL_DOMAIN:-localhost}
+      REMENTUM_DOMAIN: ${REMENTUM_DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -25,11 +23,11 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_OWL_API_URL: ${OWL_PUBLIC_URL:-http://localhost}
+        NEXT_PUBLIC_REMENTUM_API_URL: ${REMENTUM_PUBLIC_URL:-http://localhost}
     restart: unless-stopped
     environment:
-      OWL_API_INTERNAL_URL: http://api:8787
-      NEXT_PUBLIC_OWL_API_URL: ${OWL_PUBLIC_URL:-http://localhost}
+      REMENTUM_API_INTERNAL_URL: http://api:8787
+      NEXT_PUBLIC_REMENTUM_API_URL: ${REMENTUM_PUBLIC_URL:-http://localhost}
     depends_on:
       api:
         condition: service_healthy
@@ -53,7 +51,7 @@ services:
     env_file: .env
     command: ["node", "packages/db/dist/migrate.js"]
     environment:
-      OWL_DATABASE_ADMIN_URL: postgres://postgres:${OWL_POSTGRES_SUPER_PASSWORD:?set OWL_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
+      REMENTUM_DATABASE_ADMIN_URL: postgres://postgres:${REMENTUM_POSTGRES_SUPER_PASSWORD:?set REMENTUM_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,10 +63,10 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      OWL_DATABASE_URL: postgres://owl_app:${OWL_POSTGRES_PASSWORD:?set OWL_POSTGRES_PASSWORD in .env}@postgres:5432/owl
-      OWL_EMBEDDINGS_URL: http://embeddings:8790
-      OWL_BLOB_DIR: /data/blobs
-      OWL_EXPORT_DIR: /data/exports
+      REMENTUM_DATABASE_URL: postgres://owl_app:${REMENTUM_POSTGRES_PASSWORD:?set REMENTUM_POSTGRES_PASSWORD in .env}@postgres:5432/owl
+      REMENTUM_EMBEDDINGS_URL: http://embeddings:8790
+      REMENTUM_BLOB_DIR: /data/blobs
+      REMENTUM_EXPORT_DIR: /data/exports
     volumes:
       - owl_data:/data
     depends_on:
@@ -89,10 +87,10 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      OWL_DATABASE_URL: postgres://owl_app:${OWL_POSTGRES_PASSWORD:?set OWL_POSTGRES_PASSWORD in .env}@postgres:5432/owl
-      OWL_EMBEDDINGS_URL: http://embeddings:8790
-      OWL_BLOB_DIR: /data/blobs
-      OWL_EXPORT_DIR: /data/exports
+      REMENTUM_DATABASE_URL: postgres://owl_app:${REMENTUM_POSTGRES_PASSWORD:?set REMENTUM_POSTGRES_PASSWORD in .env}@postgres:5432/owl
+      REMENTUM_EMBEDDINGS_URL: http://embeddings:8790
+      REMENTUM_BLOB_DIR: /data/blobs
+      REMENTUM_EXPORT_DIR: /data/exports
     volumes:
       - owl_data:/data
     depends_on:
@@ -107,8 +105,8 @@ services:
       dockerfile: apps/embeddings/Dockerfile
     restart: unless-stopped
     environment:
-      OWL_EMBEDDING_MODEL: ${OWL_EMBEDDING_MODEL:-intfloat/multilingual-e5-small}
-      OWL_MODEL_CACHE: /models
+      REMENTUM_EMBEDDING_MODEL: ${REMENTUM_EMBEDDING_MODEL:-intfloat/multilingual-e5-small}
+      REMENTUM_MODEL_CACHE: /models
     volumes:
       - model_cache:/models
     healthcheck:
@@ -123,10 +121,10 @@ services:
     environment:
       POSTGRES_DB: owl
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${OWL_POSTGRES_SUPER_PASSWORD:?set OWL_POSTGRES_SUPER_PASSWORD in .env}
-      OWL_POSTGRES_PASSWORD: ${OWL_POSTGRES_PASSWORD:?set OWL_POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${REMENTUM_POSTGRES_SUPER_PASSWORD:?set REMENTUM_POSTGRES_SUPER_PASSWORD in .env}
+      REMENTUM_POSTGRES_PASSWORD: ${REMENTUM_POSTGRES_PASSWORD:?set REMENTUM_POSTGRES_PASSWORD in .env}
     ports:
-      - "127.0.0.1:${OWL_POSTGRES_PORT:-55432}:5432"
+      - "127.0.0.1:${REMENTUM_POSTGRES_PORT:-55432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./deploy/postgres/00-app-role.sh:/docker-entrypoint-initdb.d/00-app-role.sh:ro
@@ -143,12 +141,12 @@ services:
       dockerfile: deploy/backup/Dockerfile
     env_file: .env
     environment:
-      OWL_DATABASE_ADMIN_URL: postgres://postgres:${OWL_POSTGRES_SUPER_PASSWORD:?set OWL_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
-      OWL_BLOB_DIR: /data/blobs
-      OWL_BACKUP_DIR: /backups
+      REMENTUM_DATABASE_ADMIN_URL: postgres://postgres:${REMENTUM_POSTGRES_SUPER_PASSWORD:?set REMENTUM_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
+      REMENTUM_BLOB_DIR: /data/blobs
+      REMENTUM_BACKUP_DIR: /backups
     volumes:
       - owl_data:/data:ro
-      - ${OWL_BACKUP_HOST_DIR:-./backups}:/backups
+      - ${REMENTUM_BACKUP_HOST_DIR:-./backups}:/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,14 +157,14 @@ services:
       context: .
       dockerfile: deploy/backup/Dockerfile
     env_file: .env
-    entrypoint: ["/usr/local/bin/owl-restore"]
+    entrypoint: ["/usr/local/bin/rementum-restore"]
     environment:
-      OWL_DATABASE_ADMIN_URL: postgres://postgres:${OWL_POSTGRES_SUPER_PASSWORD:?set OWL_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
-      OWL_BLOB_DIR: /data/blobs
-      OWL_BACKUP_AGE_IDENTITY_FILE: /run/secrets/age-identity
+      REMENTUM_DATABASE_ADMIN_URL: postgres://postgres:${REMENTUM_POSTGRES_SUPER_PASSWORD:?set REMENTUM_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
+      REMENTUM_BLOB_DIR: /data/blobs
+      REMENTUM_BACKUP_AGE_IDENTITY_FILE: /run/secrets/age-identity
     volumes:
       - owl_data:/data
-      - ${OWL_BACKUP_HOST_DIR:-./backups}:/backups:ro
+      - ${REMENTUM_BACKUP_HOST_DIR:-./backups}:/backups:ro
     depends_on:
       postgres:
         condition: service_healthy

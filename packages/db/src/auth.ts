@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { BrainRole, WorkspaceRole } from "@owl-memory/contracts";
+import type { BrainRole, WorkspaceRole } from "@rementum/contracts";
 import type postgres from "postgres";
 import type { DatabaseClient } from "./client.js";
 

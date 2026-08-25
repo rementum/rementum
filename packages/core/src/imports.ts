@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ArticleKind, ImportPreview } from "@owl-memory/contracts";
+import type { ArticleKind, ImportPreview } from "@rementum/contracts";
 import JSZip from "jszip";
 import { DomainError } from "./errors.js";
 import { parseMarkdownDocument, slugify } from "./markdown.js";

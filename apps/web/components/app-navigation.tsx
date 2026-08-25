@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Team } from "../lib/api";
+import { BrandMark } from "./brand";
 
 const items = [
   { label: "Brains", href: "/", glyph: "B" },
@@ -83,10 +84,8 @@ export function AppNavigation({
     <>
       <aside className="sidebar">
         <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true">
-            O
-          </span>
-          <span>Owl Memory</span>
+          <BrandMark className="brand-mark" />
+          <span>Rementum</span>
         </Link>
         <TeamPicker teams={teams} activeTeamId={activeTeamId} />
         <NavigationLinks />
@@ -104,10 +103,8 @@ export function AppNavigation({
       </aside>
       <header className="mobile-topbar">
         <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true">
-            O
-          </span>
-          <span>Owl Memory</span>
+          <BrandMark className="brand-mark" />
+          <span>Rementum</span>
         </Link>
         <details className="mobile-menu">
           <summary>Menu</summary>
