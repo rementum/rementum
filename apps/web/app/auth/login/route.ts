@@ -12,9 +12,9 @@ export async function GET(request: NextRequest) {
   authorization.searchParams.set("response_type", "code");
   authorization.searchParams.set(
     "scope",
-    "openid profile email offline_access brain:read brain:write task:read task:write",
+    "openid profile email offline_access team:read team:write brain:read brain:write task:read task:write connection:read connection:write",
   );
-  authorization.searchParams.set("resource", `${publicUrl.replace(/\/$/, "")}/mcp`);
+  authorization.searchParams.set("resource", `${publicUrl.replace(/\/$/, "")}/api`);
   authorization.searchParams.set("code_challenge", challenge);
   authorization.searchParams.set("code_challenge_method", "S256");
   authorization.searchParams.set("state", state);

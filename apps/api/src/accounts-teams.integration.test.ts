@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { AuthRepository, createDatabaseClient } from "@rementum/db";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
@@ -22,12 +23,20 @@ integration("account and team HTTP flows", () => {
     if (!databaseUrl) return;
     const suffix = randomBytes(6).toString("hex");
     const mailer = new CaptureMailer();
+    const { privateKey } = await generateKeyPair("RS256", { extractable: true });
+    const privateJwk = {
+      ...(await exportJWK(privateKey)),
+      use: "sig",
+      alg: "RS256",
+      kid: `test-${suffix}`,
+    };
     const config = loadConfig({
       NODE_ENV: "test",
       REMENTUM_PUBLIC_URL: "http://rementum.example.test",
       REMENTUM_DATABASE_URL: databaseUrl,
       REMENTUM_MASTER_KEY: Buffer.alloc(32, 9).toString("base64"),
       REMENTUM_COOKIE_KEYS: "cookie-key-at-least-sixteen-characters",
+      REMENTUM_JWT_JWKS: JSON.stringify({ keys: [privateJwk] }),
       REMENTUM_BLOB_DIR: `/tmp/rementum-${suffix}/blobs`,
       REMENTUM_EXPORT_DIR: `/tmp/rementum-${suffix}/exports`,
       REMENTUM_EMBEDDINGS_URL: "http://127.0.0.1:9",
@@ -72,6 +81,31 @@ integration("account and team HTTP flows", () => {
       const user = await auth.findUserByEmail(email);
       expect(user?.emailVerifiedAt).not.toBeNull();
       if (!user) throw new Error("Registered user was not found");
+
+      const accessToken = (scope: string) =>
+        new SignJWT({ client_id: "integration-test", scope })
+          .setProtectedHeader({ alg: "RS256", kid: privateJwk.kid })
+          .setIssuer("http://rementum.example.test/oauth")
+          .setAudience("http://rementum.example.test/api")
+          .setSubject(user.id)
+          .setExpirationTime("5m")
+          .sign(privateKey);
+
+      const insufficient = await app.inject({
+        method: "GET",
+        url: "/api/v1/teams",
+        headers: { authorization: `Bearer ${await accessToken("brain:read")}` },
+      });
+      expect(insufficient.statusCode).toBe(403);
+      expect(insufficient.json()).toMatchObject({ code: "insufficient_scope" });
+
+      const scopedTeams = await app.inject({
+        method: "GET",
+        url: "/api/v1/teams",
+        headers: { authorization: `Bearer ${await accessToken("team:read")}` },
+      });
+      expect(scopedTeams.statusCode).toBe(200);
+      expect(scopedTeams.json()).toHaveLength(1);
 
       const teams = await app.inject({
         method: "GET",

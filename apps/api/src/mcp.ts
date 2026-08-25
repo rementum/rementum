@@ -11,17 +11,12 @@ import {
   stageWriteSchema,
   taskStatusSchema,
 } from "@rementum/contracts";
-import {
-  type Actor,
-  DomainError,
-  hashContent,
-  type RementumService,
-  slugify,
-} from "@rementum/core";
+import { DomainError, hashContent, type RementumService, slugify } from "@rementum/core";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { type AccessScope, requireAccessScope, type ScopedActor } from "./access.js";
 
-type Authenticate = (request: any) => Promise<Actor>;
+type Authenticate = (request: any) => Promise<ScopedActor>;
 
 export async function registerMcpEndpoint(
   app: FastifyInstance,
@@ -30,7 +25,7 @@ export async function registerMcpEndpoint(
   resourceMetadataUrl: string,
 ): Promise<void> {
   app.post("/mcp", async (request, reply) => {
-    let actor: Actor;
+    let actor: ScopedActor;
     try {
       actor = await authenticate(request);
     } catch (error) {
@@ -76,7 +71,7 @@ export async function registerMcpEndpoint(
   app.delete("/mcp", methodNotAllowed);
 }
 
-export function createMcpServer(service: RementumService, actor: Actor): McpServer {
+export function createMcpServer(service: RementumService, actor: ScopedActor): McpServer {
   const server = new McpServer({ name: "rementum", version: "0.1.0" });
   const read = {
     readOnlyHint: true,
@@ -99,7 +94,7 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: {},
       annotations: read,
     },
-    () => result(service.listTeams(actor)),
+    () => scoped(actor, "team:read", () => result(service.listTeams(actor))),
   );
 
   server.registerTool(
@@ -110,7 +105,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: createTeamSchema.shape,
       annotations: write,
     },
-    (input) => result(service.createTeam(createTeamSchema.parse(input), actor)),
+    (input) =>
+      scoped(actor, "team:write", () =>
+        result(service.createTeam(createTeamSchema.parse(input), actor)),
+      ),
   );
 
   server.registerTool(
@@ -121,7 +119,7 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: {},
       annotations: read,
     },
-    () => result(service.listBrains(actor)),
+    () => scoped(actor, "brain:read", () => result(service.listBrains(actor))),
   );
 
   server.registerTool(
@@ -133,7 +131,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: createBrainSchema.shape,
       annotations: write,
     },
-    (input) => result(service.createBrain(createBrainSchema.parse(input), actor)),
+    (input) =>
+      scoped(actor, "brain:write", () =>
+        result(service.createBrain(createBrainSchema.parse(input), actor)),
+      ),
   );
 
   server.registerTool(
@@ -145,7 +146,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { brainId: z.uuid(), limit: z.number().int().min(1).max(1000).default(200) },
       annotations: read,
     },
-    ({ brainId, limit }) => result(service.getBrain(brainId, actor, limit)),
+    ({ brainId, limit }) =>
+      scoped(actor, "brain:read", () => result(service.getBrain(brainId, actor, limit))),
   );
 
   server.registerTool(
@@ -157,7 +159,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: searchArticlesSchema.shape,
       annotations: read,
     },
-    (input) => result(service.search(searchArticlesSchema.parse(input), actor)),
+    (input) =>
+      scoped(actor, "brain:read", () =>
+        result(service.search(searchArticlesSchema.parse(input), actor)),
+      ),
   );
 
   server.registerTool(
@@ -169,7 +174,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { articleId: z.uuid() },
       annotations: read,
     },
-    ({ articleId }) => result(service.readArticle(articleId, actor)),
+    ({ articleId }) =>
+      scoped(actor, "brain:read", () => result(service.readArticle(articleId, actor))),
   );
 
   server.registerTool(
@@ -181,7 +187,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { brainId: z.uuid(), limit: z.number().int().min(1).max(200).default(50) },
       annotations: read,
     },
-    ({ brainId, limit }) => result(service.recentActivity(brainId, limit, actor)),
+    ({ brainId, limit }) =>
+      scoped(actor, "brain:read", () => result(service.recentActivity(brainId, limit, actor))),
   );
 
   server.registerTool(
@@ -193,7 +200,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: stageWriteSchema.shape,
       annotations: write,
     },
-    async (input) => publicResult(await service.stageWrite(stageWriteSchema.parse(input), actor)),
+    async (input) =>
+      scoped(actor, "brain:write", async () =>
+        publicResult(await service.stageWrite(stageWriteSchema.parse(input), actor)),
+      ),
   );
 
   server.registerTool(
@@ -206,7 +216,9 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       annotations: write,
     },
     async (input) =>
-      publicResult(await service.promoteWrite(promoteWriteSchema.parse(input), actor)),
+      scoped(actor, "brain:write", async () =>
+        publicResult(await service.promoteWrite(promoteWriteSchema.parse(input), actor)),
+      ),
   );
 
   server.registerTool(
@@ -217,7 +229,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { writeId: z.uuid() },
       annotations: { ...write, idempotentHint: true },
     },
-    async ({ writeId }) => publicResult(await service.withdrawWrite(writeId, actor)),
+    async ({ writeId }) =>
+      scoped(actor, "brain:write", async () =>
+        publicResult(await service.withdrawWrite(writeId, actor)),
+      ),
   );
 
   server.registerTool(
@@ -229,7 +244,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { writeId: z.uuid() },
       annotations: read,
     },
-    async ({ writeId }) => publicResult(await service.getWriteStatus(writeId, actor)),
+    async ({ writeId }) =>
+      scoped(actor, "brain:read", async () =>
+        publicResult(await service.getWriteStatus(writeId, actor)),
+      ),
   );
 
   server.registerTool(
@@ -241,7 +259,9 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       annotations: write,
     },
     ({ articleId, reviewAfter }) =>
-      result(service.verifyArticle(articleId, reviewAfter ? new Date(reviewAfter) : null, actor)),
+      scoped(actor, "brain:write", () =>
+        result(service.verifyArticle(articleId, reviewAfter ? new Date(reviewAfter) : null, actor)),
+      ),
   );
 
   server.registerTool(
@@ -262,7 +282,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       },
       annotations: write,
     },
-    ({ articleId, links }) => result(service.setArticleLinks(articleId, links, actor)),
+    ({ articleId, links }) =>
+      scoped(actor, "brain:write", () => result(service.setArticleLinks(articleId, links, actor))),
   );
 
   server.registerTool(
@@ -289,6 +310,7 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       annotations: write,
     },
     async ({ brainId, documents }) => {
+      requireAccessScope(actor, "brain:write");
       const index = (await service.getBrain(brainId, actor, 10_000)).routingIndex;
       const writes = [];
       for (const document of documents) {
@@ -338,6 +360,7 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       annotations: read,
     },
     async ({ brainId, limit }) => {
+      requireAccessScope(actor, "brain:read");
       if (actor.brainRoles.get(brainId) !== "owner")
         throw new DomainError("forbidden", "Only the brain owner can export", 403);
       const brain = await service.getBrain(brainId, actor, limit);
@@ -366,7 +389,7 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { brainId: z.uuid() },
       annotations: read,
     },
-    ({ brainId }) => result(service.listTasks(brainId, actor)),
+    ({ brainId }) => scoped(actor, "task:read", () => result(service.listTasks(brainId, actor))),
   );
 
   server.registerTool(
@@ -377,7 +400,7 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { taskId: z.uuid() },
       annotations: read,
     },
-    ({ taskId }) => result(service.getTask(taskId, actor)),
+    ({ taskId }) => scoped(actor, "task:read", () => result(service.getTask(taskId, actor))),
   );
 
   server.registerTool(
@@ -388,7 +411,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: createTaskSchema.shape,
       annotations: write,
     },
-    (input) => result(service.createTask(createTaskSchema.parse(input), actor)),
+    (input) =>
+      scoped(actor, "task:write", () =>
+        result(service.createTask(createTaskSchema.parse(input), actor)),
+      ),
   );
 
   const claimConfig = {
@@ -398,10 +424,12 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
     annotations: write,
   };
   server.registerTool("claim_task", claimConfig, (input) => {
+    requireAccessScope(actor, "task:write");
     const parsed = claimTaskSchema.parse(input);
     return result(service.claimTask(parsed.brainId, parsed.taskId, parsed.leaseSeconds, actor));
   });
   server.registerTool("claim_next_task", claimConfig, (input) => {
+    requireAccessScope(actor, "task:write");
     const parsed = claimTaskSchema.parse({ ...input, taskId: undefined });
     return result(service.claimTask(parsed.brainId, undefined, parsed.leaseSeconds, actor));
   });
@@ -417,7 +445,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       },
       annotations: { ...write, idempotentHint: true },
     },
-    ({ taskId, leaseSeconds }) => result(service.heartbeatTask(taskId, leaseSeconds, actor)),
+    ({ taskId, leaseSeconds }) =>
+      scoped(actor, "task:write", () => result(service.heartbeatTask(taskId, leaseSeconds, actor))),
   );
 
   server.registerTool(
@@ -428,7 +457,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { taskId: z.uuid() },
       annotations: write,
     },
-    ({ taskId }) => result(service.releaseTask(taskId, false, actor)),
+    ({ taskId }) =>
+      scoped(actor, "task:write", () => result(service.releaseTask(taskId, false, actor))),
   );
   server.registerTool(
     "force_release_claim",
@@ -438,7 +468,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { taskId: z.uuid() },
       annotations: { ...write, destructiveHint: true },
     },
-    ({ taskId }) => result(service.releaseTask(taskId, true, actor)),
+    ({ taskId }) =>
+      scoped(actor, "task:write", () => result(service.releaseTask(taskId, true, actor))),
   );
 
   server.registerTool(
@@ -455,7 +486,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       },
       annotations: write,
     },
-    ({ taskId, ...patch }) => result(service.updateTask(taskId, defined(patch) as any, actor)),
+    ({ taskId, ...patch }) =>
+      scoped(actor, "task:write", () =>
+        result(service.updateTask(taskId, defined(patch) as any, actor)),
+      ),
   );
 
   server.registerTool(
@@ -466,7 +500,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { taskId: z.uuid() },
       annotations: write,
     },
-    ({ taskId }) => result(service.updateTask(taskId, { status: "approved" }, actor)),
+    ({ taskId }) =>
+      scoped(actor, "task:write", () =>
+        result(service.updateTask(taskId, { status: "approved" }, actor)),
+      ),
   );
   server.registerTool(
     "cancel_task",
@@ -476,7 +513,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { taskId: z.uuid() },
       annotations: { ...write, destructiveHint: true },
     },
-    ({ taskId }) => result(service.updateTask(taskId, { status: "cancelled" }, actor)),
+    ({ taskId }) =>
+      scoped(actor, "task:write", () =>
+        result(service.updateTask(taskId, { status: "cancelled" }, actor)),
+      ),
   );
 
   server.registerTool(
@@ -487,7 +527,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { taskId: z.uuid(), body: z.string().min(1).max(20_000) },
       annotations: write,
     },
-    ({ taskId, body }) => result(service.commentTask(taskId, body, actor)),
+    ({ taskId, body }) =>
+      scoped(actor, "task:write", () => result(service.commentTask(taskId, body, actor))),
   );
   server.registerTool(
     "attach_task_link",
@@ -501,7 +542,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       },
       annotations: write,
     },
-    ({ taskId, url, label }) => result(service.attachTaskLink(taskId, url, label, actor)),
+    ({ taskId, url, label }) =>
+      scoped(actor, "task:write", () => result(service.attachTaskLink(taskId, url, label, actor))),
   );
   server.registerTool(
     "link_task_article",
@@ -511,7 +553,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { taskId: z.uuid(), articleId: z.uuid() },
       annotations: write,
     },
-    ({ taskId, articleId }) => result(service.linkTaskArticle(taskId, articleId, actor)),
+    ({ taskId, articleId }) =>
+      scoped(actor, "task:write", () => result(service.linkTaskArticle(taskId, articleId, actor))),
   );
 
   server.registerTool(
@@ -523,7 +566,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { brainId: z.uuid() },
       annotations: { ...write, idempotentHint: true },
     },
-    ({ brainId }) => result(service.scanMaintenance(brainId, actor)),
+    ({ brainId }) =>
+      scoped(actor, "brain:write", () => result(service.scanMaintenance(brainId, actor))),
   );
   server.registerTool(
     "list_maintenance_candidates",
@@ -533,7 +577,8 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       inputSchema: { brainId: z.uuid() },
       annotations: read,
     },
-    ({ brainId }) => result(service.listMaintenance(brainId, actor)),
+    ({ brainId }) =>
+      scoped(actor, "brain:read", () => result(service.listMaintenance(brainId, actor))),
   );
 
   server.registerTool(
@@ -548,7 +593,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       },
       annotations: write,
     },
-    ({ teamId, email, role }) => result(service.proposeTeamInvite(teamId, email, role, actor)),
+    ({ teamId, email, role }) =>
+      scoped(actor, "team:write", () =>
+        result(service.proposeTeamInvite(teamId, email, role, actor)),
+      ),
   );
 
   server.registerTool(
@@ -564,7 +612,10 @@ export function createMcpServer(service: RementumService, actor: Actor): McpServ
       },
       annotations: write,
     },
-    ({ brainId, email, role }) => result(service.proposeInvite(brainId, email, role, actor)),
+    ({ brainId, email, role }) =>
+      scoped(actor, "brain:write", () =>
+        result(service.proposeInvite(brainId, email, role, actor)),
+      ),
   );
 
   return server;
@@ -600,4 +651,9 @@ function defined<T extends Record<string, unknown>>(value: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(value).filter(([, child]) => child !== undefined),
   ) as Partial<T>;
+}
+
+function scoped<T>(actor: ScopedActor, scope: AccessScope, operation: () => T): T {
+  requireAccessScope(actor, scope);
+  return operation();
 }

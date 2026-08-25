@@ -3,8 +3,11 @@ import { type NextRequest, NextResponse } from "next/server";
 export async function proxy(request: NextRequest) {
   const access = request.cookies.get("rementum_access")?.value;
   const refresh = request.cookies.get("rementum_refresh")?.value;
-  if (!refresh || (access && !expiresSoon(access))) return NextResponse.next();
   const publicUrl = process.env.NEXT_PUBLIC_REMENTUM_API_URL ?? request.nextUrl.origin;
+  const apiResource = `${publicUrl.replace(/\/$/, "")}/api`;
+  if (!refresh || (access && !expiresSoon(access) && hasAudience(access, apiResource))) {
+    return NextResponse.next();
+  }
   const apiUrl = process.env.REMENTUM_API_INTERNAL_URL ?? publicUrl;
   const tokenResponse = await fetch(`${apiUrl.replace(/\/$/, "")}/oauth/token`, {
     method: "POST",
@@ -13,7 +16,7 @@ export async function proxy(request: NextRequest) {
       grant_type: "refresh_token",
       client_id: "rementum-web",
       refresh_token: refresh,
-      resource: `${publicUrl.replace(/\/$/, "")}/mcp`,
+      resource: apiResource,
     }),
   });
   if (!tokenResponse.ok) {
@@ -57,5 +60,17 @@ function expiresSoon(token: string): boolean {
     return !payload.exp || payload.exp < Date.now() / 1000 + 30;
   } catch {
     return true;
+  }
+}
+
+function hasAudience(token: string, expected: string): boolean {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString()) as {
+      aud?: string | string[];
+    };
+    const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+    return audiences.includes(expected);
+  } catch {
+    return false;
   }
 }

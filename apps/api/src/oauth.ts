@@ -1,9 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { AuthRepository, type DatabaseClient, OidcPostgresAdapter } from "@rementum/db";
-import { verify } from "argon2";
+import { hash, verify } from "argon2";
 import type { FastifyInstance } from "fastify";
 import { exportJWK, generateKeyPair, type JWK } from "jose";
 import Provider, { type Configuration } from "oidc-provider";
+import { allAccessScopes } from "./access.js";
 import type { AppConfig } from "./config.js";
 
 export interface OauthRuntime {
@@ -11,6 +12,7 @@ export interface OauthRuntime {
   publicJwks: { keys: JWK[] };
   issuer: string;
   resource: string;
+  apiResource: string;
   publicUrl: string;
   allowSignup: boolean;
 }
@@ -21,6 +23,7 @@ export async function buildOauthRuntime(
 ): Promise<OauthRuntime> {
   const issuer = `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/oauth`;
   const resource = `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/mcp`;
+  const apiResource = `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/api`;
   const { privateJwks, publicJwks } = await resolveJwks(config.REMENTUM_JWT_JWKS);
   const auth = new AuthRepository(database);
 
@@ -63,18 +66,20 @@ export async function buildOauthRuntime(
       introspection: { enabled: true },
       resourceIndicators: {
         enabled: true,
-        defaultResource: () => resource,
+        defaultResource: () => apiResource,
         useGrantedResource: () => true,
         getResourceServerInfo: (_ctx, indicator) => {
-          if (
-            indicator !== resource &&
-            indicator !== `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/api`
-          ) {
+          if (indicator !== resource && indicator !== apiResource) {
             throw new Error("invalid_target");
           }
+          const scopes =
+            indicator === resource
+              ? allAccessScopes.filter(
+                  (scope) => scope !== "connection:read" && scope !== "connection:write",
+                )
+              : allAccessScopes;
           return {
-            scope:
-              "openid profile email offline_access brain:read brain:write task:read task:write",
+            scope: ["openid", "profile", "email", "offline_access", ...scopes].join(" "),
             audience: indicator,
             accessTokenTTL: 15 * 60,
             accessTokenFormat: "jwt",
@@ -82,16 +87,7 @@ export async function buildOauthRuntime(
         },
       },
     },
-    scopes: [
-      "openid",
-      "profile",
-      "email",
-      "offline_access",
-      "brain:read",
-      "brain:write",
-      "task:read",
-      "task:write",
-    ],
+    scopes: ["openid", "profile", "email", "offline_access", ...allAccessScopes],
     responseTypes: ["code"],
     claims: {
       openid: ["sub"],
@@ -136,6 +132,7 @@ export async function buildOauthRuntime(
     publicJwks,
     issuer,
     resource,
+    apiResource,
     publicUrl: config.REMENTUM_PUBLIC_URL.replace(/\/$/, ""),
     allowSignup: config.REMENTUM_ALLOW_SIGNUP,
   };
@@ -146,6 +143,12 @@ export async function registerOauthRoutes(
   runtime: OauthRuntime,
   auth: AuthRepository,
 ): Promise<void> {
+  const dummyPasswordHash = await hash(randomBytes(32), {
+    type: 2,
+    memoryCost: 65_536,
+    timeCost: 3,
+    parallelism: 1,
+  });
   app.get("/oauth/interaction/:uid", async (request, reply) => {
     const details = await runtime.provider.interactionDetails(request.raw, reply.raw);
     const client = await runtime.provider.Client.find(String(details.params.client_id));
@@ -166,7 +169,7 @@ export async function registerOauthRoutes(
   app.post("/oauth/interaction/:uid/login", async (request, reply) => {
     const body = request.body as { email?: string; password?: string };
     const user = body.email ? await auth.findUserByEmail(body.email) : null;
-    if (!user || !body.password || !(await verify(user.passwordHash, body.password))) {
+    if (!(await verifyLoginPassword(user, body.password, dummyPasswordHash))) {
       return reply
         .code(401)
         .type("text/html")
@@ -181,6 +184,7 @@ export async function registerOauthRoutes(
           ),
         );
     }
+    if (!user) throw new Error("Login verification succeeded without an account");
     if (!user.emailVerifiedAt) {
       return reply
         .code(403)
@@ -246,18 +250,30 @@ export async function registerOauthRoutes(
   });
 
   app.get("/.well-known/oauth-protected-resource", async () => ({
-    resource: runtime.resource,
+    resource: runtime.apiResource,
     authorization_servers: [runtime.issuer],
-    scopes_supported: ["brain:read", "brain:write", "task:read", "task:write"],
+    scopes_supported: allAccessScopes,
     bearer_methods_supported: ["header"],
   }));
   app.get("/.well-known/oauth-protected-resource/mcp", async () => ({
     resource: runtime.resource,
     authorization_servers: [runtime.issuer],
-    scopes_supported: ["brain:read", "brain:write", "task:read", "task:write"],
+    scopes_supported: allAccessScopes.filter(
+      (scope) => scope !== "connection:read" && scope !== "connection:write",
+    ),
     bearer_methods_supported: ["header"],
   }));
   app.get("/.well-known/jwks.json", async () => runtime.publicJwks);
+}
+
+export async function verifyLoginPassword(
+  user: { passwordHash: string } | null,
+  password: string | undefined,
+  dummyPasswordHash: string,
+  verifier: (passwordHash: string, candidate: string) => Promise<boolean> = verify,
+): Promise<boolean> {
+  const matches = await verifier(user?.passwordHash ?? dummyPasswordHash, password ?? "");
+  return Boolean(user && password && matches);
 }
 
 async function resolveJwks(serialized: string | undefined) {
