@@ -1647,7 +1647,10 @@ summary:focus-visible {
 
 .markdown h1,
 .markdown h2,
-.markdown h3 {
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
   margin: 2.1em 0 0.65em;
   color: var(--text);
   font-weight: 590;
@@ -1667,10 +1670,87 @@ summary:focus-visible {
   font-size: 20px;
 }
 
-.markdown p:first-child,
-.markdown h1:first-child,
-.markdown h2:first-child {
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  font-size: 16px;
+  letter-spacing: -0.015em;
+}
+
+.markdown > :first-child {
   margin-top: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown table,
+.markdown pre {
+  margin: 0 0 1.35em;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.55em;
+}
+
+.markdown li + li {
+  margin-top: 0.35em;
+}
+
+.markdown li > ul,
+.markdown li > ol {
+  margin: 0.35em 0 0;
+}
+
+.markdown .contains-task-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.markdown .task-list-item {
+  list-style: none;
+}
+
+.markdown input[type="checkbox"] {
+  margin: 0 0.55em 0 0;
+  accent-color: var(--text);
+  vertical-align: middle;
+}
+
+.markdown a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: rgb(255 255 255 / 35%);
+  text-underline-offset: 0.18em;
+}
+
+.markdown a:hover {
+  text-decoration-color: currentColor;
+}
+
+.markdown strong {
+  color: var(--text);
+}
+
+.markdown blockquote {
+  padding-left: 1.1em;
+  border-left: 2px solid var(--line-strong);
+  color: var(--text-secondary);
+}
+
+.markdown blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown code {
+  padding: 0.18em 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--canvas-raised);
+  color: var(--text);
+  font: 0.86em / 1.5 var(--font-mono);
 }
 
 .markdown pre {
@@ -1681,7 +1761,54 @@ summary:focus-visible {
   background: var(--canvas-raised);
   color: #d8d8dc;
   font: 12px / 1.7 var(--font-mono);
-  white-space: pre-wrap;
+}
+
+.markdown pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.markdown hr {
+  height: 1px;
+  margin: 2.1em 0;
+  border: 0;
+  background: var(--line);
+}
+
+.markdown table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.markdown th,
+.markdown td {
+  min-width: 120px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown th {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 590;
+}
+
+.markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+.markdown del {
+  color: var(--text-tertiary);
 }
 
 .provenance {
