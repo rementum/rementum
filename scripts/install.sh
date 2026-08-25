@@ -63,7 +63,7 @@ command -v openssl >/dev/null 2>&1 || fail "OpenSSL is required"
 docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is required"
 docker info >/dev/null 2>&1 || fail "The Docker daemon is not available"
 [ -t 0 ] || fail "Run this installer in an interactive terminal"
-[ ! -e .env ] || fail ".env already exists; use ./scripts/deploy.sh to update this instance"
+[ ! -e .env ] || fail ".env already exists; use ./scripts/update.sh to update this instance"
 
 printf 'Owl Memory production setup\n\n'
 
