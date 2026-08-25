@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { LandingMotion } from "../components/landing-motion";
+import { BentoCard } from "../components/landing/bento-card";
+import { Hero } from "../components/landing/hero";
+import { Marquee } from "../components/landing/marquee";
+import { MotionProvider } from "../components/landing/motion-provider";
+import { Reveal, RevealGroup, RevealItem } from "../components/landing/reveal";
+import { ScrollProgress } from "../components/landing/scroll-progress";
+import { Stepper } from "../components/landing/stepper";
 import { api, hasSession } from "../lib/api";
 
 interface Brain {
@@ -61,101 +67,187 @@ export default async function Home() {
 function Landing() {
   return (
     <main className="landing-page">
-      <LandingMotion />
-      <section className="landing">
-        <div className="hero-copy">
-          <p className="kicker">Self-hosted memory for AI agents</p>
-          <h1>Your agents should remember.</h1>
-          <p className="hero-sub">
-            One versioned knowledge layer for Codex, Claude Code, and other MCP clients.
-          </p>
-          <div className="hero-actions">
-            <Link className="button" href="/auth/login">
-              Sign in
-            </Link>
-            <a className="text-link" href="#workflow">
-              See how it works
-            </a>
-          </div>
-        </div>
-        <aside
-          className="hero-system"
-          aria-label="A staged memory moving through the routing index into versioned canonical knowledge"
-          role="img"
-        >
-          <div className="memory-field" aria-hidden="true">
-            <span className="memory-orbit memory-orbit-outer" />
-            <span className="memory-orbit memory-orbit-inner" />
-            <span className="memory-thread memory-thread-route" />
-            <span className="memory-thread memory-thread-stage" />
-
-            <MemoryBlock className="memory-block-index" label="Routing index" meta="4 matches" />
-            <MemoryBlock className="memory-block-source" label="Source note" meta="verified" />
-            <MemoryBlock
-              className="memory-block-history"
-              label="Version history"
-              meta="immutable"
-            />
-
-            <div className="memory-canon-stack">
-              <MemoryBlock className="memory-block-version-two" label="Previous canon" meta="v2" />
-              <MemoryBlock className="memory-block-version-three" label="Current canon" meta="v3" />
-            </div>
-
-            <MemoryBlock
-              className="memory-block-staged"
-              label="Staged write"
-              meta="conflict-free"
-            />
-          </div>
-        </aside>
-      </section>
-      <WorkflowSection />
-      <ControlSection />
-      <ArchitectureSection />
-      <section className="landing-section landing-cta" data-reveal>
-        <div>
-          <h2>Connect an agent.</h2>
-          <p>Use OAuth to grant each client its own revocable access.</p>
-        </div>
-        <div className="cta-actions">
-          <Link className="button" href="/auth/login">
-            Sign in
-          </Link>
-          <a className="button secondary" href="/docs">
-            API reference
-          </a>
-        </div>
-      </section>
-      <footer className="landing-footer">
-        <span>Owl Memory</span>
-        <span>Open source under AGPL-3.0</span>
-      </footer>
+      <MotionProvider>
+        <ScrollProgress />
+        <Hero />
+        <Marquee
+          items={[
+            "MCP-native",
+            "OAuth per agent",
+            "pgvector search",
+            "versioned canon",
+            "audit trail",
+            "Markdown export",
+            "conflict-safe writes",
+            "self-hosted",
+            "AGPL-3.0",
+          ]}
+        />
+        <WorkflowLanding />
+        <ControlBento />
+        <ArchitectureSection />
+        <CTASection />
+        <footer className="landing-foot">
+          <span className="brand-mark foot-mark" aria-hidden="true">
+            O
+          </span>
+          <span>Owl Memory</span>
+          <span className="foot-sep" aria-hidden="true">
+            ·
+          </span>
+          <span>Open source under AGPL-3.0</span>
+        </footer>
+      </MotionProvider>
     </main>
   );
 }
 
-function MemoryBlock({
-  className,
-  label,
-  meta,
-}: {
-  className: string;
-  label: string;
-  meta: string;
-}) {
+function WorkflowLanding() {
+  const steps = [
+    {
+      code: "route",
+      title: "Find the right article.",
+      body: "Agents read a compact index of titles, summaries, keywords, and freshness to choose one article.",
+    },
+    {
+      code: "read",
+      title: "Load current canon.",
+      body: "The full article is opened only after the index identifies it — the rest of the brain stays untouched.",
+    },
+    {
+      code: "stage",
+      title: "Propose a complete change.",
+      body: "A staged write carries its base version, source, and conflict candidates before it touches canon.",
+    },
+    {
+      code: "promote",
+      title: "Keep the history.",
+      body: "Owl Memory creates an immutable version and records an audit event when a write is promoted.",
+    },
+  ];
+
   return (
-    <div className={`memory-block ${className}`}>
-      <span className="memory-face memory-face-front">
-        <span>{label}</span>
-        <strong>{meta}</strong>
-      </span>
-      <span className="memory-face memory-face-back" />
-      <span className="memory-face memory-face-left" />
-      <span className="memory-face memory-face-right" />
-      <span className="memory-face memory-face-top" />
-      <span className="memory-face memory-face-bottom" />
-    </div>
+    <section className="landing-section workflow-landing" id="workflow" tabIndex={-1}>
+      <div className="section-head">
+        <Reveal>
+          <span className="kicker">The loop</span>
+          <h2>Load the right context.</h2>
+          <p>
+            Agents read a compact index, open the relevant article, and leave the rest of the brain
+            untouched. Every change is staged before it lands.
+          </p>
+        </Reveal>
+      </div>
+      <Stepper steps={steps} />
+    </section>
+  );
+}
+
+function ControlBento() {
+  return (
+    <section className="landing-section control-bento">
+      <div className="section-head">
+        <Reveal>
+          <span className="kicker">Change safely</span>
+          <h2>Change knowledge without silent overwrites.</h2>
+          <p>
+            Owl Memory separates proposals from canon. You review conflicts before a write replaces
+            the current version.
+          </p>
+        </Reveal>
+      </div>
+      <RevealGroup className="bento-grid">
+        <BentoCard
+          title="Versioned canon"
+          body="Readers see one current article. Older versions remain available for recovery."
+          visual={
+            <div className="visual-versions" aria-hidden="true">
+              <span className="vv-row vv-old">v2</span>
+              <span className="vv-row vv-cur">v3 · current</span>
+            </div>
+          }
+        />
+        <BentoCard
+          title="Conflict checks"
+          body="A proposal is parked when its base version no longer matches the live canon."
+          visual={
+            <div className="visual-conflict" aria-hidden="true">
+              <span className="vc-line vc-base">base v2</span>
+              <span className="vc-line vc-live">live v3</span>
+              <span className="vc-badge">parked</span>
+            </div>
+          }
+        />
+        <BentoCard
+          title="Portable source"
+          body="Export brains as Markdown and keep storage under your control."
+          visual={
+            <div className="visual-export" aria-hidden="true">
+              <span className="ve-file">brain.md</span>
+              <span className="ve-arrow">→</span>
+              <span className="ve-target">yours</span>
+            </div>
+          }
+        />
+      </RevealGroup>
+    </section>
+  );
+}
+
+function ArchitectureSection() {
+  const nodes = [
+    ["Clients", "Codex, Claude Code, OpenCode"],
+    ["Gateway", "Caddy, OAuth, MCP"],
+    ["Application", "Fastify, Next.js, worker"],
+    ["Storage", "PostgreSQL, pgvector, Markdown"],
+  ] as const;
+
+  return (
+    <section className="landing-section arch-landing">
+      <div className="section-head">
+        <Reveal>
+          <span className="kicker">Self-hosted</span>
+          <h2>Run it on your own stack.</h2>
+          <p>
+            OAuth, MCP, search, embeddings, and article storage stay inside one controlled
+            environment.
+          </p>
+        </Reveal>
+      </div>
+      <RevealGroup className="arch-path" role="list">
+        {nodes.map(([title, body]) => (
+          <RevealItem key={title} className="arch-node" role="listitem">
+            <span className="arch-label">{title}</span>
+            <strong>{body}</strong>
+          </RevealItem>
+        ))}
+      </RevealGroup>
+    </section>
+  );
+}
+
+function CTASection() {
+  return (
+    <section className="landing-section cta-landing">
+      <Reveal>
+        <div className="cta-card">
+          <div className="cta-glow" aria-hidden="true" />
+          <div>
+            <span className="kicker">Connect</span>
+            <h2>Connect an agent.</h2>
+            <p>Use OAuth to grant each client its own revocable access to a shared brain.</p>
+          </div>
+          <div className="cta-actions">
+            <Link className="button" href="/auth/login">
+              Sign in
+            </Link>
+            <a className="button secondary" href="/docs">
+              API reference
+            </a>
+          </div>
+        </div>
+      </Reveal>
+    </section>
   );
 }
 
@@ -203,63 +295,6 @@ function WorkflowSection() {
           </article>
         ))}
       </div>
-    </section>
-  );
-}
-
-function ControlSection() {
-  return (
-    <section className="landing-section control-section">
-      <div className="control-copy" data-reveal>
-        <h2>Change knowledge without silent overwrites.</h2>
-        <p>
-          Owl Memory separates proposals from canon. You review conflicts before a write replaces
-          the current version.
-        </p>
-      </div>
-      <div className="control-stack">
-        <article data-reveal>
-          <h3>Versioned canon</h3>
-          <p>Readers see one current article. Older versions remain available for recovery.</p>
-        </article>
-        <article data-reveal>
-          <h3>Conflict checks</h3>
-          <p>Owl Memory parks a proposal when its base version no longer matches.</p>
-        </article>
-        <article data-reveal>
-          <h3>Portable source</h3>
-          <p>Export brains as Markdown and keep storage under your control.</p>
-        </article>
-      </div>
-    </section>
-  );
-}
-
-function ArchitectureSection() {
-  const nodes = [
-    ["Clients", "Codex, Claude Code, OpenCode"],
-    ["Gateway", "Caddy, OAuth, MCP"],
-    ["Application", "Fastify, Next.js, worker"],
-    ["Storage", "PostgreSQL, pgvector, Markdown exports"],
-  ] as const;
-
-  return (
-    <section className="landing-section architecture-section">
-      <div className="section-copy" data-reveal>
-        <h2>Run it on your own stack.</h2>
-        <p>
-          The local deployment keeps OAuth, MCP, search, embeddings, and article storage inside one
-          controlled environment.
-        </p>
-      </div>
-      <ul className="architecture-path" aria-label="Owl Memory deployment path">
-        {nodes.map(([title, body]) => (
-          <li key={title} data-reveal>
-            <span>{title}</span>
-            <strong>{body}</strong>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
