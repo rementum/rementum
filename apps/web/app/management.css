@@ -586,9 +586,17 @@
 
 .article-edit-form label:has(.body-editor),
 .article-edit-form label:nth-last-of-type(1),
+.article-edit-form .form-note,
 .article-edit-form .form-error,
 .article-edit-form .button {
   grid-column: 1 / -1;
+}
+
+.article-edit-form .form-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .article-edit-form textarea:not(.body-editor) {
@@ -755,6 +763,7 @@
   .article-edit-form label,
   .article-edit-form label:has(.body-editor),
   .article-edit-form label:nth-last-of-type(1),
+  .article-edit-form .form-note,
   .article-edit-form .form-error,
   .article-edit-form .button {
     grid-column: auto;

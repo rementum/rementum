@@ -17,7 +17,7 @@ import {
   unwrapDataKey,
   wrapDataKey,
 } from "./crypto.js";
-import { ConflictError, ForbiddenError, NotFoundError } from "./errors.js";
+import { ConflictError, ForbiddenError, NotFoundError, SummaryGenerationError } from "./errors.js";
 import { splitMarkdownByHeading } from "./markdown.js";
 import type {
   Actor,
@@ -25,8 +25,10 @@ import type {
   DataStore,
   EmbeddingClient,
   ReadArticleResult,
+  ResolvedStageWriteInput,
   SearchHit,
   StagedWriteRecord,
+  SummaryGenerator,
 } from "./types.js";
 
 export class OwlService {
@@ -34,6 +36,7 @@ export class OwlService {
     private readonly store: DataStore,
     private readonly embeddings: EmbeddingClient,
     private readonly masterKey: Buffer,
+    private readonly summaries?: SummaryGenerator,
   ) {}
 
   async createBrain(input: CreateBrainInput, actor: Actor): Promise<BrainWithIndex> {
@@ -106,6 +109,10 @@ export class OwlService {
     requireBrainRole(actor, input.brainId, ["owner", "editor"]);
     const brain = await this.store.getBrain(input.brainId, actor);
     if (!brain) throw new NotFoundError("Brain");
+    if (input.idempotencyKey) {
+      const existing = await this.store.getStagedWriteByIdempotencyKey(input.idempotencyKey, actor);
+      if (existing) return existing;
+    }
     const articleId = input.articleId ?? randomUUID();
     const writeId = randomUUID();
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
@@ -114,12 +121,21 @@ export class OwlService {
       input.operation === "append"
         ? `${(await this.readArticle(articleId, actor)).body.trimEnd()}\n\n${input.body.trimStart()}`
         : input.body;
+    if (!this.summaries) throw new SummaryGenerationError("LLM summarization is not configured");
+    let summary: string;
+    try {
+      summary = await this.summaries.generateSummary({ title: input.title, body: bodyText });
+    } catch (error) {
+      if (error instanceof SummaryGenerationError) throw error;
+      throw new SummaryGenerationError();
+    }
+    const resolvedInput: ResolvedStageWriteInput = { ...input, summary };
     const body = encrypt(bodyText, key, bodyAad);
     const potentialConflicts = await this.store.findPotentialConflicts(
       input.brainId,
       input.articleId,
       input.title,
-      input.summary,
+      summary,
       actor,
     );
     if (potentialConflicts.length && !input.acknowledgePotentialConflicts) {
@@ -128,7 +144,7 @@ export class OwlService {
       });
     }
     const write = await this.store.createStagedWrite(
-      input,
+      resolvedInput,
       actor,
       articleId,
       writeId,

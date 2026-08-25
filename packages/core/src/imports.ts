@@ -16,7 +16,6 @@ export interface ImportDocument {
   title: string;
   slug: string;
   kind: ArticleKind;
-  summary: string;
   keywords: string[];
   body: string;
   links: string[];
@@ -86,7 +85,6 @@ export async function inspectMarkdownArchive(
       title: parsed.title,
       slug: slugify(parsed.title),
       kind,
-      summary: parsed.summary,
       keywords: parsed.tags,
       body: parsed.body,
       links: parsed.wikiLinks,

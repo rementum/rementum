@@ -13,6 +13,16 @@ const configSchema = z
     OWL_BLOB_DIR: z.string().default("./data/blobs"),
     OWL_EXPORT_DIR: z.string().default("./data/exports"),
     OWL_EMBEDDINGS_URL: z.url().default("http://localhost:8790"),
+    OWL_LLM_ENABLED: z.literal("true").transform(() => true),
+    OWL_LLM_BASE_URL: z.url(),
+    OWL_LLM_MODEL: z.string().min(1),
+    OWL_LLM_API_KEY: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    OWL_LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(45_000),
+    OWL_LLM_MAX_INPUT_CHARS: z.coerce.number().int().min(8000).max(200_000).default(24_000),
+    OWL_LLM_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
     OWL_ALLOW_SIGNUP: z
       .string()
       .default("false")

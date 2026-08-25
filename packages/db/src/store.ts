@@ -6,7 +6,6 @@ import type {
   PromoteWriteInput,
   SearchArticlesInput,
   SourceInput,
-  StageWriteInput,
   Task,
   WorkspaceRole,
 } from "@owl-memory/contracts";
@@ -19,6 +18,7 @@ import {
   type DataStore,
   ForbiddenError,
   NotFoundError,
+  type ResolvedStageWriteInput,
   reciprocalRankFusion,
   type SearchHit,
   type StagedWriteRecord,
@@ -243,7 +243,7 @@ export class PostgresStore implements DataStore {
   }
 
   async createStagedWrite(
-    input: StageWriteInput,
+    input: ResolvedStageWriteInput,
     actor: Actor,
     targetArticleId: string,
     writeId: string,
@@ -279,6 +279,19 @@ export class PostgresStore implements DataStore {
       `;
       if (!row) throw new Error("Staged write insert did not return a row");
       return mapWrite(row);
+    });
+  }
+
+  async getStagedWriteByIdempotencyKey(
+    idempotencyKey: string,
+    actor: Actor,
+  ): Promise<StagedWriteRecord | null> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        SELECT * FROM staged_writes
+        WHERE staged_by = ${actor.userId} AND idempotency_key = ${idempotencyKey}
+      `;
+      return row ? mapWrite(row) : null;
     });
   }
 

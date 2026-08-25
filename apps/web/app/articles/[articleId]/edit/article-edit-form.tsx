@@ -7,7 +7,6 @@ interface Article {
   brainId: string;
   slug: string;
   title: string;
-  summary: string;
   body: string;
   kind: "canonical" | "log";
   keywords: string[];
@@ -30,7 +29,6 @@ export function ArticleEditForm({ article }: { article: Article }) {
         operation: "update",
         slug: article.slug,
         title: formData.get("title"),
-        summary: formData.get("summary"),
         keywords: String(formData.get("keywords") ?? "")
           .split(",")
           .map((value) => value.trim())
@@ -64,10 +62,10 @@ export function ArticleEditForm({ article }: { article: Article }) {
         Title
         <input name="title" defaultValue={article.title} required maxLength={240} />
       </label>
-      <label>
-        Summary
-        <textarea name="summary" defaultValue={article.summary} required maxLength={1000} />
-      </label>
+      <p className="form-note">
+        Owl Memory will send this draft to your configured AI provider and generate its routing
+        summary when you stage the edit.
+      </p>
       <label>
         Keywords
         <input name="keywords" defaultValue={article.keywords.join(", ")} />

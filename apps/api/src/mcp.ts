@@ -159,7 +159,7 @@ export function createMcpServer(service: OwlService, actor: Actor): McpServer {
     {
       title: "Stage an article write",
       description:
-        "Stages a create, full canonical update, or log append. Read the current article first and pass its version for edits.",
+        "Stages a create, full canonical update, or log append. Owl Memory sends the resulting plaintext body to the configured AI provider and stores its generated summary. Read the current article first and pass its version for edits.",
       inputSchema: stageWriteSchema.shape,
       annotations: write,
     },
@@ -240,7 +240,7 @@ export function createMcpServer(service: OwlService, actor: Actor): McpServer {
     {
       title: "Stage Markdown documents",
       description:
-        "Stages a reviewed batch of Markdown documents. It never promotes the imported writes.",
+        "Stages a reviewed batch of Markdown documents and generates each summary with the configured AI provider. It never promotes the imported writes.",
       inputSchema: {
         brainId: z.uuid(),
         documents: z
@@ -248,7 +248,6 @@ export function createMcpServer(service: OwlService, actor: Actor): McpServer {
             z.object({
               path: z.string().min(1).max(1000),
               title: z.string().min(1).max(240),
-              summary: z.string().min(1).max(1000),
               body: z.string().min(1).max(2_000_000),
               kind: z.enum(["canonical", "log"]).default("canonical"),
               keywords: z.array(z.string()).max(40).default([]),
@@ -274,7 +273,6 @@ export function createMcpServer(service: OwlService, actor: Actor): McpServer {
                 articleId: existing?.id,
                 slug,
                 title: document.title,
-                summary: document.summary,
                 body: document.body,
                 kind: document.kind,
                 keywords: document.keywords,

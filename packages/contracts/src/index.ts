@@ -96,7 +96,6 @@ export const stageWriteSchema = z
     articleId: idSchema.optional(),
     slug: slugSchema,
     title: z.string().min(1).max(240),
-    summary: z.string().min(1).max(1000),
     keywords: z.array(z.string().min(1).max(80)).max(40).default([]),
     kind: articleKindSchema.default("canonical"),
     body: z.string().min(1).max(2_000_000),

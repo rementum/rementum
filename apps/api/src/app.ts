@@ -17,6 +17,7 @@ import { HttpEmbeddingClient } from "./embeddings.js";
 import { registerMcpEndpoint } from "./mcp.js";
 import { buildOauthRuntime, registerOauthRoutes } from "./oauth.js";
 import { registerApiRoutes } from "./routes.js";
+import { OpenAICompatibleSummaryGenerator } from "./summaries.js";
 
 export async function buildApp(config: AppConfig) {
   await Promise.all([
@@ -33,7 +34,20 @@ export async function buildApp(config: AppConfig) {
   const store = new PostgresStore(database);
   const authRepository = new AuthRepository(database);
   const embeddings = new HttpEmbeddingClient(config.OWL_EMBEDDINGS_URL);
-  const service = new OwlService(store, embeddings, parseMasterKey(config.OWL_MASTER_KEY));
+  const summaries = new OpenAICompatibleSummaryGenerator({
+    baseUrl: config.OWL_LLM_BASE_URL,
+    model: config.OWL_LLM_MODEL,
+    ...(config.OWL_LLM_API_KEY ? { apiKey: config.OWL_LLM_API_KEY } : {}),
+    timeoutMs: config.OWL_LLM_TIMEOUT_MS,
+    maxInputChars: config.OWL_LLM_MAX_INPUT_CHARS,
+    concurrency: config.OWL_LLM_CONCURRENCY,
+  });
+  const service = new OwlService(
+    store,
+    embeddings,
+    parseMasterKey(config.OWL_MASTER_KEY),
+    summaries,
+  );
   const oauth = await buildOauthRuntime(config, database);
   const authenticate = createAuthenticator(config, oauth, store);
 

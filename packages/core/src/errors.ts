@@ -27,3 +27,9 @@ export class ConflictError extends DomainError {
     super("conflict", message, 409, detail);
   }
 }
+
+export class SummaryGenerationError extends DomainError {
+  constructor(message = "The configured LLM could not summarize this memory") {
+    super("llm_summary_failed", message, 502);
+  }
+}

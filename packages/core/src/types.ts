@@ -93,6 +93,12 @@ export interface SearchHit {
   excerpt: string | null;
 }
 
+export interface SummaryGenerator {
+  generateSummary(input: { title: string; body: string }): Promise<string>;
+}
+
+export type ResolvedStageWriteInput = StageWriteInput & { summary: string };
+
 export interface DataStore {
   createBrain(
     input: CreateBrainInput & { workspaceId: string },
@@ -124,7 +130,7 @@ export interface DataStore {
     actor: Actor,
   ): Promise<void>;
   createStagedWrite(
-    input: StageWriteInput,
+    input: ResolvedStageWriteInput,
     actor: Actor,
     targetArticleId: string,
     writeId: string,
@@ -133,6 +139,10 @@ export interface DataStore {
     bodyHash: string,
     potentialConflicts: StagedWriteRecord["potentialConflicts"],
   ): Promise<StagedWriteRecord>;
+  getStagedWriteByIdempotencyKey(
+    idempotencyKey: string,
+    actor: Actor,
+  ): Promise<StagedWriteRecord | null>;
   getStagedWrite(id: string, actor: Actor): Promise<StagedWriteRecord | null>;
   listStagedWrites(
     brainId: string,

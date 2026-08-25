@@ -7,7 +7,6 @@ interface Article {
   brainId: string;
   slug: string;
   title: string;
-  summary: string;
   body: string;
   kind: "canonical" | "log";
   keywords: string[];

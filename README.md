@@ -8,6 +8,8 @@ The product is deliberately agent-first:
 - Knowledge lives in linked Markdown articles with a compact routing index.
 - Every canonical change is staged, versioned, attributed, and conflict checked.
 - Article bodies are encrypted with a per-brain key.
+- Owl Memory analyzes each staged memory with your configured OpenAI-compatible AI provider and
+  creates a compact routing summary.
 - Search combines routing metadata, PostgreSQL full-text search, and local multilingual
   embeddings.
 - Agents coordinate work through leased tasks and write maintenance proposals back through
@@ -28,7 +30,8 @@ it does not collide with a system PostgreSQL installation.
 
 ```bash
 cp .env.example .env
-# Fill OWL_MASTER_KEY and OWL_COOKIE_KEYS. Generate the production signing key with:
+# Fill OWL_MASTER_KEY, OWL_COOKIE_KEYS, and the OWL_LLM_* settings.
+# Generate the production signing key with:
 pnpm auth:jwks
 docker compose up -d postgres
 docker compose run --rm api node packages/db/dist/migrate.js
@@ -57,9 +60,11 @@ served from `/.well-known/oauth-protected-resource`.
 
 ## Security boundary
 
-Article bodies and version bodies are encrypted. Routing metadata and embeddings remain
-searchable and must be treated as sensitive derived data. The master key is not stored in the
-database or included in backups.
+Article bodies and version bodies are encrypted at rest. Before Owl Memory encrypts a staged write,
+it sends the complete resulting article body in plaintext to the OpenAI-compatible AI provider you
+configure. The provider returns the summary used for routing and conflict checks. Routing metadata
+and embeddings remain searchable and must be treated as sensitive derived data. The master key is
+not stored in the database or included in backups.
 
 See [SECURITY.md](SECURITY.md) for reporting and deployment guidance.
 

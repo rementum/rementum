@@ -75,6 +75,7 @@ function Landing() {
             "MCP-native",
             "OAuth per agent",
             "pgvector search",
+            "AI summaries",
             "versioned canon",
             "audit trail",
             "Markdown export",
@@ -116,8 +117,8 @@ function WorkflowLanding() {
     },
     {
       code: "stage",
-      title: "Propose a complete change.",
-      body: "A staged write carries its base version, source, and conflict candidates before it touches canon.",
+      title: "Analyze and stage the memory.",
+      body: "Owl Memory sends the draft to your configured AI provider, creates a compact summary, and checks for conflicts before it touches canon.",
     },
     {
       code: "promote",
@@ -198,7 +199,7 @@ function ArchitectureSection() {
   const nodes = [
     ["Clients", "Codex, Claude Code, OpenCode"],
     ["Gateway", "Caddy, OAuth, MCP"],
-    ["Application", "Fastify, Next.js, worker"],
+    ["Application", "Fastify, Next.js, AI summaries"],
     ["Storage", "PostgreSQL, pgvector, Markdown"],
   ] as const;
 
@@ -209,8 +210,8 @@ function ArchitectureSection() {
           <span className="kicker">Self-hosted</span>
           <h2>Run it on your own stack.</h2>
           <p>
-            OAuth, MCP, search, embeddings, and article storage stay inside one controlled
-            environment.
+            You control OAuth, MCP, search, embeddings, and storage. Owl Memory sends staged memory
+            to the OpenAI-compatible AI provider you configure.
           </p>
         </Reveal>
       </div>
@@ -265,8 +266,8 @@ function WorkflowSection() {
     },
     {
       code: "stage",
-      title: "Propose a complete change.",
-      body: "A staged write includes its base version, source, and conflict candidates.",
+      title: "Analyze and stage the memory.",
+      body: "Owl Memory generates a routing summary with your configured AI provider, then checks the proposal for conflicts.",
     },
     {
       code: "promote",
