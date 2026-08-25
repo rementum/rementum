@@ -42,15 +42,54 @@
   text-underline-offset: 0.16em;
 }
 
+.md-typeset .md-button {
+  border-color: #2f6f5e;
+  color: #2f6f5e;
+}
+
+.md-typeset .md-button:hover,
+.md-typeset .md-button:focus-visible {
+  border-color: #2f6f5e;
+  background: #dce6e0;
+  color: #17211e;
+}
+
 .md-typeset .md-button--primary {
   border-color: #2f6f5e;
   background: #2f6f5e;
   color: #f3f5f1;
 }
 
-.md-typeset .md-button--primary:hover {
+.md-typeset .md-button--primary:hover,
+.md-typeset .md-button--primary:focus-visible {
   border-color: #255849;
   background: #255849;
+  color: #f3f5f1;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button {
+  border-color: #79aa98;
+  color: #dce6e0;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button:hover,
+[data-md-color-scheme="slate"] .md-typeset .md-button:focus-visible {
+  border-color: #79aa98;
+  background: #22312b;
+  color: #f3f5f1;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button--primary {
+  border-color: #2f6f5e;
+  background: #2f6f5e;
+  color: #f3f5f1;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button--primary:hover,
+[data-md-color-scheme="slate"] .md-typeset .md-button--primary:focus-visible {
+  border-color: #255849;
+  background: #255849;
+  color: #f3f5f1;
 }
 
 .rementum-banner {
