@@ -259,16 +259,21 @@ async function resolveJwks(serialized: string | undefined) {
 function interactionPage(prompt: string, action: string, uid: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Owl Memory · ${escapeHtml(prompt)}</title><style>
-  :root{color-scheme:light}body{font:16px/1.5 ui-sans-serif,system-ui;background:#f4f1e9;color:#17211d;margin:0;display:grid;min-height:100vh;place-items:center}
-  main{width:min(420px,calc(100vw - 48px));background:#fff;border:1px solid #d7d2c7;padding:32px;box-shadow:0 18px 60px #17211d18}
-  h1{font:600 30px/1.1 ui-serif,Georgia;margin:0 0 24px}.mark{font:700 12px/1 ui-monospace;color:#a4472c;letter-spacing:.14em;text-transform:uppercase}
-  label{display:grid;gap:6px;margin:16px 0;font-weight:600}input{font:inherit;padding:11px;border:1px solid #aaa69d;border-radius:4px}
-  button{font:700 14px/1 ui-sans-serif;padding:12px 16px;border:0;background:#17211d;color:#fff;cursor:pointer;width:100%}.deny{background:transparent;color:#6e3425;margin-top:8px}
-  .scope{font-family:ui-monospace,monospace;font-size:12px;background:#f4f1e9;padding:12px}.error{color:#9b2c20}
-  </style></head><body><main><p class="mark">Owl Memory</p><h1>${prompt === "login" ? "Sign in" : "Approve connection"}</h1>
+  :root{color-scheme:dark;--canvas:#0c0c0f;--surface:#151518;--raised:#1a1a1e;--text:#f2f2f3;--muted:#9b9ba4;--quiet:#71717b;--line:rgb(255 255 255 / 12%);--danger:#e2b6b6}
+  *{box-sizing:border-box}body{min-width:320px;min-height:100dvh;margin:0;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 15%,rgb(255 255 255 / 5%),transparent 32%),var(--canvas);color:var(--text);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif}
+  main{width:min(430px,100%);padding:26px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:inset 0 1px 0 rgb(255 255 255 / 4%),0 28px 90px rgb(0 0 0 / 32%)}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:34px;color:var(--muted);font-size:13px;font-weight:650}.mark{display:grid;width:28px;height:28px;margin:0;place-items:center;border-radius:9px;background:var(--text);color:#111114;font:700 13px/1 ui-monospace,monospace}
+  h1{margin:0;color:var(--text);font-size:30px;font-weight:620;letter-spacing:-.04em;line-height:1.1}.intro{margin:10px 0 24px;color:var(--muted)}
+  label{display:grid;gap:7px;margin:16px 0;color:var(--muted);font-size:12px;font-weight:600}input{min-height:43px;padding:0 11px;border:1px solid var(--line);border-radius:8px;outline:0;background:#101013;color:var(--text);font:14px ui-sans-serif,system-ui,sans-serif;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}input:focus{border-color:rgb(255 255 255 / 34%);background:var(--raised);box-shadow:0 0 0 3px rgb(255 255 255 / 6%)}
+  button{width:100%;min-height:43px;margin-top:8px;border:1px solid var(--text);border-radius:8px;background:var(--text);color:#111114;cursor:pointer;font:650 13px/1 ui-sans-serif,system-ui,sans-serif;transition:background .15s ease,border-color .15s ease,transform .15s ease}button:hover{border-color:#d7d7d9;background:#d7d7d9}button:active{transform:scale(.985)}button:focus-visible,input:focus-visible{outline:2px solid var(--text);outline-offset:3px}.deny{margin-top:8px;border-color:transparent;background:transparent;color:var(--muted)}.deny:hover{border-color:var(--line);background:var(--raised);color:var(--text)}
+  .scope{overflow-wrap:anywhere;padding:12px;border:1px solid var(--line);border-radius:8px;background:#101013;color:var(--quiet);font:11px/1.7 ui-monospace,monospace}.error{padding:10px 12px;border:1px solid rgb(226 182 182 / 18%);border-radius:8px;background:#261c1e;color:var(--danger);font-size:12px}.foot{margin:22px 0 0;color:var(--quiet);font:10px/1.5 ui-monospace,monospace;text-align:center}
+  @media(max-width:480px){body{align-items:start;padding:16px}main{margin-top:8vh;padding:21px}.brand{margin-bottom:28px}}
+  @media(prefers-reduced-motion:reduce){*{transition-duration:.01ms}}
+  </style></head><body><main><div class="brand"><p class="mark">O</p><span>Owl Memory</span></div><h1>${prompt === "login" ? "Sign in" : "Approve connection"}</h1>
+  <p class="intro">${prompt === "login" ? "Open your local knowledge workspace." : "Review what this client can access."}</p>
   <form method="post" action="${escapeHtml(action)}"><input type="hidden" name="uid" value="${escapeHtml(uid)}">${body}<button type="submit">${prompt === "login" ? "Continue" : "Approve"}</button></form>
   ${prompt === "consent" ? `<form method="post" action="/oauth/interaction/${escapeHtml(uid)}/abort"><button class="deny" type="submit">Deny</button></form>` : ""}
-  </main></body></html>`;
+  <p class="foot">Authorization stays on this Owl Memory instance.</p></main></body></html>`;
 }
 
 function escapeHtml(value: string): string {

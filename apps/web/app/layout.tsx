@@ -2,6 +2,7 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AppNavigation } from "../components/app-navigation";
 import { hasSession } from "../lib/api";
 import "./styles.css";
 import "./invite.css";
@@ -18,29 +19,27 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body>
-        <header className="topbar">
-          <Link className="brand" href="/">
-            <span className="brand-mark" aria-hidden="true">
-              O
-            </span>
-            <span>Owl Memory</span>
-          </Link>
-          <nav aria-label="Primary navigation">
-            {signedIn ? (
-              <>
-                <Link href="/">Brains</Link>
-                <Link href="/connections">Connections</Link>
-                <a href="/docs">API</a>
-                <form action="/auth/logout" method="post" className="nav-logout">
-                  <button type="submit">Sign out</button>
-                </form>
-              </>
-            ) : (
-              <Link href="/auth/login">Sign in</Link>
-            )}
-          </nav>
-        </header>
-        {children}
+        {signedIn ? (
+          <div className="workspace">
+            <AppNavigation />
+            <div className="workspace-main">{children}</div>
+          </div>
+        ) : (
+          <div className="public-site">
+            <header className="public-nav">
+              <Link className="brand" href="/">
+                <span className="brand-mark" aria-hidden="true">
+                  O
+                </span>
+                <span>Owl Memory</span>
+              </Link>
+              <Link className="nav-action" href="/auth/login">
+                Sign in
+              </Link>
+            </header>
+            {children}
+          </div>
+        )}
       </body>
     </html>
   );

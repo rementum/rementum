@@ -32,7 +32,11 @@ export function ConnectionList({ connections }: { connections: Connection[] }) {
             <div>
               <span className="mono">{connection.clientId}</span>
               <h2>{connection.clientName}</h2>
-              <p>{connection.scopes.join(" · ")}</p>
+              <ul className="scope-list" aria-label="Granted scopes">
+                {connection.scopes.map((scope) => (
+                  <li key={scope}>{scope}</li>
+                ))}
+              </ul>
             </div>
             <button
               type="button"
