@@ -1,0 +1,56 @@
+# Development
+
+## Requirements
+
+- Node.js 24 or newer
+- pnpm 10.30.2
+- Docker Compose v2
+- Python 3 for the documentation site
+
+## Run the container stack
+
+Copy the example environment and fill the required keys and AI provider values:
+
+```bash
+cp .env.example .env
+docker compose up -d --build --wait
+```
+
+Use `OWL_PUBLIC_URL=http://localhost` and `OWL_DOMAIN=localhost` for this path. The base Compose file
+keeps the API in development mode, serves the app at `http://localhost`, and runs migrations before
+the API and worker start.
+
+## Run Node services on the host
+
+Install dependencies and start PostgreSQL:
+
+```bash
+pnpm install --frozen-lockfile
+docker compose up -d postgres
+OWL_DATABASE_ADMIN_URL=postgres://postgres:YOUR_ADMIN_PASSWORD@127.0.0.1:55432/owl pnpm db:migrate
+pnpm dev
+```
+
+Set host-side database and embedding URLs in the shell when they differ from the container values in
+`.env`. Use the container stack for end-to-end OAuth testing because the web and API share one public
+origin behind Caddy.
+
+## Checks
+
+```bash
+pnpm check
+pnpm build
+docker compose config --quiet
+docker compose -f docker-compose.yml -f compose.production.yml config --quiet
+```
+
+## Documentation
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r docs/requirements.txt
+mkdocs serve
+```
+
+Run the release check with `mkdocs build --strict`.

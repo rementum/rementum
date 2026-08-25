@@ -17,4 +17,4 @@ test -f "$work/blobs.tar"
 pg_restore --clean --if-exists --no-owner --no-acl --dbname "$OWL_DATABASE_ADMIN_URL" "$work/database.dump"
 mkdir -p "$OWL_BLOB_DIR"
 tar -C "$OWL_BLOB_DIR" -xf "$work/blobs.tar"
-printf 'Restore completed. Run migrations, then rebuild embeddings.\n'
+printf 'Restore completed. Run the deployment command to apply pending migrations.\n'

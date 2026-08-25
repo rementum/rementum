@@ -21,47 +21,31 @@ The product is deliberately agent-first:
 This repository is under active development toward a production beta. The REST and MCP
 contracts are versioned, but backward compatibility is not promised until 1.0.
 
-## Local development
+## Self-host
 
-Requirements: Node.js 24+, pnpm 10+, and Docker.
-
-The reference Compose stack binds PostgreSQL to loopback port `55432` for local migrations so
-it does not collide with a system PostgreSQL installation.
+Point a domain at a Linux host with Docker Compose, open ports 80 and 443, then run:
 
 ```bash
-cp .env.example .env
-# Fill OWL_MASTER_KEY, OWL_COOKIE_KEYS, and the OWL_LLM_* settings.
-# Generate the production signing key with:
-pnpm auth:jwks
-docker compose up -d postgres
-docker compose run --rm api node packages/db/dist/migrate.js
-docker compose up -d
+git clone https://github.com/yibudak/owl-memory.git
+cd owl-memory
+./scripts/install.sh
 ```
 
-For host-side development, point the admin migration URL at the loopback port:
+The installer generates the instance secrets, builds the stack, runs migrations, waits for health
+checks, and creates the first owner. Caddy provisions HTTPS. See the
+[installation guide](docs/installation.md) for requirements and recovery steps.
+
+## Documentation
+
+The [MkDocs site](docs/index.md) covers configuration, backups, upgrades, security, and agent
+connections. Build it with:
 
 ```bash
-pnpm install
-OWL_DATABASE_ADMIN_URL=postgres://postgres:YOUR_ADMIN_PASSWORD@127.0.0.1:55432/owl pnpm db:migrate
-pnpm dev
+python3 -m pip install -r docs/requirements.txt
+mkdocs build --strict
 ```
 
-Create the first owner after migrations:
-
-```bash
-docker compose run --rm \
-  -v /absolute/path/to/owner-password:/run/secrets/owl-owner-password:ro \
-  api node apps/api/dist/admin.js -- create-owner \
-  --email you@example.com --password-file /run/secrets/owl-owner-password
-```
-
-To allow anyone to register, set `OWL_ALLOW_SIGNUP=true` together with a Resend API key and a
-verified sender in `OWL_RESEND_API_KEY` and `OWL_MAIL_FROM`. New accounts verify their email and
-create their first team during registration; invitation acceptance remains available when public
-signup is disabled.
-
-The remote MCP endpoint is `https://<your-host>/mcp`. OAuth Protected Resource Metadata is
-served from `/.well-known/oauth-protected-resource`.
+For development setup and checks, read [docs/development.md](docs/development.md).
 
 ## Security boundary
 
@@ -71,7 +55,8 @@ configure. The provider returns the summary used for routing and conflict checks
 and embeddings remain searchable and must be treated as sensitive derived data. The master key is
 not stored in the database or included in backups.
 
-See [SECURITY.md](SECURITY.md) for reporting and deployment guidance.
+See [SECURITY.md](SECURITY.md) and the [security checklist](docs/security.md) before storing private
+knowledge.
 
 ## Backup
 
@@ -82,7 +67,8 @@ docker compose --profile backup run --rm backup
 ```
 
 The encrypted archive contains PostgreSQL, local blobs, and a versioned manifest. It never contains
-`OWL_MASTER_KEY`; escrow that key separately. Host-side equivalents live in `deploy/backup/`.
+`OWL_MASTER_KEY`; escrow that key separately. Read [the operations guide](docs/operations.md) before
+you test a restore.
 
 ## License
 

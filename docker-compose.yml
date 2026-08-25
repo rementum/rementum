@@ -2,7 +2,7 @@ name: owl-memory
 
 services:
   caddy:
-    image: caddy:2.10-alpine
+    image: caddy:2.10.2-alpine
     restart: unless-stopped
     ports:
       - "80:80"
@@ -18,7 +18,7 @@ services:
       api:
         condition: service_healthy
       web:
-        condition: service_started
+        condition: service_healthy
 
   web:
     build:
@@ -32,6 +32,30 @@ services:
       NEXT_PUBLIC_OWL_API_URL: ${OWL_PUBLIC_URL:-http://localhost}
     depends_on:
       api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then((response) => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: "no"
+    env_file: .env
+    command: ["node", "packages/db/dist/migrate.js"]
+    environment:
+      OWL_DATABASE_ADMIN_URL: postgres://postgres:${OWL_POSTGRES_SUPER_PASSWORD:?set OWL_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
+    depends_on:
+      postgres:
         condition: service_healthy
 
   api:
@@ -48,10 +72,10 @@ services:
     volumes:
       - owl_data:/data
     depends_on:
-      postgres:
-        condition: service_healthy
       embeddings:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8787/healthz"]
       interval: 10s
@@ -72,10 +96,10 @@ services:
     volumes:
       - owl_data:/data
     depends_on:
-      postgres:
-        condition: service_healthy
       embeddings:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   embeddings:
     build:
@@ -124,7 +148,25 @@ services:
       OWL_BACKUP_DIR: /backups
     volumes:
       - owl_data:/data:ro
-      - backups:/backups
+      - ${OWL_BACKUP_HOST_DIR:-./backups}:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  restore:
+    profiles: ["restore"]
+    build:
+      context: .
+      dockerfile: deploy/backup/Dockerfile
+    env_file: .env
+    entrypoint: ["/usr/local/bin/owl-restore"]
+    environment:
+      OWL_DATABASE_ADMIN_URL: postgres://postgres:${OWL_POSTGRES_SUPER_PASSWORD:?set OWL_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
+      OWL_BLOB_DIR: /data/blobs
+      OWL_BACKUP_AGE_IDENTITY_FILE: /run/secrets/age-identity
+    volumes:
+      - owl_data:/data
+      - ${OWL_BACKUP_HOST_DIR:-./backups}:/backups:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -135,4 +177,3 @@ volumes:
   postgres_data:
   owl_data:
   model_cache:
-  backups:
