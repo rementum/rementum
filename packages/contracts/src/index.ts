@@ -89,6 +89,26 @@ export const createBrainSchema = z.object({
 });
 export type CreateBrainInput = z.infer<typeof createBrainSchema>;
 
+export const teamSchema = z.object({
+  id: idSchema,
+  slug: slugSchema,
+  name: z.string(),
+  role: workspaceRoleSchema,
+  createdAt: z.iso.datetime(),
+});
+export type Team = z.infer<typeof teamSchema>;
+
+export const createTeamSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+});
+export type CreateTeamInput = z.infer<typeof createTeamSchema>;
+
+export const createTeamInvitationSchema = z.object({
+  email: z.email(),
+  role: z.enum(["admin", "member"]).default("member"),
+});
+export type CreateTeamInvitationInput = z.infer<typeof createTeamInvitationSchema>;
+
 export const stageWriteSchema = z
   .object({
     brainId: idSchema,
@@ -213,6 +233,9 @@ export const problemSchema = z.object({
 export type Problem = z.infer<typeof problemSchema>;
 
 export const toolNames = [
+  "list_teams",
+  "create_team",
+  "propose_team_invite",
   "list_brains",
   "create_brain",
   "get_brain",

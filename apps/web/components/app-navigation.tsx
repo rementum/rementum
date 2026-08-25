@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Team } from "../lib/api";
 
 const items = [
   { label: "Brains", href: "/", glyph: "B" },
+  { label: "Teams", href: "/teams", glyph: "T" },
   { label: "Connections", href: "/connections", glyph: "C" },
   { label: "API reference", href: "/docs", glyph: "A", external: true },
 ] as const;
@@ -49,7 +51,34 @@ function NavigationLinks({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function AppNavigation() {
+function TeamPicker({ teams, activeTeamId }: { teams: Team[]; activeTeamId: string | null }) {
+  if (!teams.length) return null;
+  return (
+    <form className="team-picker" action="/teams/select" method="post">
+      <label htmlFor="team-picker">Active team</label>
+      <select
+        id="team-picker"
+        name="teamId"
+        defaultValue={activeTeamId ?? teams[0]?.id}
+        onChange={(event) => event.currentTarget.form?.requestSubmit()}
+      >
+        {teams.map((team) => (
+          <option value={team.id} key={team.id}>
+            {team.name}
+          </option>
+        ))}
+      </select>
+    </form>
+  );
+}
+
+export function AppNavigation({
+  teams,
+  activeTeamId,
+}: {
+  teams: Team[];
+  activeTeamId: string | null;
+}) {
   return (
     <>
       <aside className="sidebar">
@@ -59,6 +88,7 @@ export function AppNavigation() {
           </span>
           <span>Owl Memory</span>
         </Link>
+        <TeamPicker teams={teams} activeTeamId={activeTeamId} />
         <NavigationLinks />
         <div className="sidebar-footer">
           <p>
@@ -82,6 +112,7 @@ export function AppNavigation() {
         <details className="mobile-menu">
           <summary>Menu</summary>
           <div className="mobile-menu-panel">
+            <TeamPicker teams={teams} activeTeamId={activeTeamId} />
             <NavigationLinks compact />
             <form action="/auth/logout" method="post">
               <button className="signout-button" type="submit">

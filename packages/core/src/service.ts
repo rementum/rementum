@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type {
   CreateBrainInput,
   CreateTaskInput,
+  CreateTeamInput,
   PromoteWriteInput,
   SearchArticlesInput,
   StageWriteInput,
@@ -18,7 +19,7 @@ import {
   wrapDataKey,
 } from "./crypto.js";
 import { ConflictError, ForbiddenError, NotFoundError, SummaryGenerationError } from "./errors.js";
-import { splitMarkdownByHeading } from "./markdown.js";
+import { slugify, splitMarkdownByHeading } from "./markdown.js";
 import type {
   Actor,
   BrainWithIndex,
@@ -39,6 +40,119 @@ export class OwlService {
     private readonly summaries?: SummaryGenerator,
   ) {}
 
+  async createTeam(input: CreateTeamInput, actor: Actor) {
+    const teamId = randomUUID();
+    const base = slugify(input.name) || "team";
+    const slug = `${base.slice(0, 105)}-${randomBytes(6).toString("hex")}`;
+    const team = await this.store.createTeam(input.name.trim(), slug, actor, teamId);
+    await this.store.audit(actor, "team.created", `team:${team.id}`);
+    return { ...team, createdAt: team.createdAt.toISOString() };
+  }
+
+  async listTeams(actor: Actor) {
+    return (await this.store.listTeams(actor)).map((team) => ({
+      ...team,
+      createdAt: team.createdAt.toISOString(),
+    }));
+  }
+
+  async listTeamMembers(teamId: string, actor: Actor) {
+    requireWorkspaceRole(actor, teamId, ["owner", "admin", "member"]);
+    return (await this.store.listTeamMembers(teamId, actor)).map((member) => ({
+      ...member,
+      createdAt: member.createdAt.toISOString(),
+    }));
+  }
+
+  async listTeamInvitations(teamId: string, actor: Actor) {
+    requireWorkspaceRole(actor, teamId, ["owner", "admin"]);
+    return (await this.store.listTeamInvitations(teamId, actor)).map(serializeTeamInvitation);
+  }
+
+  async proposeTeamInvite(teamId: string, email: string, role: "admin" | "member", actor: Actor) {
+    const actorRole = actor.workspaceRoles.get(teamId);
+    requireWorkspaceRole(actor, teamId, ["owner", "admin"]);
+    if (role === "admin" && actorRole !== "owner") {
+      throw new ForbiddenError("Only the team owner can invite an admin");
+    }
+    const token = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const invitation = await this.store.createTeamInvitation(
+      teamId,
+      email.trim().toLowerCase(),
+      role,
+      hashContent(token),
+      expiresAt,
+      actor,
+    );
+    await this.store.audit(actor, "team_invitation.created", `team:${teamId}`, {
+      invitationId: invitation.id,
+      role,
+    });
+    return { ...serializeTeamInvitation(invitation), token };
+  }
+
+  async resendTeamInvite(invitationId: string, actor: Actor) {
+    const teams = await this.store.listTeams(actor);
+    const pending = (
+      await Promise.all(teams.map((team) => this.store.listTeamInvitations(team.id, actor)))
+    ).flat();
+    const previous = pending.find((invitation) => invitation.id === invitationId);
+    if (!previous) throw new NotFoundError("Pending team invitation");
+    const actorRole = actor.workspaceRoles.get(previous.workspaceId);
+    if (previous.role === "admin" && actorRole !== "owner") {
+      throw new ForbiddenError("Only the team owner can resend an admin invitation");
+    }
+    await this.store.revokeTeamInvitation(invitationId, actor);
+    return this.proposeTeamInvite(previous.workspaceId, previous.email, previous.role, actor);
+  }
+
+  async revokeTeamInvite(invitationId: string, actor: Actor) {
+    const teams = await this.store.listTeams(actor);
+    const pending = (
+      await Promise.all(teams.map((team) => this.store.listTeamInvitations(team.id, actor)))
+    ).flat();
+    const invitation = pending.find((candidate) => candidate.id === invitationId);
+    if (!invitation) throw new NotFoundError("Pending team invitation");
+    const actorRole = actor.workspaceRoles.get(invitation.workspaceId);
+    if (invitation.role === "admin" && actorRole !== "owner") {
+      throw new ForbiddenError("Only the team owner can revoke an admin invitation");
+    }
+    await this.store.revokeTeamInvitation(invitationId, actor);
+    await this.store.audit(actor, "team_invitation.revoked", `team:${invitation.workspaceId}`, {
+      invitationId,
+    });
+  }
+
+  async updateTeamMemberRole(
+    teamId: string,
+    userId: string,
+    role: "admin" | "member",
+    actor: Actor,
+  ) {
+    requireWorkspaceRole(actor, teamId, ["owner"]);
+    const member = await this.store.updateTeamMemberRole(teamId, userId, role, actor);
+    await this.store.audit(actor, "team_member.role_changed", `team:${teamId}`, {
+      userId,
+      role,
+    });
+    return { ...member, createdAt: member.createdAt.toISOString() };
+  }
+
+  async removeTeamMember(teamId: string, userId: string, actor: Actor) {
+    const actorRole = actor.workspaceRoles.get(teamId);
+    requireWorkspaceRole(actor, teamId, ["owner", "admin"]);
+    const members = await this.store.listTeamMembers(teamId, actor);
+    const target = members.find((member) => member.userId === userId);
+    if (!target) throw new NotFoundError("Team member");
+    if (target.role === "owner") throw new ForbiddenError("The team owner cannot be removed");
+    if (actorRole === "admin" && target.role !== "member") {
+      throw new ForbiddenError("Admins can only remove ordinary members");
+    }
+    await this.store.removeTeamMember(teamId, userId, actor);
+    await this.store.audit(actor, "team_member.removed", `team:${teamId}`, { userId });
+  }
+
   async createBrain(input: CreateBrainInput, actor: Actor): Promise<BrainWithIndex> {
     const workspaceId = resolveWorkspaceId(input.workspaceId, actor);
     const resolvedInput = { ...input, workspaceId };
@@ -54,8 +168,9 @@ export class OwlService {
     return { brain: withoutWrappedKey(record), routingIndex: [] };
   }
 
-  async listBrains(actor: Actor) {
-    const brains = await this.store.listBrains(actor);
+  async listBrains(actor: Actor, workspaceId?: string) {
+    if (workspaceId) requireWorkspaceRole(actor, workspaceId, ["owner", "admin", "member"]);
+    const brains = await this.store.listBrains(actor, workspaceId);
     return brains.map(withoutWrappedKey);
   }
 
@@ -454,6 +569,21 @@ export function resolveWorkspaceId(workspaceId: string | undefined, actor: Actor
 function withoutWrappedKey<T extends { wrappedKey: unknown }>(record: T): Omit<T, "wrappedKey"> {
   const { wrappedKey: _wrappedKey, ...rest } = record;
   return rest;
+}
+
+function serializeTeamInvitation(invitation: {
+  id: string;
+  workspaceId: string;
+  email: string;
+  role: "admin" | "member";
+  expiresAt: Date;
+  createdAt: Date;
+}) {
+  return {
+    ...invitation,
+    expiresAt: invitation.expiresAt.toISOString(),
+    createdAt: invitation.createdAt.toISOString(),
+  };
 }
 
 function toSummary(record: {

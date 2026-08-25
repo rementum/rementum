@@ -21,3 +21,32 @@ export async function api<T>(path: string): Promise<T> {
     throw new Error(`Owl API returned ${response.status}: ${await response.text()}`);
   return response.json() as Promise<T>;
 }
+
+export interface Team {
+  id: string;
+  slug: string;
+  name: string;
+  role: "owner" | "admin" | "member";
+  createdAt: string;
+}
+
+export async function teamContext(): Promise<{ teams: Team[]; activeTeam: Team | null }> {
+  const teams = await api<Team[]>("/api/v1/teams");
+  const selected = (await cookies()).get("owl_team")?.value;
+  return { teams, activeTeam: teams.find((team) => team.id === selected) ?? teams[0] ?? null };
+}
+
+export async function publicAuthConfig(): Promise<{ signupEnabled: boolean }> {
+  const base =
+    process.env.OWL_API_INTERNAL_URL ??
+    process.env.NEXT_PUBLIC_OWL_API_URL ??
+    "http://localhost:8787";
+  try {
+    const response = await fetch(`${base.replace(/\/$/, "")}/api/v1/auth/config`, {
+      cache: "no-store",
+    });
+    return response.ok ? response.json() : { signupEnabled: false };
+  } catch {
+    return { signupEnabled: false };
+  }
+}

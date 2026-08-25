@@ -31,10 +31,13 @@ export async function GET(request: NextRequest) {
     refresh_token?: string;
     expires_in: number;
   };
-  const response = NextResponse.redirect(new URL("/", publicUrl));
+  const returnTo = request.cookies.get("owl_return_to")?.value;
+  const destination = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
+  const response = NextResponse.redirect(new URL(destination, publicUrl));
   setTokenCookies(response, tokens, publicUrl.startsWith("https:"));
   response.cookies.delete("owl_pkce");
   response.cookies.delete("owl_state");
+  response.cookies.delete("owl_return_to");
   return response;
 }
 

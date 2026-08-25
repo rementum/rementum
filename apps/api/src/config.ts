@@ -27,6 +27,14 @@ const configSchema = z
     OWL_LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(45_000),
     OWL_LLM_MAX_INPUT_CHARS: z.coerce.number().int().min(8000).max(200_000).default(24_000),
     OWL_LLM_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
+    OWL_RESEND_API_KEY: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    OWL_MAIL_FROM: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(3).optional(),
+    ),
     OWL_ALLOW_SIGNUP: z
       .string()
       .default("false")
@@ -52,6 +60,20 @@ const configSchema = z
         code: "custom",
         path: ["OWL_PUBLIC_URL"],
         message: "Production OAuth requires HTTPS",
+      });
+    }
+    if (Boolean(value.OWL_RESEND_API_KEY) !== Boolean(value.OWL_MAIL_FROM)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["OWL_RESEND_API_KEY"],
+        message: "OWL_RESEND_API_KEY and OWL_MAIL_FROM must be configured together",
+      });
+    }
+    if (value.OWL_ALLOW_SIGNUP && !value.OWL_RESEND_API_KEY) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["OWL_ALLOW_SIGNUP"],
+        message: "Public signup requires Resend email delivery",
       });
     }
   });

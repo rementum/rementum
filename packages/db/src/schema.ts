@@ -47,6 +47,7 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     systemOwner: boolean("system_owner").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     disabledAt: timestamp("disabled_at", { withTimezone: true }),
   },
   (table) => [uniqueIndex("users_email_lower_uq").on(sql`lower(${table.email})`)],
@@ -326,4 +327,43 @@ export const oauthRecords = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }),
   },
   (table) => [primaryKey({ columns: [table.model, table.id] })],
+);
+
+export const authTokens = pgTable(
+  "auth_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("auth_tokens_user_purpose_idx").on(table.userId, table.purpose, table.createdAt),
+  ],
+);
+
+export const teamInvitations = pgTable(
+  "team_invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: workspaceRole("role").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    invitedBy: uuid("invited_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("team_invitations_workspace_idx").on(table.workspaceId, table.createdAt)],
 );

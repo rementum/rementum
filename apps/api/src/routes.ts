@@ -1,7 +1,10 @@
+import { randomBytes } from "node:crypto";
 import {
   claimTaskSchema,
   createBrainSchema,
   createTaskSchema,
+  createTeamInvitationSchema,
+  createTeamSchema,
   promoteWriteSchema,
   searchArticlesSchema,
   stageWriteSchema,
@@ -9,17 +12,20 @@ import {
 } from "@owl-memory/contracts";
 import {
   type Actor,
+  DomainError,
   hashContent,
   inspectMarkdownArchive,
   type OwlService,
   requireBrainRole,
+  slugify,
 } from "@owl-memory/core";
 import type { AuthRepository } from "@owl-memory/db";
-import { hash } from "argon2";
+import { hash, verify } from "argon2";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import JSZip from "jszip";
 import { z } from "zod";
 import type { AppConfig } from "./config.js";
+import type { TransactionalMailer } from "./mailer.js";
 import { sanitize } from "./mcp.js";
 
 type Authenticate = (request: FastifyRequest) => Promise<Actor>;
@@ -30,23 +36,275 @@ export async function registerApiRoutes(
   authenticate: Authenticate,
   authRepository: AuthRepository,
   config: AppConfig,
+  mailer: TransactionalMailer | null,
 ): Promise<void> {
-  app.post("/api/v1/invitations/accept", async (request, reply) => {
+  const publicUrl = config.OWL_PUBLIC_URL.replace(/\/$/, "");
+  const authRateLimit = { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } };
+
+  app.get("/api/v1/auth/config", async () => ({ signupEnabled: config.OWL_ALLOW_SIGNUP }));
+
+  app.post("/api/v1/auth/register", authRateLimit, async (request, reply) => {
+    if (!config.OWL_ALLOW_SIGNUP) {
+      throw new DomainError("signup_disabled", "Public registration is disabled", 403);
+    }
     const input = z
       .object({
-        token: z.string().min(32).max(200),
-        displayName: z.string().min(1).max(160),
+        email: z.email(),
+        displayName: z.string().trim().min(1).max(160),
         password: z.string().min(12).max(1000),
+        teamName: z.string().trim().min(1).max(160),
       })
       .parse(request.body);
-    const accepted = await authRepository.acceptInvitation(
-      hashContent(input.token),
+    const email = input.email.trim().toLowerCase();
+    const teamSlug = `${(slugify(input.teamName) || "team").slice(0, 105)}-${randomBytes(6).toString("hex")}`;
+    const created = await authRepository.registerAccount(
+      email,
       input.displayName,
-      await hash(input.password, { type: 2, memoryCost: 65_536, timeCost: 3, parallelism: 1 }),
+      await secureHash(input.password),
+      input.teamName,
+      teamSlug,
+    );
+    if (created) {
+      const token = randomBytes(32).toString("base64url");
+      const record = await authRepository.createAuthToken(
+        created.user.id,
+        "verify_email",
+        hashContent(token),
+        new Date(Date.now() + 24 * 60 * 60 * 1000),
+      );
+      await sendRequiredEmail(mailer, {
+        to: email,
+        subject: "Verify your Owl Memory account",
+        heading: "Verify your email",
+        body: "Confirm this address to activate your Owl Memory account.",
+        url: `${publicUrl}/verify-email?token=${encodeURIComponent(token)}`,
+        action: "Verify email",
+        idempotencyKey: `verify-email/${record.id}`,
+      });
+    }
+    return reply.code(202).send({
+      message: "If this address can be registered, a verification email has been sent.",
+    });
+  });
+
+  app.post("/api/v1/auth/resend-verification", authRateLimit, async (request, reply) => {
+    const { email } = z.object({ email: z.email() }).parse(request.body);
+    if (!mailer) throw new DomainError("email_unavailable", "Email delivery is unavailable", 503);
+    const user = await authRepository.findUserByEmail(email.trim().toLowerCase());
+    if (user && !user.emailVerifiedAt) {
+      const token = randomBytes(32).toString("base64url");
+      const record = await authRepository.createAuthToken(
+        user.id,
+        "verify_email",
+        hashContent(token),
+        new Date(Date.now() + 24 * 60 * 60 * 1000),
+      );
+      await sendRequiredEmail(mailer, {
+        to: user.email,
+        subject: "Verify your Owl Memory account",
+        heading: "Verify your email",
+        body: "Confirm this address to activate your Owl Memory account.",
+        url: `${publicUrl}/verify-email?token=${encodeURIComponent(token)}`,
+        action: "Verify email",
+        idempotencyKey: `verify-email/${record.id}`,
+      });
+    }
+    return reply.code(202).send({ message: "If verification is pending, an email has been sent." });
+  });
+
+  app.post("/api/v1/auth/verify-email", authRateLimit, async (request, reply) => {
+    const { token } = z.object({ token: z.string().min(32).max(200) }).parse(request.body);
+    if (!(await authRepository.verifyEmail(hashContent(token)))) {
+      throw new DomainError("invalid_token", "This verification link is invalid or expired", 410);
+    }
+    return reply.code(204).send();
+  });
+
+  app.post("/api/v1/auth/forgot-password", authRateLimit, async (request, reply) => {
+    const { email } = z.object({ email: z.email() }).parse(request.body);
+    if (!mailer) throw new DomainError("email_unavailable", "Email delivery is unavailable", 503);
+    const user = await authRepository.findUserByEmail(email.trim().toLowerCase());
+    if (user) {
+      const token = randomBytes(32).toString("base64url");
+      const record = await authRepository.createAuthToken(
+        user.id,
+        "reset_password",
+        hashContent(token),
+        new Date(Date.now() + 60 * 60 * 1000),
+      );
+      await sendRequiredEmail(mailer, {
+        to: user.email,
+        subject: "Reset your Owl Memory password",
+        heading: "Reset your password",
+        body: "Use this one-time link within one hour to choose a new password.",
+        url: `${publicUrl}/reset-password?token=${encodeURIComponent(token)}`,
+        action: "Reset password",
+        idempotencyKey: `reset-password/${record.id}`,
+      });
+    }
+    return reply.code(202).send({ message: "If the account exists, a reset email has been sent." });
+  });
+
+  app.post("/api/v1/auth/reset-password", authRateLimit, async (request, reply) => {
+    const input = z
+      .object({ token: z.string().min(32).max(200), password: z.string().min(12).max(1000) })
+      .parse(request.body);
+    if (
+      !(await authRepository.resetPassword(
+        hashContent(input.token),
+        await secureHash(input.password),
+      ))
+    ) {
+      throw new DomainError("invalid_token", "This reset link is invalid or expired", 410);
+    }
+    return reply.code(204).send();
+  });
+
+  app.get("/api/v1/team-invitations/:token", async (request) => {
+    const { token } = z.object({ token: z.string().min(32).max(200) }).parse(request.params);
+    const invitation = await authRepository.inspectTeamInvitation(hashContent(token));
+    if (!invitation)
+      throw new DomainError("invalid_invitation", "Invitation is invalid or expired", 410);
+    const existing = await authRepository.findUserByEmail(invitation.email);
+    return {
+      name: invitation.name,
+      role: invitation.role,
+      existingAccount: Boolean(existing),
+      loginRequired: Boolean(existing?.emailVerifiedAt),
+    };
+  });
+
+  app.post("/api/v1/team-invitations/accept", authRateLimit, async (request, reply) => {
+    const input = invitationAcceptanceSchema.parse(request.body);
+    const tokenHash = hashContent(input.token);
+    const invitation = await authRepository.inspectTeamInvitation(tokenHash);
+    if (!invitation)
+      throw new DomainError("invalid_invitation", "Invitation is invalid or expired", 410);
+    const identity = await resolveInvitationIdentity(
+      request,
+      input,
+      invitation.email,
+      authenticate,
+      authRepository,
+    );
+    const accepted = await authRepository.acceptTeamInvitation(
+      tokenHash,
+      identity.userId,
+      identity.displayName,
+      identity.passwordHash,
     );
     return reply.code(201).send(accepted);
   });
-  app.get("/api/v1/brains", async (request) => service.listBrains(await authenticate(request)));
+
+  app.get("/api/v1/invitations/:token", async (request) => {
+    const { token } = z.object({ token: z.string().min(32).max(200) }).parse(request.params);
+    const invitation = await authRepository.inspectBrainInvitation(hashContent(token));
+    if (!invitation)
+      throw new DomainError("invalid_invitation", "Invitation is invalid or expired", 410);
+    const existing = await authRepository.findUserByEmail(invitation.email);
+    return {
+      name: invitation.name,
+      role: invitation.role,
+      existingAccount: Boolean(existing),
+      loginRequired: Boolean(existing?.emailVerifiedAt),
+    };
+  });
+
+  app.post("/api/v1/invitations/accept", async (request, reply) => {
+    const input = invitationAcceptanceSchema.parse(request.body);
+    const tokenHash = hashContent(input.token);
+    const invitation = await authRepository.inspectBrainInvitation(tokenHash);
+    if (!invitation)
+      throw new DomainError("invalid_invitation", "Invitation is invalid or expired", 410);
+    const identity = await resolveInvitationIdentity(
+      request,
+      input,
+      invitation.email,
+      authenticate,
+      authRepository,
+    );
+    const accepted = await authRepository.acceptBrainInvitation(
+      tokenHash,
+      identity.userId,
+      identity.displayName,
+      identity.passwordHash,
+    );
+    return reply.code(201).send(accepted);
+  });
+
+  app.get("/api/v1/teams", async (request) => service.listTeams(await authenticate(request)));
+  app.post("/api/v1/teams", async (request, reply) =>
+    reply
+      .code(201)
+      .send(
+        await service.createTeam(createTeamSchema.parse(request.body), await authenticate(request)),
+      ),
+  );
+  app.get("/api/v1/teams/:teamId/members", async (request) => {
+    const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
+    return service.listTeamMembers(teamId, await authenticate(request));
+  });
+  app.patch("/api/v1/teams/:teamId/members/:userId", async (request) => {
+    const { teamId, userId } = z
+      .object({ teamId: z.uuid(), userId: z.uuid() })
+      .parse(request.params);
+    const { role } = z.object({ role: z.enum(["admin", "member"]) }).parse(request.body);
+    return service.updateTeamMemberRole(teamId, userId, role, await authenticate(request));
+  });
+  app.delete("/api/v1/teams/:teamId/members/:userId", async (request, reply) => {
+    const { teamId, userId } = z
+      .object({ teamId: z.uuid(), userId: z.uuid() })
+      .parse(request.params);
+    await service.removeTeamMember(teamId, userId, await authenticate(request));
+    return reply.code(204).send();
+  });
+  app.get("/api/v1/teams/:teamId/invitations", async (request) => {
+    const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
+    return service.listTeamInvitations(teamId, await authenticate(request));
+  });
+  app.post("/api/v1/teams/:teamId/invitations", async (request, reply) => {
+    const actor = await authenticate(request);
+    const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
+    const input = createTeamInvitationSchema.parse(request.body);
+    const invitation = await service.proposeTeamInvite(teamId, input.email, input.role, actor);
+    const acceptanceUrl = `${publicUrl}/team-invite/${invitation.token}`;
+    const emailSent = await sendInvitationEmail(
+      mailer,
+      request,
+      input.email,
+      "You were invited to an Owl Memory team",
+      "Join the team",
+      acceptanceUrl,
+      `team-invite/${invitation.id}`,
+    );
+    return reply.code(201).send({ ...invitation, token: undefined, acceptanceUrl, emailSent });
+  });
+  app.post("/api/v1/team-invitations/:invitationId/resend", async (request) => {
+    const actor = await authenticate(request);
+    const { invitationId } = z.object({ invitationId: z.uuid() }).parse(request.params);
+    const invitation = await service.resendTeamInvite(invitationId, actor);
+    const acceptanceUrl = `${publicUrl}/team-invite/${invitation.token}`;
+    const emailSent = await sendInvitationEmail(
+      mailer,
+      request,
+      invitation.email,
+      "You were invited to an Owl Memory team",
+      "Join the team",
+      acceptanceUrl,
+      `team-invite/${invitation.id}`,
+    );
+    return { ...invitation, token: undefined, acceptanceUrl, emailSent };
+  });
+  app.delete("/api/v1/team-invitations/:invitationId", async (request, reply) => {
+    const { invitationId } = z.object({ invitationId: z.uuid() }).parse(request.params);
+    await service.revokeTeamInvite(invitationId, await authenticate(request));
+    return reply.code(204).send();
+  });
+
+  app.get("/api/v1/brains", async (request) => {
+    const { workspaceId } = z.object({ workspaceId: z.uuid().optional() }).parse(request.query);
+    return service.listBrains(await authenticate(request), workspaceId);
+  });
   app.post("/api/v1/brains", async (request, reply) => {
     const actor = await authenticate(request);
     return reply
@@ -214,10 +472,21 @@ export async function registerApiRoutes(
       })
       .parse(request.body);
     const invitation = await service.proposeInvite(brainId, input.email, input.role, actor);
+    const acceptanceUrl = `${publicUrl}/invite/${invitation.token}`;
+    const emailSent = await sendInvitationEmail(
+      mailer,
+      request,
+      input.email,
+      "You were invited to an Owl Memory brain",
+      "Open the shared brain",
+      acceptanceUrl,
+      `brain-invite/${invitation.id}`,
+    );
     return reply.code(201).send({
       id: invitation.id,
       expiresAt: invitation.expiresAt,
-      acceptanceUrl: `${config.OWL_PUBLIC_URL.replace(/\/$/, "")}/invite/${invitation.token}`,
+      acceptanceUrl,
+      emailSent,
     });
   });
 
@@ -317,4 +586,129 @@ export async function registerApiRoutes(
 
 function yamlString(value: string): string {
   return JSON.stringify(value);
+}
+
+const invitationAcceptanceSchema = z.object({
+  token: z.string().min(32).max(200),
+  displayName: z.string().trim().min(1).max(160).optional(),
+  password: z.string().min(12).max(1000).optional(),
+});
+
+async function secureHash(password: string): Promise<string> {
+  return hash(password, { type: 2, memoryCost: 65_536, timeCost: 3, parallelism: 1 });
+}
+
+async function resolveInvitationIdentity(
+  request: FastifyRequest,
+  input: z.infer<typeof invitationAcceptanceSchema>,
+  invitedEmail: string,
+  authenticate: Authenticate,
+  authRepository: AuthRepository,
+) {
+  if (request.headers.authorization) {
+    const actor = await authenticate(request);
+    const user = await authRepository.findUserById(actor.userId);
+    if (!user || user.email.toLowerCase() !== invitedEmail.toLowerCase()) {
+      throw new DomainError(
+        "wrong_account",
+        "Sign in with the email address that received this invitation",
+        403,
+      );
+    }
+    return { userId: user.id, displayName: null, passwordHash: null };
+  }
+
+  const existing = await authRepository.findUserByEmail(invitedEmail);
+  if (existing) {
+    if (
+      !existing.emailVerifiedAt &&
+      input.password &&
+      (await verify(existing.passwordHash, input.password))
+    ) {
+      return { userId: existing.id, displayName: null, passwordHash: null };
+    }
+    throw new DomainError(
+      "login_required",
+      "Sign in with the invited account before accepting this invitation",
+      409,
+    );
+  }
+  if (!input.displayName || !input.password) {
+    throw new DomainError(
+      "account_details_required",
+      "A display name and password are required for a new account",
+      400,
+    );
+  }
+  return {
+    userId: null,
+    displayName: input.displayName,
+    passwordHash: await secureHash(input.password),
+  };
+}
+
+interface LinkEmail {
+  to: string;
+  subject: string;
+  heading: string;
+  body: string;
+  url: string;
+  action: string;
+  idempotencyKey: string;
+}
+
+async function sendRequiredEmail(
+  mailer: TransactionalMailer | null,
+  message: LinkEmail,
+): Promise<void> {
+  if (!mailer) throw new DomainError("email_unavailable", "Email delivery is unavailable", 503);
+  await mailer.send({
+    to: message.to,
+    subject: message.subject,
+    text: `${message.heading}\n\n${message.body}\n\n${message.url}`,
+    html: linkEmailHtml(message),
+    idempotencyKey: message.idempotencyKey,
+  });
+}
+
+async function sendInvitationEmail(
+  mailer: TransactionalMailer | null,
+  request: FastifyRequest,
+  to: string,
+  subject: string,
+  action: string,
+  url: string,
+  idempotencyKey: string,
+): Promise<boolean> {
+  if (!mailer) return false;
+  try {
+    await sendRequiredEmail(mailer, {
+      to,
+      subject,
+      heading: subject,
+      body: "Follow this private, seven-day link to accept the invitation.",
+      url,
+      action,
+      idempotencyKey,
+    });
+    return true;
+  } catch (error) {
+    request.log.warn(
+      { error },
+      "Invitation email delivery failed; the copyable link remains valid",
+    );
+    return false;
+  }
+}
+
+function linkEmailHtml(message: LinkEmail): string {
+  return `<!doctype html><html><body style="margin:0;padding:32px;background:#0c0c0f;color:#f2f2f3;font:15px/1.6 Arial,sans-serif"><main style="max-width:560px;margin:auto;padding:28px;border:1px solid #303036;border-radius:14px;background:#151518"><p style="margin:0 0 30px;color:#9b9ba4">Owl Memory</p><h1 style="margin:0 0 14px;font-size:28px">${escapeHtml(message.heading)}</h1><p style="margin:0 0 24px;color:#b7b7bf">${escapeHtml(message.body)}</p><a href="${escapeHtml(message.url)}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#f2f2f3;color:#111114;text-decoration:none;font-weight:700">${escapeHtml(message.action)}</a><p style="margin:24px 0 0;color:#71717b;font-size:12px;overflow-wrap:anywhere">${escapeHtml(message.url)}</p></main></body></html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (char) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char,
+  );
 }
