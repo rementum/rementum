@@ -1,26 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { createLocalSummary, LocalSummaryGenerator } from "./local-summary.js";
+import { createLocalSummary, LocalArticleGenerator } from "./local-summary.js";
 
 describe("local routing summaries", () => {
   it("creates a compact plain-text summary without an external provider", async () => {
-    const generator = new LocalSummaryGenerator();
-    await expect(
-      generator.generateSummary({
-        title: "Architecture",
-        body: "# Architecture\n\nKeep `packages/core` portable. See [the design](https://example.test/design).",
-      }),
-    ).resolves.toBe("Keep packages/core portable. See the design (https://example.test/design).");
+    const generator = new LocalArticleGenerator();
+    const input = {
+      title: "Architecture",
+      body: "# Architecture\n\nKeep `packages/core` portable. See [the design](https://example.test/design).",
+    };
+    await expect(generator.generateArticle(input)).resolves.toEqual({
+      ...input,
+      summary: "Keep packages/core portable.",
+    });
   });
 
-  it("keeps the beginning and end of long articles within the routing limit", () => {
+  it("keeps a long first sentence within the routing limit", () => {
     const summary = createLocalSummary({
       title: "Long memory",
       body: `${"start ".repeat(180)}\n\n${"latest ".repeat(80)}`,
     });
-    expect(summary.length).toBeLessThanOrEqual(1_000);
+    expect(summary.length).toBeLessThanOrEqual(300);
     expect(summary).toMatch(/^start /);
-    expect(summary).toContain(" … ");
-    expect(summary).toMatch(/latest$/);
+    expect(summary).toMatch(/…$/);
+    expect(summary).not.toContain("latest");
+  });
+
+  it("uses only the first sentence for the local routing summary", () => {
+    expect(
+      createLocalSummary({
+        title: "Config",
+        body: "Use local summaries by default. Enable an LLM only when compaction is wanted.",
+      }),
+    ).toBe("Use local summaries by default.");
   });
 
   it("falls back to the title when the body has no prose", () => {

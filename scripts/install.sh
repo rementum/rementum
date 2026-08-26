@@ -140,7 +140,7 @@ else
   domain=$(prompt "Public domain, without https://" "")
   owner_email=$(prompt "Owner email" "")
   owner_name=$(prompt "Owner display name" "Owner")
-  llm_enabled=$(prompt "Use an external LLM for routing summaries? (yes/no)" "no")
+  llm_enabled=$(prompt "Configure an external LLM for optional workspace compaction? (yes/no)" "no")
   llm_base_url=""
   llm_model=""
   llm_api_key=""
@@ -152,7 +152,7 @@ else
       llm_api_key=$(prompt_secret "API key (leave empty for a keyless local provider)")
       ;;
     no|n) llm_enabled=false ;;
-    *) fail "Answer yes or no for external LLM summaries" ;;
+    *) fail "Answer yes or no for external LLM article compaction" ;;
   esac
   allow_signup=$(prompt "Allow public account registration? (yes/no)" "no")
   case "$allow_signup" in
@@ -264,6 +264,7 @@ REMENTUM_LLM_REASONING_EFFORT=''
 REMENTUM_LLM_TIMEOUT_MS='45000'
 REMENTUM_LLM_MAX_INPUT_CHARS='24000'
 REMENTUM_LLM_CONCURRENCY='4'
+REMENTUM_COMPACTION_POLL_MS='2000'
 
 REMENTUM_RESEND_API_KEY='$resend_api_key'
 REMENTUM_MAIL_FROM='$mail_from'

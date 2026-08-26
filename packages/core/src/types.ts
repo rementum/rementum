@@ -2,6 +2,7 @@ import type {
   Article,
   ArticleSummary,
   BrainRole,
+  CompactionState,
   CreateBrainInput,
   CreateTaskInput,
   MaintenanceCandidate,
@@ -48,6 +49,7 @@ export interface WorkspaceRecord {
   teamId: string;
   slug: string;
   name: string;
+  llmCompactionEnabled: boolean;
   role: TeamRole;
   createdAt: Date;
 }
@@ -76,6 +78,10 @@ export interface ArticleRecord extends Omit<ArticleSummary, "updatedAt"> {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+  compactionStatus: "not_requested" | "queued" | "processing" | "compacted" | "failed";
+  compactionAttempts: number;
+  compactionError: string | null;
+  compactedAt: Date | null;
 }
 
 export interface VersionRecord {
@@ -128,11 +134,56 @@ export interface SearchHit {
   excerpt: string | null;
 }
 
-export interface SummaryGenerator {
-  generateSummary(input: { title: string; body: string }): Promise<string>;
+export interface GeneratedArticle {
+  title: string;
+  summary: string;
+  body: string;
 }
 
-export type ResolvedStageWriteInput = StageWriteInput & { summary: string };
+export interface CompactionJobRecord {
+  id: string;
+  workspaceId: string;
+  brainId: string;
+  articleId: string;
+  articleVersion: number;
+  sourceTitle: string;
+  status: "queued" | "processing" | "failed";
+  attempts: number;
+  availableAt: Date;
+  claimedBy: string | null;
+  leaseExpiresAt: Date | null;
+  lastError: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ClaimedCompactionJob {
+  jobId: string;
+  workspaceId: string;
+  brainId: string;
+  articleId: string;
+  articleVersion: number;
+  sourceTitle: string;
+  attempts: number;
+  ownerId: string;
+  claimId: string;
+}
+
+export interface ArticleCompactionView {
+  enabled: boolean;
+  available: boolean;
+  status: CompactionState;
+  attempts: number;
+  error: string | null;
+  compactedAt: string | null;
+  canRetry: boolean;
+}
+
+export interface ArticleGenerator {
+  generateArticle(input: { title: string; body: string }): Promise<GeneratedArticle>;
+}
+
+export type ResolvedStageWriteInput = StageWriteInput & GeneratedArticle;
 
 export interface DataStore {
   createTeam(
@@ -151,10 +202,10 @@ export interface DataStore {
     workspaceId: string,
   ): Promise<WorkspaceRecord>;
   listWorkspaces(actor: Actor, teamId?: string): Promise<WorkspaceRecord[]>;
+  getWorkspace(workspaceId: string, actor: Actor): Promise<WorkspaceRecord | null>;
   updateWorkspace(
     workspaceId: string,
-    name: string,
-    slug: string,
+    patch: { name?: string; slug?: string; llmCompactionEnabled?: boolean },
     actor: Actor,
   ): Promise<WorkspaceRecord>;
   deleteWorkspace(
@@ -188,6 +239,7 @@ export interface DataStore {
   ): Promise<BrainRecord>;
   listBrains(actor: Actor, workspaceId?: string): Promise<BrainRecord[]>;
   getBrain(id: string, actor: Actor): Promise<BrainRecord | null>;
+  isBrainCompactionEnabled(brainId: string, actor: Actor): Promise<boolean>;
   listRoutingIndex(brainId: string, actor: Actor, limit: number): Promise<ArticleRecord[]>;
   getArticle(id: string, actor: Actor): Promise<ArticleRecord | null>;
   getArticleBySlug(brainId: string, slug: string, actor: Actor): Promise<ArticleRecord | null>;
@@ -233,7 +285,27 @@ export interface DataStore {
   promoteStagedWrite(
     input: PromoteWriteInput,
     actor: Actor,
+    llmAvailable: boolean,
   ): Promise<{ write: StagedWriteRecord; article: ArticleRecord; version: VersionRecord }>;
+  queueWorkspaceCurrentCompactions(workspaceId: string, actor: Actor): Promise<number>;
+  queueArticleCompaction(articleId: string, actor: Actor): Promise<ArticleRecord>;
+  cancelWorkspaceCompactions(workspaceId: string, actor: Actor): Promise<string[]>;
+  getCompactionJob(jobId: string, actor: Actor): Promise<CompactionJobRecord | null>;
+  completeCompaction(
+    jobId: string,
+    claimId: string,
+    generated: GeneratedArticle,
+    encrypted: CipherEnvelope,
+    bodyHash: string,
+    actor: Actor,
+  ): Promise<{ current: boolean; articleId: string; version: number } | null>;
+  failCompaction(
+    jobId: string,
+    claimId: string,
+    error: string,
+    retryAt: Date | null,
+    actor: Actor,
+  ): Promise<{ current: boolean; terminal: boolean; articleId: string; version: number } | null>;
   findPotentialConflicts(
     brainId: string,
     articleId: string | undefined,
@@ -253,6 +325,7 @@ export interface DataStore {
     vector: number[],
     actor: Actor,
   ): Promise<void>;
+  clearEmbeddings(articleId: string, version: number, actor: Actor): Promise<void>;
   createTask(input: CreateTaskInput, actor: Actor): Promise<Task>;
   listTasks(brainId: string, actor: Actor): Promise<Task[]>;
   getTask(id: string, actor: Actor): Promise<Task | null>;

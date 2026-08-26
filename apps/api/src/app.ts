@@ -18,7 +18,6 @@ import { ResendMailer, type TransactionalMailer } from "./mailer.js";
 import { registerWorkspaceMcpEndpoint } from "./mcp.js";
 import { buildOauthRuntime, registerOauthRoutes } from "./oauth.js";
 import { registerApiRoutes } from "./routes.js";
-import { OpenAICompatibleSummaryGenerator } from "./summaries.js";
 import { registerWebSessionRoutes } from "./web-session.js";
 
 export async function buildApp(
@@ -39,20 +38,9 @@ export async function buildApp(
   const store = new PostgresStore(database);
   const authRepository = new AuthRepository(database);
   const embeddings = new HttpEmbeddingClient(config.REMENTUM_EMBEDDINGS_URL);
-  const summaries =
-    config.REMENTUM_LLM_ENABLED && config.REMENTUM_LLM_BASE_URL && config.REMENTUM_LLM_MODEL
-      ? new OpenAICompatibleSummaryGenerator({
-          baseUrl: config.REMENTUM_LLM_BASE_URL,
-          model: config.REMENTUM_LLM_MODEL,
-          ...(config.REMENTUM_LLM_API_KEY ? { apiKey: config.REMENTUM_LLM_API_KEY } : {}),
-          ...(config.REMENTUM_LLM_REASONING_EFFORT
-            ? { reasoningEffort: config.REMENTUM_LLM_REASONING_EFFORT }
-            : {}),
-          timeoutMs: config.REMENTUM_LLM_TIMEOUT_MS,
-          maxInputChars: config.REMENTUM_LLM_MAX_INPUT_CHARS,
-          concurrency: config.REMENTUM_LLM_CONCURRENCY,
-        })
-      : undefined;
+  const llmAvailable = Boolean(
+    config.REMENTUM_LLM_ENABLED && config.REMENTUM_LLM_BASE_URL && config.REMENTUM_LLM_MODEL,
+  );
   const mailer =
     overrides.mailer !== undefined
       ? overrides.mailer
@@ -63,7 +51,8 @@ export async function buildApp(
     store,
     embeddings,
     parseMasterKey(config.REMENTUM_MASTER_KEY),
-    summaries,
+    null,
+    llmAvailable,
   );
   const oauth = await buildOauthRuntime(config, database);
   const verifyCredentials = await createCredentialVerifier(authRepository);

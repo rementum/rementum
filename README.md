@@ -10,8 +10,8 @@ The product is deliberately agent-first:
 - Knowledge lives in linked Markdown articles with a compact routing index.
 - Every canonical change is staged, versioned, attributed, and conflict checked.
 - Article bodies are encrypted with a per-brain key.
-- Rementum creates a compact routing summary locally or with an optional OpenAI-compatible AI
-  provider.
+- Rementum creates a one-sentence routing summary locally. Workspace owners can opt into deferred
+  title, summary, and Markdown-body compaction through an OpenAI-compatible AI provider.
 - Search combines routing metadata, PostgreSQL full-text search, and local multilingual
   embeddings.
 - Agents coordinate work through leased tasks and write maintenance proposals back through
@@ -61,11 +61,13 @@ For development setup and checks, read [docs/development.md](docs/development.md
 
 ## Security boundary
 
-Article bodies and version bodies are encrypted at rest. By default, Rementum creates routing
-summaries locally and does not send staged bodies to an external LLM. If you enable an
-OpenAI-compatible provider, Rementum sends it the complete resulting article body in plaintext
-before encryption. Routing metadata and embeddings remain searchable and must be treated as
-sensitive derived data. The master key is not stored in the database or included in backups.
+Article bodies and version bodies are encrypted at rest. External LLM capability and workspace
+compaction are both disabled by default. When both are enabled, promotion stores the submitted body
+encrypted and queues the exact version; the worker later sends its title and body to the provider in
+plaintext. On success the same version is overwritten with the compact generated body, so the
+submitted body is no longer retained. After three failures the submitted body remains canonical and
+the article is marked failed. Routing metadata and embeddings remain searchable and must be treated
+as sensitive derived data. The master key is not stored in the database or included in backups.
 
 See [SECURITY.md](SECURITY.md) and the [security checklist](docs/security.md) before storing private
 knowledge.

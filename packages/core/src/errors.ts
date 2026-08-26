@@ -28,8 +28,14 @@ export class ConflictError extends DomainError {
   }
 }
 
-export class SummaryGenerationError extends DomainError {
-  constructor(message = "The configured LLM could not summarize this memory") {
+export class ArticleGenerationError extends DomainError {
+  constructor(message = "The configured LLM could not generate this article") {
     super("llm_summary_failed", message, 502);
+  }
+}
+
+export class LlmUnavailableError extends DomainError {
+  constructor() {
+    super("llm_unavailable", "The external LLM provider is not configured", 409);
   }
 }

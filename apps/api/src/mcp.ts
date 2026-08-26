@@ -183,7 +183,7 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
     {
       title: "Stage an article write",
       description:
-        "Stages a create, full canonical update, or log append. Rementum creates and stores a routing summary locally or through the configured optional AI provider. Read the current article first and pass its version for edits.",
+        "Stages a create, full canonical update, or log append without calling an external LLM. Rementum preserves the submitted title and body and creates a local routing summary. Promotion may queue deferred compaction when the article's workspace enables it. Read the current article first and pass its version for edits.",
       inputSchema: stageWriteSchema.shape,
       annotations: write,
     },
@@ -278,7 +278,7 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
     {
       title: "Stage Markdown documents",
       description:
-        "Stages a reviewed batch of Markdown documents and creates each routing summary locally or through the configured optional AI provider. It never promotes the imported writes.",
+        "Stages a reviewed batch of Markdown documents without calling an external LLM. Promotion may queue deferred compaction for workspaces that enable it. It never promotes the imported writes.",
       inputSchema: {
         brainId: z.uuid(),
         documents: z

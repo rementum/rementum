@@ -110,4 +110,5 @@ Start with these calls:
 3. `read_article` loads the current version of an article selected from that index.
 
 Use `stage_write` for memory changes. Review its conflict result before you promote the pending
-write.
+write. Staging never waits for an external LLM. In opted-in workspaces, `read_article` exposes the
+deferred compaction status after promotion while the submitted body remains usable.

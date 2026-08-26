@@ -63,8 +63,9 @@ export function ArticleEditForm({ article }: { article: Article }) {
         <input name="title" defaultValue={article.title} required maxLength={240} />
       </label>
       <p className="form-note">
-        Rementum generates a routing summary when you stage this edit. Instances with an external
-        LLM enabled send the complete draft to that provider.
+        Staging preserves this title and body and creates a local routing summary without calling an
+        external LLM. If this workspace enables compaction, promotion queues the version for
+        background processing.
       </p>
       <label>
         Keywords

@@ -14,9 +14,12 @@ import {
   type ArticleRecord,
   type BrainRecord,
   type CipherEnvelope,
+  type ClaimedCompactionJob,
+  type CompactionJobRecord,
   ConflictError,
   type DataStore,
   ForbiddenError,
+  type GeneratedArticle,
   NotFoundError,
   type ResolvedStageWriteInput,
   reciprocalRankFusion,
@@ -57,6 +60,27 @@ export class PostgresStore implements DataStore {
       teamRoles: new Map(Object.entries(row.context.teamRoles ?? {})),
       workspaceRoles: new Map(Object.entries(row.context.workspaceRoles ?? {})),
       brainRoles: new Map(Object.entries(row.context.brainRoles ?? {})),
+    };
+  }
+
+  async claimCompaction(
+    workerId: string,
+    leaseSeconds: number,
+  ): Promise<ClaimedCompactionJob | null> {
+    const [row] = await this.client.sql<any[]>`
+      SELECT * FROM owl_worker_claim_compaction(${workerId}, ${leaseSeconds})
+    `;
+    if (!row) return null;
+    return {
+      jobId: row.job_id,
+      workspaceId: row.workspace_id,
+      brainId: row.brain_id,
+      articleId: row.article_id,
+      articleVersion: Number(row.article_version),
+      sourceTitle: row.source_title,
+      attempts: Number(row.attempts),
+      ownerId: row.owner_id,
+      claimId: row.claim_id,
     };
   }
 
@@ -169,15 +193,32 @@ export class PostgresStore implements DataStore {
     });
   }
 
+  async getWorkspace(workspaceId: string, actor: Actor): Promise<WorkspaceRecord | null> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        SELECT workspace.*, member.role
+        FROM workspaces workspace
+        JOIN team_members member
+          ON member.team_id = workspace.team_id AND member.user_id = ${actor.userId}
+        WHERE workspace.id = ${workspaceId}
+      `;
+      return row ? mapWorkspace(row) : null;
+    });
+  }
+
   async updateWorkspace(
     workspaceId: string,
-    name: string,
-    slug: string,
+    patch: { name?: string; slug?: string; llmCompactionEnabled?: boolean },
     actor: Actor,
   ): Promise<WorkspaceRecord> {
     return this.withActor(actor, async (tx) => {
+      const [existing] = await tx<any[]>`SELECT * FROM workspaces WHERE id = ${workspaceId}`;
+      if (!existing) throw new NotFoundError("Workspace");
       const [row] = await tx<any[]>`
-        UPDATE workspaces SET name = ${name}, slug = ${slug}
+        UPDATE workspaces SET
+          name = ${patch.name ?? existing.name},
+          slug = ${patch.slug ?? existing.slug},
+          llm_compaction_enabled = ${patch.llmCompactionEnabled ?? existing.llm_compaction_enabled}
         WHERE id = ${workspaceId} RETURNING *
       `;
       if (!row) throw new NotFoundError("Workspace");
@@ -366,6 +407,15 @@ export class PostgresStore implements DataStore {
         SELECT * FROM brains WHERE id = ${id} AND deleted_at IS NULL
       `;
       return row ? mapBrain(row) : null;
+    });
+  }
+
+  async isBrainCompactionEnabled(brainId: string, actor: Actor): Promise<boolean> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<Array<{ enabled: boolean }>>`
+        SELECT owl_brain_compaction_enabled(${brainId}) AS enabled
+      `;
+      return row?.enabled ?? false;
     });
   }
 
@@ -602,6 +652,7 @@ export class PostgresStore implements DataStore {
   async promoteStagedWrite(
     input: PromoteWriteInput,
     actor: Actor,
+    llmAvailable: boolean,
   ): Promise<{ write: StagedWriteRecord; article: ArticleRecord; version: VersionRecord }> {
     const outcome = await this.withActor(actor, async (tx) => {
       const [rawWrite] = await tx<any[]>`
@@ -630,6 +681,24 @@ export class PostgresStore implements DataStore {
         throw new ConflictError("Conflicted writes must be rebased or overridden");
       }
 
+      const [workspace] = await tx<Array<{ id: string; llm_compaction_enabled: boolean }>>`
+        SELECT workspace.id, workspace.llm_compaction_enabled
+        FROM brains brain
+        JOIN workspaces workspace ON workspace.id = brain.workspace_id
+        WHERE brain.id = ${write.brainId}
+      `;
+      if (!workspace) throw new NotFoundError("Workspace");
+      const queueCompaction = workspace.llm_compaction_enabled && llmAvailable;
+      const compactionStatus = queueCompaction
+        ? "queued"
+        : workspace.llm_compaction_enabled
+          ? "failed"
+          : "not_requested";
+      const compactionError =
+        workspace.llm_compaction_enabled && !llmAvailable
+          ? "The configured LLM provider is unavailable"
+          : null;
+
       let version = 1;
       if (write.operation === "create") {
         const [duplicate] = await tx<any[]>`
@@ -645,10 +714,12 @@ export class PostgresStore implements DataStore {
         }
         await tx`
           INSERT INTO articles (
-            id, brain_id, slug, title, summary, keywords, kind, freshness, current_version, created_by
+            id, brain_id, slug, title, summary, keywords, kind, freshness, current_version, created_by,
+            compaction_status, compaction_attempts, compaction_error, compacted_at
           ) VALUES (
             ${write.articleId}, ${write.brainId}, ${write.slug}, ${write.title}, ${write.summary},
-            ${write.keywords}, ${write.kind}, 'unknown', 1, ${write.stagedBy}
+            ${write.keywords}, ${write.kind}, 'unknown', 1, ${write.stagedBy},
+            ${compactionStatus}, 0, ${compactionError}, NULL
           )
         `;
       } else {
@@ -665,7 +736,9 @@ export class PostgresStore implements DataStore {
           UPDATE articles SET
             slug = ${write.slug}, title = ${write.title}, summary = ${write.summary},
             keywords = ${write.keywords}, kind = ${write.kind}, current_version = ${version},
-            freshness = 'current', updated_at = now()
+            freshness = 'current', compaction_status = ${compactionStatus},
+            compaction_attempts = 0, compaction_error = ${compactionError}, compacted_at = NULL,
+            updated_at = now()
           WHERE id = ${write.articleId}
         `;
       }
@@ -682,6 +755,16 @@ export class PostgresStore implements DataStore {
           ${actor.userId}, ${actor.clientId}
         ) RETURNING *
       `;
+      if (queueCompaction) {
+        await tx`
+          INSERT INTO article_compaction_jobs (
+            workspace_id, brain_id, article_id, article_version, source_title
+          ) VALUES (
+            ${workspace.id}, ${write.brainId}, ${write.articleId}, ${version}, ${write.title}
+          )
+          ON CONFLICT (article_id, article_version) DO NOTHING
+        `;
+      }
       await this.persistSources(tx, write, version, actor);
       const [promotedRow] = await tx<any[]>`
         UPDATE staged_writes SET
@@ -706,6 +789,212 @@ export class PostgresStore implements DataStore {
       });
     }
     return outcome;
+  }
+
+  async queueWorkspaceCurrentCompactions(workspaceId: string, actor: Actor): Promise<number> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<Array<{ id: string }>>`
+        WITH queued AS (
+          INSERT INTO article_compaction_jobs (
+            workspace_id, brain_id, article_id, article_version, source_title
+          )
+          SELECT workspace.id, article.brain_id, article.id, article.current_version, article.title
+          FROM articles article
+          JOIN brains brain ON brain.id = article.brain_id
+          JOIN workspaces workspace ON workspace.id = brain.workspace_id
+          WHERE workspace.id = ${workspaceId}
+            AND workspace.llm_compaction_enabled
+            AND article.archived_at IS NULL
+            AND article.compaction_status IN ('not_requested', 'failed')
+          ON CONFLICT (article_id, article_version) DO UPDATE SET
+            status = 'queued', attempts = 0, available_at = now(), claimed_by = NULL,
+            lease_expires_at = NULL, last_error = NULL, source_title = excluded.source_title,
+            updated_at = now()
+          WHERE article_compaction_jobs.status = 'failed'
+          RETURNING article_id
+        )
+        UPDATE articles article SET
+          compaction_status = 'queued', compaction_attempts = 0,
+          compaction_error = NULL, compacted_at = NULL, updated_at = now()
+        FROM queued
+        WHERE article.id = queued.article_id
+        RETURNING article.id
+      `;
+      return rows.length;
+    });
+  }
+
+  async queueArticleCompaction(articleId: string, actor: Actor): Promise<ArticleRecord> {
+    return this.withActor(actor, async (tx) => {
+      const [article] = await tx<any[]>`
+        SELECT article.*, brain.workspace_id,
+          owl_brain_compaction_enabled(article.brain_id) AS llm_compaction_enabled
+        FROM articles article
+        JOIN brains brain ON brain.id = article.brain_id
+        WHERE article.id = ${articleId} AND article.archived_at IS NULL
+        FOR UPDATE OF article
+      `;
+      if (!article) throw new NotFoundError("Article");
+      if (!article.llm_compaction_enabled) {
+        throw new ConflictError("LLM compaction is disabled for this workspace");
+      }
+      await tx`
+        INSERT INTO article_compaction_jobs (
+          workspace_id, brain_id, article_id, article_version, source_title
+        ) VALUES (
+          ${article.workspace_id}, ${article.brain_id}, ${article.id},
+          ${article.current_version}, ${article.title}
+        )
+        ON CONFLICT (article_id, article_version) DO UPDATE SET
+          status = 'queued', attempts = 0, available_at = now(), claimed_by = NULL,
+          lease_expires_at = NULL, last_error = NULL, source_title = excluded.source_title,
+          updated_at = now()
+        WHERE article_compaction_jobs.status = 'failed'
+      `;
+      const [updated] = await tx<any[]>`
+        UPDATE articles SET
+          compaction_status = CASE
+            WHEN compaction_status IN ('queued', 'processing') THEN compaction_status
+            ELSE 'queued'::compaction_status
+          END,
+          compaction_attempts = CASE
+            WHEN compaction_status IN ('queued', 'processing') THEN compaction_attempts
+            ELSE 0
+          END,
+          compaction_error = CASE
+            WHEN compaction_status IN ('queued', 'processing') THEN compaction_error
+            ELSE NULL
+          END,
+          compacted_at = CASE
+            WHEN compaction_status IN ('queued', 'processing') THEN compacted_at
+            ELSE NULL
+          END,
+          updated_at = now()
+        WHERE id = ${articleId} RETURNING *
+      `;
+      if (!updated) throw new NotFoundError("Article");
+      return mapArticle(updated);
+    });
+  }
+
+  async cancelWorkspaceCompactions(workspaceId: string, actor: Actor): Promise<string[]> {
+    return this.withActor(actor, async (tx) => {
+      await tx`DELETE FROM article_compaction_jobs WHERE workspace_id = ${workspaceId}`;
+      const rows = await tx<Array<{ id: string }>>`
+        UPDATE articles article SET
+          compaction_status = 'not_requested', compaction_attempts = 0,
+          compaction_error = NULL, compacted_at = NULL, updated_at = now()
+        FROM brains brain
+        WHERE article.brain_id = brain.id
+          AND brain.workspace_id = ${workspaceId}
+          AND article.compaction_status IN ('queued', 'processing')
+        RETURNING article.id
+      `;
+      return rows.map((row) => row.id);
+    });
+  }
+
+  async getCompactionJob(jobId: string, actor: Actor): Promise<CompactionJobRecord | null> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`SELECT * FROM article_compaction_jobs WHERE id = ${jobId}`;
+      return row ? mapCompactionJob(row) : null;
+    });
+  }
+
+  async completeCompaction(
+    jobId: string,
+    claimId: string,
+    generated: GeneratedArticle,
+    encrypted: CipherEnvelope,
+    bodyHash: string,
+    actor: Actor,
+  ): Promise<{ current: boolean; articleId: string; version: number } | null> {
+    return this.withActor(actor, async (tx) => {
+      const [job] = await tx<any[]>`
+        SELECT job.*, workspace.llm_compaction_enabled
+        FROM article_compaction_jobs job
+        JOIN workspaces workspace ON workspace.id = job.workspace_id
+        WHERE job.id = ${jobId} AND job.status = 'processing' AND job.claimed_by = ${claimId}
+        FOR UPDATE OF job
+      `;
+      if (!job) return null;
+      if (!job.llm_compaction_enabled) {
+        await tx`DELETE FROM article_compaction_jobs WHERE id = ${jobId}`;
+        return null;
+      }
+      await tx`
+        UPDATE article_versions SET
+          body_ciphertext = ${decode(encrypted.ciphertext)},
+          body_nonce = ${decode(encrypted.nonce)},
+          body_tag = ${decode(encrypted.tag)},
+          cipher_version = ${encrypted.version},
+          body_hash = ${bodyHash}
+        WHERE article_id = ${job.article_id} AND version = ${job.article_version}
+      `;
+      const [article] = await tx<any[]>`
+        SELECT * FROM articles WHERE id = ${job.article_id} FOR UPDATE
+      `;
+      if (!article) throw new NotFoundError("Article");
+      const current = Number(article.current_version) === Number(job.article_version);
+      if (current) {
+        await tx`
+          UPDATE articles SET
+            title = ${generated.title}, summary = ${generated.summary},
+            compaction_status = 'compacted', compaction_attempts = ${job.attempts},
+            compaction_error = NULL, compacted_at = now(), updated_at = now()
+          WHERE id = ${job.article_id}
+        `;
+      }
+      await tx`DELETE FROM article_compaction_jobs WHERE id = ${jobId}`;
+      return {
+        current,
+        articleId: job.article_id as string,
+        version: Number(job.article_version),
+      };
+    });
+  }
+
+  async failCompaction(
+    jobId: string,
+    claimId: string,
+    error: string,
+    retryAt: Date | null,
+    actor: Actor,
+  ): Promise<{ current: boolean; terminal: boolean; articleId: string; version: number } | null> {
+    return this.withActor(actor, async (tx) => {
+      const [job] = await tx<any[]>`
+        SELECT * FROM article_compaction_jobs
+        WHERE id = ${jobId} AND status = 'processing' AND claimed_by = ${claimId}
+        FOR UPDATE
+      `;
+      if (!job) return null;
+      const terminal = retryAt === null;
+      await tx`
+        UPDATE article_compaction_jobs SET
+          status = ${terminal ? "failed" : "queued"},
+          available_at = ${retryAt?.toISOString() ?? new Date().toISOString()},
+          claimed_by = NULL, lease_expires_at = NULL, last_error = ${error}, updated_at = now()
+        WHERE id = ${jobId}
+      `;
+      const [article] = await tx<any[]>`SELECT * FROM articles WHERE id = ${job.article_id}`;
+      if (!article) throw new NotFoundError("Article");
+      const current = Number(article.current_version) === Number(job.article_version);
+      if (current) {
+        await tx`
+          UPDATE articles SET
+            compaction_status = ${terminal ? "failed" : "queued"},
+            compaction_attempts = ${job.attempts}, compaction_error = ${error},
+            updated_at = now()
+          WHERE id = ${job.article_id}
+        `;
+      }
+      return {
+        current,
+        terminal,
+        articleId: job.article_id as string,
+        version: Number(job.article_version),
+      };
+    });
   }
 
   async findPotentialConflicts(
@@ -795,6 +1084,15 @@ export class PostgresStore implements DataStore {
         VALUES (${articleId}, ${version}, ${ordinal}, ${vectorLiteral(vector)}::vector, ${this.embeddingModel})
         ON CONFLICT (article_id, version, ordinal) DO UPDATE SET
           embedding = excluded.embedding, model = excluded.model, created_at = now()
+      `;
+    });
+  }
+
+  async clearEmbeddings(articleId: string, version: number, actor: Actor): Promise<void> {
+    await this.withActor(actor, async (tx) => {
+      await tx`
+        DELETE FROM article_embeddings
+        WHERE article_id = ${articleId} AND version = ${version}
       `;
     });
   }
@@ -1263,6 +1561,7 @@ function mapWorkspace(row: any): WorkspaceRecord {
     teamId: row.team_id,
     slug: row.slug,
     name: row.name,
+    llmCompactionEnabled: row.llm_compaction_enabled ?? false,
     role: row.role,
     createdAt: asDate(row.created_at),
   };
@@ -1306,6 +1605,10 @@ function mapArticle(row: any): ArticleRecord {
     createdBy: row.created_by,
     createdAt: asDate(row.created_at),
     updatedAt: asDate(row.updated_at),
+    compactionStatus: row.compaction_status ?? "not_requested",
+    compactionAttempts: Number(row.compaction_attempts ?? 0),
+    compactionError: row.compaction_error ?? null,
+    compactedAt: row.compacted_at ? asDate(row.compacted_at) : null,
   };
 }
 
@@ -1351,6 +1654,25 @@ function mapWrite(row: any): StagedWriteRecord {
     promotedBy: row.promoted_by ?? null,
     promotedVersion: row.promoted_version === null ? null : Number(row.promoted_version),
     decisionSummary: row.decision_summary ?? null,
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at),
+  };
+}
+
+function mapCompactionJob(row: any): CompactionJobRecord {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    brainId: row.brain_id,
+    articleId: row.article_id,
+    articleVersion: Number(row.article_version),
+    sourceTitle: row.source_title,
+    status: row.status,
+    attempts: Number(row.attempts),
+    availableAt: asDate(row.available_at),
+    claimedBy: row.claimed_by ?? null,
+    leaseExpiresAt: row.lease_expires_at ? asDate(row.lease_expires_at) : null,
+    lastError: row.last_error ?? null,
     createdAt: asDate(row.created_at),
     updatedAt: asDate(row.updated_at),
   };

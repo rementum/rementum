@@ -7,6 +7,7 @@ interface Review {
     id: string;
     brainId: string;
     title: string;
+    summary: string;
     status: string;
     operation: string;
     changeSummary: string;
@@ -30,6 +31,7 @@ export default async function WritePage({ params }: { params: Promise<{ writeId:
             {review.write.operation} · {review.write.status}
           </p>
           <h1>{review.write.title}</h1>
+          <p>{review.write.summary}</p>
           <p>{review.write.changeSummary}</p>
         </div>
         <WriteActions writeId={writeId} status={review.write.status} />
