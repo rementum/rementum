@@ -594,9 +594,13 @@ export async function registerApiRoutes(
     const archive = await upload.toBuffer();
     const inspection = await inspectMarkdownArchive(brainId, archive);
     const index = (await service.getBrain(brainId, actor, 10_000)).routingIndex;
+    // A scan per document turned a large archive against a large brain into a quadratic
+    // match, and the archive hash was recomputed for every file in it.
+    const bySlug = new Map(index.map((article) => [article.slug, article]));
+    const archiveHash = hashContent(archive).slice(0, 16);
     const writes = [];
     for (const document of inspection.documents) {
-      const existing = index.find((article) => article.slug === document.slug);
+      const existing = bySlug.get(document.slug);
       writes.push(
         sanitize(
           await service.stageWrite(
@@ -621,7 +625,7 @@ export async function registerApiRoutes(
                 },
               ],
               acknowledgePotentialConflicts: true,
-              idempotencyKey: `import-${hashContent(archive).slice(0, 16)}-${hashContent(document.path).slice(0, 16)}`,
+              idempotencyKey: `import-${archiveHash}-${hashContent(document.path).slice(0, 16)}`,
             }),
             actor,
           ),
