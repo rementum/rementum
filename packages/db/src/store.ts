@@ -570,7 +570,9 @@ export class PostgresStore implements DataStore {
    * own transaction: seven connections and seven RLS setups for one logical read. The
    * queries are unchanged, they just share the context they all needed anyway.
    *
-   * Returns null when the article is not visible, so the caller still decides the error.
+   * Returns null when the article is not visible. An article whose brain or current
+   * version is missing is a different failure, and still reports itself as one: that
+   * combination means the rows disagree, not that the caller asked for nothing.
    */
   async readArticleBundle(articleId: string, actor: Actor): Promise<ArticleBundle | null> {
     return this.withActor(actor, async (tx) => {
@@ -582,13 +584,13 @@ export class PostgresStore implements DataStore {
       const [brainRow] = await tx<any[]>`
         SELECT * FROM brains WHERE id = ${article.brainId} AND deleted_at IS NULL
       `;
-      if (!brainRow) return null;
+      if (!brainRow) throw new NotFoundError("Article version");
       const [versionRow] = await tx<any[]>`
         SELECT av.* FROM article_versions av
         JOIN articles a ON a.id = av.article_id AND a.current_version = av.version
         WHERE av.article_id = ${articleId} AND a.archived_at IS NULL
       `;
-      if (!versionRow) return null;
+      if (!versionRow) throw new NotFoundError("Article version");
       const version = mapVersion(versionRow);
       const linkRows = await tx<Array<{ article_id: string; slug: string; relation: string }>>`
         SELECT target.id AS article_id, target.slug, links.relation
