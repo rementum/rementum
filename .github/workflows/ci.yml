@@ -2,13 +2,40 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
   contents: read
 
+# A pull request branch would otherwise run this workflow twice per push. Superseded runs on
+# the same ref are cancelled; runs on main are left alone so every commit keeps a result.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  check:
+  static:
+    name: Lint, types, and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check formatting and lint
+        run: pnpm exec biome ci .
+      - run: pnpm typecheck
+      - run: pnpm build
+
+  test:
+    name: Tests and coverage
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -40,7 +67,29 @@ jobs:
         run: |
           psql -h 127.0.0.1 -U postgres -d owl_test -c "CREATE ROLE owl_app LOGIN PASSWORD 'owl';"
           REMENTUM_DATABASE_ADMIN_URL=postgres://postgres:postgres@127.0.0.1:5432/owl_test pnpm db:migrate
-      - run: pnpm check
+      - name: Run tests with coverage
         env:
           REMENTUM_TEST_DATABASE_URL: postgres://owl_app:owl@127.0.0.1:5432/owl_test
-      - run: pnpm build
+        run: pnpm test:coverage
+      - name: Summarise coverage
+        if: always()
+        run: |
+          test -f coverage/coverage-summary.json || exit 0
+          node -e '
+            const { total } = require("./coverage/coverage-summary.json");
+            const rows = ["statements", "branches", "functions", "lines"]
+              .map((key) => `| ${key} | ${total[key].pct}% | ${total[key].covered}/${total[key].total} |`)
+              .join("\n");
+            require("node:fs").appendFileSync(
+              process.env.GITHUB_STEP_SUMMARY,
+              `### Coverage\n\n| metric | percent | covered |\n| --- | --- | --- |\n${rows}\n`,
+            );
+          '
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage
+          retention-days: 7
+          if-no-files-found: ignore
