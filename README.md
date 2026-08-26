@@ -84,6 +84,12 @@ The encrypted archive contains PostgreSQL, local blobs, and a versioned manifest
 `REMENTUM_MASTER_KEY`; escrow that key separately. Read [the operations guide](docs/operations.md)
 before you test a restore.
 
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and the pull request checklist. Report
+security vulnerabilities privately as described in [SECURITY.md](SECURITY.md) rather than in an
+issue.
+
 ## License
 
 AGPL-3.0-only. See [LICENSE](LICENSE).

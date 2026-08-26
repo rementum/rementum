@@ -1,5 +1,10 @@
 # Development
 
+New contributors should start with
+[CONTRIBUTING.md](https://github.com/yibudak/rementum/blob/main/CONTRIBUTING.md), which covers the
+repository layout, commit conventions, and what a pull request is expected to pass. This page
+covers the mechanics of running the stack.
+
 ## Requirements
 
 - Node.js 24 or newer
@@ -44,6 +49,17 @@ pnpm check
 pnpm build
 docker compose config --quiet
 docker compose -f docker-compose.yml -f compose.production.yml config --quiet
+```
+
+`pnpm check` runs Biome, typechecks every package, and runs the test suite. `pnpm test:coverage`
+adds a v8 coverage report and fails below the floor in `vitest.config.ts`.
+
+Tests named `*.integration.test.ts` need PostgreSQL and skip themselves when
+`REMENTUM_TEST_DATABASE_URL` is unset. Point that variable at a throwaway migrated database using
+the unprivileged `owl_app` role, because those tests exercise row-level security:
+
+```bash
+REMENTUM_TEST_DATABASE_URL=postgres://owl_app:YOUR_APP_PASSWORD@127.0.0.1:55432/owl pnpm test:coverage
 ```
 
 ## Documentation
