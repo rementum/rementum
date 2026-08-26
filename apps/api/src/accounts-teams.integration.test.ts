@@ -191,6 +191,8 @@ integration("account and team HTTP flows", () => {
         (await app.inject({ method: "GET", url: "/.well-known/oauth-protected-resource" }))
           .statusCode,
       ).toBe(404);
+      expect((await app.inject({ method: "GET", url: "/docs" })).statusCode).toBe(404);
+      expect((await app.inject({ method: "GET", url: "/openapi.json" })).statusCode).toBe(404);
       expect(
         (
           await app.inject({

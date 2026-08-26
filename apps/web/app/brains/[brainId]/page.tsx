@@ -37,7 +37,6 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
         ) : null}
         <div className="aside-actions">
           <a href={`/brains/${brainId}/export`}>Export Markdown</a>
-          <a href="/docs">API reference</a>
         </div>
         <InviteMemberForm brainId={brainId} />
       </aside>

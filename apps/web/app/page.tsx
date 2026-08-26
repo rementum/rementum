@@ -187,9 +187,6 @@ function CTASection() {
             <Link className="button" href="/auth/login">
               Sign in
             </Link>
-            <a className="button secondary" href="/docs">
-              API reference
-            </a>
           </div>
         </div>
       </Reveal>

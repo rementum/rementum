@@ -284,16 +284,13 @@ function EmptyWorkspace({
       <section className="empty-state">
         <h2>No brains yet</h2>
         <p>
-          Connect an agent over MCP or create a brain through the API. It will appear here with its
+          Connect an agent over MCP to create your first brain. It will appear here with its
           articles, staged writes, and activity.
         </p>
         <div className="dash-empty-actions">
           <Link className="button secondary" href="/connections">
             View connections
           </Link>
-          <a className="button secondary" href="/docs">
-            Open API docs
-          </a>
         </div>
       </section>
       <SharedBrains brains={sharedBrains} />

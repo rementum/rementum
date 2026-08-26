@@ -9,7 +9,6 @@ const items = [
   { label: "Brains", href: "/", glyph: "B" },
   { label: "Teams", href: "/teams", glyph: "T" },
   { label: "Connections", href: "/connections", glyph: "C" },
-  { label: "API reference", href: "/docs", glyph: "A", external: true },
 ] as const;
 
 function isCurrent(pathname: string, href: string) {
@@ -33,11 +32,7 @@ function NavigationLinks({ compact = false }: { compact?: boolean }) {
             <span>{item.label}</span>
           </>
         );
-        return "external" in item ? (
-          <a href={item.href} key={item.href}>
-            {content}
-          </a>
-        ) : (
+        return (
           <Link
             href={item.href}
             key={item.href}

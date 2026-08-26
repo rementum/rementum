@@ -6,8 +6,6 @@ import helmet from "@fastify/helmet";
 import middie from "@fastify/middie";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
-import swagger from "@fastify/swagger";
-import swaggerUi from "@fastify/swagger-ui";
 import { DomainError, parseMasterKey, RementumService } from "@rementum/core";
 import { AuthRepository, createDatabaseClient, PostgresStore } from "@rementum/db";
 import Fastify from "fastify";
@@ -83,17 +81,6 @@ export async function buildApp(
     timeWindow: "1 minute",
     keyGenerator: (request) => request.ip,
   });
-  await app.register(swagger, {
-    openapi: {
-      info: {
-        title: "Rementum API",
-        version: "0.1.0",
-        description: "Versioned shared knowledge, tasks, imports, and maintenance for AI agents.",
-      },
-      servers: [{ url: config.REMENTUM_PUBLIC_URL }],
-    },
-  });
-  await app.register(swaggerUi, { routePrefix: "/docs" });
   await app.register(middie);
 
   await registerOauthRoutes(app, oauth, verifyCredentials);
@@ -138,8 +125,6 @@ export async function buildApp(
         ].join("\n"),
       ),
   );
-  app.get("/openapi.json", async () => app.swagger());
-
   await registerApiRoutes(app, service, authenticate, authRepository, config, mailer);
   await registerWorkspaceMcpEndpoint(
     app,
