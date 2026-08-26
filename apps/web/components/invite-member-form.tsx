@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "./pui";
+import { CopyButton } from "./ui/copy-button";
+import { Field, fieldControlClass } from "./ui/field";
 
 export function InviteMemberForm({ brainId }: { brainId: string }) {
   const [url, setUrl] = useState("");
@@ -17,28 +20,41 @@ export function InviteMemberForm({ brainId }: { brainId: string }) {
     else setUrl(body.acceptanceUrl);
   }
   return (
-    <form className="invite-member" action={submit}>
-      <span>Invite teammate</span>
-      <label>
-        Email
-        <input name="email" type="email" placeholder="teammate@example.com" required />
-      </label>
-      <label>
-        Role
-        <select name="role" defaultValue="editor">
+    <form className="grid gap-3" action={submit}>
+      <Field label="Email" htmlFor="invite-email">
+        <input
+          className={fieldControlClass}
+          id="invite-email"
+          name="email"
+          type="email"
+          placeholder="teammate@example.com"
+          required
+        />
+      </Field>
+      <Field label="Role" htmlFor="invite-role">
+        <select className={fieldControlClass} id="invite-role" name="role" defaultValue="editor">
           <option value="editor">Editor</option>
           <option value="commenter">Commenter</option>
           <option value="viewer">Viewer</option>
         </select>
-      </label>
-      <button type="submit">Create invite</button>
+      </Field>
+      <div>
+        <Button variant="solid" size="sm" type="submit">
+          Create invite
+        </Button>
+      </div>
       {url ? (
-        <output>
-          <a href={url}>Open invitation</a>
-          <code>{url}</code>
+        <output className="grid gap-2 rounded-control border border-green/25 bg-green/10 p-3">
+          <a className="text-sm font-medium text-green transition-colors hover:text-ink" href={url}>
+            Open invitation
+          </a>
+          <code className="break-all font-mono text-2xs text-ink-2">{url}</code>
+          <div>
+            <CopyButton text={url} label="Copy link" />
+          </div>
         </output>
       ) : null}
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? <p className="text-sm text-red">{error}</p> : null}
     </form>
   );
 }

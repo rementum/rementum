@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PageHeader } from "../../../../components/ui/page-header";
 import { api } from "../../../../lib/api";
 import { ArticleEditForm } from "./article-edit-form";
 
@@ -21,18 +21,16 @@ export default async function EditArticlePage({
   const { articleId } = await params;
   const article = await api<Article>(`/api/v1/articles/${articleId}`);
   return (
-    <main className="shell management-shell">
-      <Link className="back" href={`/articles/${articleId}`}>
-        ← Article
-      </Link>
-      <header className="management-head">
-        <div>
-          <p className="kicker">Stage only</p>
-          <h1>Edit {article.title}</h1>
-          <p>Saving creates a reviewable staged write. Canon is unchanged until promotion.</p>
-        </div>
-      </header>
-      <ArticleEditForm article={article} />
+    <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
+      <PageHeader
+        back={{ href: `/articles/${articleId}`, label: "Article" }}
+        kicker="Stage only"
+        title={`Edit ${article.title}`}
+        description="Saving creates a reviewable staged write. Canon is unchanged until promotion."
+      />
+      <div className="mt-8">
+        <ArticleEditForm article={article} />
+      </div>
     </main>
   );
 }

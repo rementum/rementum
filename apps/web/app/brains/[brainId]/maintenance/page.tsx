@@ -1,4 +1,5 @@
 import { BrainNav } from "../../../../components/brain-nav";
+import { PageHeader } from "../../../../components/ui/page-header";
 import { api } from "../../../../lib/api";
 import { MaintenanceActions } from "./maintenance-actions";
 
@@ -23,15 +24,14 @@ export default async function MaintenancePage({
     api<Candidate[]>(`/api/v1/brains/${brainId}/maintenance`),
   ]);
   return (
-    <main className="shell management-shell">
-      <header className="management-head">
-        <div>
-          <p className="kicker">{brain.brain.name}</p>
-          <h1>Knowledge health</h1>
-        </div>
+    <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
+      <PageHeader kicker={brain.brain.name} title="Knowledge health" />
+      <div className="mt-6">
         <BrainNav brainId={brainId} />
-      </header>
-      <MaintenanceActions brainId={brainId} candidates={candidates} />
+      </div>
+      <div className="mt-8">
+        <MaintenanceActions brainId={brainId} candidates={candidates} />
+      </div>
     </main>
   );
 }

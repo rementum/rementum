@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "../../../components/pui";
 
 export function WriteActions({ writeId, status }: { writeId: string; status: string }) {
   const router = useRouter();
@@ -28,22 +29,28 @@ export function WriteActions({ writeId, status }: { writeId: string; status: str
     router.refresh();
     setBusy(false);
   }
-  if (!["pending", "conflicted"].includes(status))
-    return <span className={`status ${status}`}>{status}</span>;
+  if (!["pending", "conflicted"].includes(status)) return null;
   return (
-    <div className="action-stack">
-      <button
-        className="button"
-        disabled={busy || status === "conflicted"}
-        onClick={() => act("promote")}
-        type="button"
-      >
-        Promote
-      </button>
-      <button className="text-button" disabled={busy} onClick={() => act("withdraw")} type="button">
-        Withdraw
-      </button>
-      {error ? <p className="form-error">{error}</p> : null}
+    <div className="flex shrink-0 flex-col items-end gap-2">
+      <div className="flex items-center gap-3">
+        <button
+          className="rounded-control px-2 py-1 text-sm font-medium text-red transition-colors hover:bg-red/10 disabled:opacity-50 active:scale-[0.98]"
+          disabled={busy}
+          onClick={() => act("withdraw")}
+          type="button"
+        >
+          Withdraw
+        </button>
+        <Button
+          variant="solid"
+          disabled={busy || status === "conflicted"}
+          onClick={() => act("promote")}
+          type="button"
+        >
+          Promote
+        </Button>
+      </div>
+      {error ? <p className="max-w-64 text-right text-sm text-red">{error}</p> : null}
     </div>
   );
 }

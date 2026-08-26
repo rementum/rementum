@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { StatusPill } from "../../../components/ui/status-pill";
+import { formatDateTime } from "../../../lib/format";
 
 export interface ArticleCompaction {
   enabled: boolean;
@@ -68,22 +70,35 @@ export function ArticleCompactionStatus({
   }
 
   return (
-    <div className="article-compaction">
-      <span className={`status ${compaction.status}`}>{labels[compaction.status]}</span>
-      {compaction.attempts ? <small>{compaction.attempts}/3 attempts</small> : null}
-      {compaction.compactedAt ? (
-        <small>{new Date(compaction.compactedAt).toLocaleString()}</small>
+    <span className="inline-flex flex-wrap items-center gap-2 normal-case tracking-normal">
+      <StatusPill status={compaction.status} label={labels[compaction.status]} />
+      {compaction.attempts ? (
+        <small className="font-mono text-2xs tabular-nums text-ink-3">
+          {compaction.attempts}/3 attempts
+        </small>
       ) : null}
-      {compaction.error ? <small className="compaction-error">{compaction.error}</small> : null}
+      {compaction.compactedAt ? (
+        <small className="font-mono text-2xs tabular-nums text-ink-3">
+          <time suppressHydrationWarning dateTime={compaction.compactedAt}>
+            {formatDateTime(compaction.compactedAt)}
+          </time>
+        </small>
+      ) : null}
+      {compaction.error ? <small className="text-2xs text-red">{compaction.error}</small> : null}
       {compaction.canRetry ? (
-        <button className="text-button" type="button" disabled={busy} onClick={retry}>
+        <button
+          className="text-xs font-medium text-accent transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:no-underline"
+          type="button"
+          disabled={busy}
+          onClick={retry}
+        >
           {busy ? "Queuing…" : "Retry compaction"}
         </button>
       ) : null}
       {!compaction.available && compaction.enabled ? (
-        <small className="compaction-error">The instance LLM provider is unavailable.</small>
+        <small className="text-2xs text-red">The instance LLM provider is unavailable.</small>
       ) : null}
-      {error ? <small className="compaction-error">{error}</small> : null}
-    </div>
+      {error ? <small className="text-2xs text-red">{error}</small> : null}
+    </span>
   );
 }

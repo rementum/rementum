@@ -1,14 +1,19 @@
 import { ResendVerificationForm } from "../../components/account-flows";
+import { AuthShell } from "../../components/auth-shell";
+import { GradientText } from "../../components/pui";
 
 export default function ResendVerificationPage() {
   return (
-    <main className="shell invite-shell">
-      <section className="invite-copy">
-        <p className="kicker">Account verification</p>
-        <h1>Send a fresh link.</h1>
-        <p>Previous verification links stop working when a new one is issued.</p>
-      </section>
+    <AuthShell
+      kicker="Account verification"
+      title={
+        <>
+          Send a new <GradientText>link</GradientText>.
+        </>
+      }
+      description="Requesting a new link disables the previous ones."
+    >
       <ResendVerificationForm />
-    </main>
+    </AuthShell>
   );
 }

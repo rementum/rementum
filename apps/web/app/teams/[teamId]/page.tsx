@@ -3,6 +3,8 @@ import {
   WorkspaceCreateForm,
   WorkspaceManagement,
 } from "../../../components/team-management";
+import { Card, CardHeader } from "../../../components/ui/card";
+import { PageHeader } from "../../../components/ui/page-header";
 import { api, workspaceContext } from "../../../lib/api";
 
 interface Member {
@@ -27,47 +29,46 @@ export default async function TeamPage({ params }: { params: Promise<{ teamId: s
   const members = await api<Member[]>(`/api/v1/teams/${teamId}/members`);
   const invitations =
     team.role === "member" ? [] : await api<Invitation[]>(`/api/v1/teams/${teamId}/invitations`);
+  const teamWorkspaces = workspaces.filter((workspace) => workspace.teamId === teamId);
   return (
-    <main className="shell management-shell">
-      <section className="management-head">
-        <div>
-          <p className="kicker">Team · {team.role}</p>
-          <h1>{team.name}</h1>
-          <p>Members share access to every workspace and brain in this team.</p>
-        </div>
-      </section>
-      {team.role === "owner" || team.role === "admin" ? (
-        <WorkspaceCreateForm teamId={teamId} />
-      ) : null}
-      <section className="team-section">
-        <div className="section-title">
-          <h2>Workspaces</h2>
-          <span>{workspaces.filter((workspace) => workspace.teamId === teamId).length}</span>
-        </div>
-        <div className="team-workspace-list">
-          {workspaces
-            .filter((workspace) => workspace.teamId === teamId)
-            .map((workspace) => (
-              <WorkspaceManagement
-                key={workspace.id}
-                workspaceId={workspace.id}
-                name={workspace.name}
-                slug={workspace.slug}
-                mcpUrl={workspace.mcpUrl}
-                llmCompactionEnabled={workspace.llmCompactionEnabled}
-                llmCompactionAvailable={workspace.llmCompactionAvailable}
-                canRename={team.role === "owner" || team.role === "admin"}
-                canDelete={team.role === "owner"}
-              />
-            ))}
-        </div>
-      </section>
-      <TeamManagement
-        teamId={teamId}
-        currentRole={team.role}
-        members={members}
-        invitations={invitations}
+    <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
+      <PageHeader
+        back={{ href: "/teams", label: "Teams" }}
+        kicker={`Team · ${team.role}`}
+        title={team.name}
+        description="Members share access to every workspace and brain in this team."
       />
+      <div className="mt-8 flex flex-col gap-6">
+        {team.role === "owner" || team.role === "admin" ? (
+          <WorkspaceCreateForm teamId={teamId} />
+        ) : null}
+        <section aria-label="Workspaces">
+          <Card>
+            <CardHeader title="Workspaces" count={teamWorkspaces.length} />
+            <div className="divide-y divide-line">
+              {teamWorkspaces.map((workspace) => (
+                <WorkspaceManagement
+                  key={workspace.id}
+                  workspaceId={workspace.id}
+                  name={workspace.name}
+                  slug={workspace.slug}
+                  mcpUrl={workspace.mcpUrl}
+                  llmCompactionEnabled={workspace.llmCompactionEnabled}
+                  llmCompactionAvailable={workspace.llmCompactionAvailable}
+                  canRename={team.role === "owner" || team.role === "admin"}
+                  canDelete={team.role === "owner"}
+                />
+              ))}
+            </div>
+          </Card>
+        </section>
+        <TeamManagement
+          teamId={teamId}
+          currentRole={team.role}
+          members={members}
+          invitations={invitations}
+        />
+      </div>
     </main>
   );
 }

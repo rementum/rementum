@@ -1,14 +1,13 @@
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { cookies } from "next/headers";
 import { AppNavigation } from "../components/app-navigation";
-import { BrandMark } from "../components/brand";
+import { PublicNav } from "../components/public-nav";
+import { StickyBanner } from "../components/pui";
 import { hasSession, publicAuthConfig, workspaceContext } from "../lib/api";
-import "./styles.css";
-import "./invite.css";
-import "./management.css";
-import "./dashboard.css";
+import { GITHUB_URL } from "../lib/site";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
@@ -19,38 +18,42 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const cookieStore = await cookies();
+  const theme = cookieStore.get("rementum_theme")?.value === "light" ? "light" : "dark";
+  const sidebarCollapsed = cookieStore.get("rementum_sidebar")?.value === "collapsed";
   const signedIn = await hasSession();
   const context = signedIn ? await workspaceContext() : null;
   const authConfig = signedIn ? null : await publicAuthConfig();
 
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html
+      lang="en"
+      data-theme={theme}
+      className={`${GeistSans.variable} ${GeistMono.variable}${theme === "dark" ? " dark" : ""}`}
+    >
       <body>
         {signedIn ? (
-          <div className="workspace">
+          <div className="min-h-dvh md:flex">
             <AppNavigation
               teams={context?.teams ?? []}
               workspaces={context?.workspaces ?? []}
               activeWorkspaceId={context?.activeWorkspace?.id ?? null}
+              initialCollapsed={sidebarCollapsed}
             />
-            <div className="workspace-main">{children}</div>
+            <div className="min-w-0 flex-1">{children}</div>
           </div>
         ) : (
-          <div className="public-site">
-            <header className="public-nav">
-              <Link className="brand" href="/">
-                <BrandMark className="brand-mark" />
-                <span>Rementum</span>
-              </Link>
-              <Link className="nav-action" href="/auth/login">
-                Sign in
-              </Link>
-              {authConfig?.signupEnabled ? (
-                <Link className="nav-action" href="/register">
-                  Create account
-                </Link>
-              ) : null}
-            </header>
+          <div className="flex min-h-dvh flex-col">
+            <StickyBanner
+              trailing={
+                <span aria-hidden="true" className="ml-1">
+                  →
+                </span>
+              }
+            >
+              <a href={GITHUB_URL}>Open source under AGPL-3.0 · star Rementum on GitHub</a>
+            </StickyBanner>
+            <PublicNav signupEnabled={authConfig?.signupEnabled ?? false} />
             {children}
           </div>
         )}

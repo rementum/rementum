@@ -1,3 +1,4 @@
+import { PageHeader } from "../../components/ui/page-header";
 import { api } from "../../lib/api";
 import { ConnectionList } from "./connection-list";
 
@@ -12,15 +13,15 @@ interface Connection {
 export default async function ConnectionsPage() {
   const connections = await api<Connection[]>("/api/v1/connections");
   return (
-    <main className="shell management-shell">
-      <header className="management-head">
-        <div>
-          <p className="kicker">OAuth grants</p>
-          <h1>Connected agents</h1>
-          <p>Each client has its own revocable grant.</p>
-        </div>
-      </header>
-      <ConnectionList connections={connections} />
+    <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
+      <PageHeader
+        kicker="OAuth grants"
+        title="Connections"
+        description="Each client has its own revocable grant."
+      />
+      <div className="mt-8">
+        <ConnectionList connections={connections} />
+      </div>
     </main>
   );
 }

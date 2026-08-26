@@ -2,8 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Button, WibblingSpinner } from "./pui";
+import { Field, fieldControlClass } from "./ui/field";
 
 const apiBase = (process.env.NEXT_PUBLIC_REMENTUM_API_URL ?? "").replace(/\/$/, "");
+
+const successBanner =
+  "rounded-control border border-green/25 bg-green/10 px-3 py-2 text-sm text-green";
+const errorBanner = "rounded-control border border-red/25 bg-red/10 px-3 py-2 text-sm text-red";
 
 async function request(path: string, body: Record<string, unknown>) {
   const response = await fetch(`${apiBase}${path}`, {
@@ -40,27 +46,42 @@ export function LoginForm({
     }
   }
   return (
-    <form className="invite-form" action={submit}>
-      <label>
-        Email
-        <input name="email" type="email" autoComplete="username" required />
-      </label>
-      <label>
-        Password
-        <input name="password" type="password" autoComplete="current-password" required />
-      </label>
-      {error ? <p className="form-error">{error}</p> : null}
-      <button className="button" type="submit" disabled={busy}>
+    <form className="flex flex-col gap-4" action={submit}>
+      <Field label="Email" htmlFor="login-email">
+        <input
+          id="login-email"
+          className={fieldControlClass}
+          name="email"
+          type="email"
+          autoComplete="username"
+          required
+        />
+      </Field>
+      <Field label="Password" htmlFor="login-password">
+        <input
+          id="login-password"
+          className={fieldControlClass}
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+        />
+      </Field>
+      {error ? <p className={errorBanner}>{error}</p> : null}
+      <Button type="submit" variant="solid" block loading={busy}>
         {busy ? "Signing in…" : "Sign in"}
-      </button>
-      <Link className="button secondary" href="/forgot-password">
+      </Button>
+      {signupEnabled ? (
+        <Button as={Link} href="/register" variant="ghost" block>
+          Create account
+        </Button>
+      ) : null}
+      <Link
+        className="text-center text-sm font-medium text-accent hover:underline"
+        href="/forgot-password"
+      >
         Forgot password?
       </Link>
-      {signupEnabled ? (
-        <Link className="button secondary" href="/register">
-          Create account
-        </Link>
-      ) : null}
     </form>
   );
 }
@@ -86,45 +107,63 @@ export function RegisterForm() {
   }
   if (state === "sent")
     return (
-      <div className="invite-form">
-        <p className="form-success">Check your inbox and verify your email before signing in.</p>
-        <Link className="button" href="/auth/login">
+      <div className="flex flex-col gap-4">
+        <p className={successBanner}>Check your inbox and verify your email before signing in.</p>
+        <Button as={Link} href="/auth/login" variant="solid" block>
           Go to sign in
-        </Link>
-        <Link className="button secondary" href="/resend-verification">
+        </Button>
+        <Button as={Link} href="/resend-verification" variant="ghost" block>
           Resend verification
-        </Link>
+        </Button>
       </div>
     );
   return (
-    <form className="invite-form" action={submit}>
-      <label>
-        Your name
-        <input name="displayName" maxLength={160} autoComplete="name" required />
-      </label>
-      <label>
-        Email
-        <input name="email" type="email" autoComplete="email" required />
-      </label>
-      <label>
-        Password
+    <form className="flex flex-col gap-4" action={submit}>
+      <Field label="Your name" htmlFor="register-name">
         <input
+          id="register-name"
+          className={fieldControlClass}
+          name="displayName"
+          maxLength={160}
+          autoComplete="name"
+          required
+        />
+      </Field>
+      <Field label="Email" htmlFor="register-email">
+        <input
+          id="register-email"
+          className={fieldControlClass}
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+        />
+      </Field>
+      <Field label="Password" htmlFor="register-password" hint="At least 12 characters.">
+        <input
+          id="register-password"
+          className={fieldControlClass}
           name="password"
           type="password"
           minLength={12}
           autoComplete="new-password"
           required
         />
-        <small>At least 12 characters.</small>
-      </label>
-      <label>
-        First team
-        <input name="teamName" maxLength={160} placeholder="Acme engineering" required />
-      </label>
-      {error ? <p className="form-error">{error}</p> : null}
-      <button className="button" type="submit" disabled={state === "busy"}>
+      </Field>
+      <Field label="First team" htmlFor="register-team">
+        <input
+          id="register-team"
+          className={fieldControlClass}
+          name="teamName"
+          maxLength={160}
+          placeholder="Acme engineering"
+          required
+        />
+      </Field>
+      {error ? <p className={errorBanner}>{error}</p> : null}
+      <Button type="submit" variant="solid" block loading={state === "busy"}>
         {state === "busy" ? "Creating account…" : "Create account"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -142,18 +181,24 @@ export function ForgotPasswordForm() {
     }
   }
   return (
-    <form className="invite-form" action={submit}>
-      <label>
-        Account email
-        <input name="email" type="email" autoComplete="email" required />
-      </label>
+    <form className="flex flex-col gap-4" action={submit}>
+      <Field label="Account email" htmlFor="forgot-email">
+        <input
+          id="forgot-email"
+          className={fieldControlClass}
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+        />
+      </Field>
       {sent ? (
-        <p className="form-success">If the account exists, a reset link is on its way.</p>
+        <p className={successBanner}>If the account exists, a reset link is on its way.</p>
       ) : null}
-      {error ? <p className="form-error">{error}</p> : null}
-      <button className="button" type="submit">
+      {error ? <p className={errorBanner}>{error}</p> : null}
+      <Button type="submit" variant="solid" block>
         Send reset link
-      </button>
+      </Button>
     </form>
   );
 }
@@ -171,18 +216,24 @@ export function ResendVerificationForm() {
     }
   }
   return (
-    <form className="invite-form" action={submit}>
-      <label>
-        Account email
-        <input name="email" type="email" autoComplete="email" required />
-      </label>
+    <form className="flex flex-col gap-4" action={submit}>
+      <Field label="Account email" htmlFor="resend-email">
+        <input
+          id="resend-email"
+          className={fieldControlClass}
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+        />
+      </Field>
       {sent ? (
-        <p className="form-success">If verification is pending, a new link is on its way.</p>
+        <p className={successBanner}>If verification is pending, a new link is on its way.</p>
       ) : null}
-      {error ? <p className="form-error">{error}</p> : null}
-      <button className="button" type="submit">
+      {error ? <p className={errorBanner}>{error}</p> : null}
+      <Button type="submit" variant="solid" block>
         Resend verification
-      </button>
+      </Button>
     </form>
   );
 }
@@ -204,36 +255,36 @@ export function TokenActionForm({ token, kind }: { token: string; kind: "verify"
   }
   if (done)
     return (
-      <div className="invite-form">
-        <p className="form-success">
+      <div className="flex flex-col gap-4">
+        <p className={successBanner}>
           {kind === "verify"
             ? "Email verified."
             : "Password updated and existing sessions revoked."}
         </p>
-        <Link className="button" href="/auth/login">
+        <Button as={Link} href="/auth/login" variant="solid" block>
           Sign in
-        </Link>
+        </Button>
       </div>
     );
   return (
-    <form className="invite-form" action={submit}>
+    <form className="flex flex-col gap-4" action={submit}>
       {kind === "reset" ? (
-        <label>
-          New password
+        <Field label="New password" htmlFor="reset-password" hint="At least 12 characters.">
           <input
+            id="reset-password"
+            className={fieldControlClass}
             name="password"
             type="password"
             minLength={12}
             autoComplete="new-password"
             required
           />
-          <small>At least 12 characters.</small>
-        </label>
+        </Field>
       ) : null}
-      {error ? <p className="form-error">{error}</p> : null}
-      <button className="button" type="submit">
+      {error ? <p className={errorBanner}>{error}</p> : null}
+      <Button type="submit" variant="solid" block>
         {kind === "verify" ? "Verify email" : "Set new password"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -289,55 +340,75 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
     }
   }
 
-  if (loadError) return <p className="form-error">{loadError}</p>;
-  if (!metadata) return <p className="invite-form">Loading invitation…</p>;
+  if (loadError) return <p className={errorBanner}>{loadError}</p>;
+  if (!metadata)
+    return (
+      <div className="flex items-center py-2 text-sm text-ink-2">
+        <WibblingSpinner verbs={["Loading invitation"]} />
+      </div>
+    );
   if (state === "done")
     return (
-      <div className="invite-form">
-        <p className="form-success">You joined {metadata.name}.</p>
-        <Link className="button" href="/">
+      <div className="flex flex-col gap-4">
+        <p className={successBanner}>You joined {metadata.name}.</p>
+        <Button as={Link} href="/" variant="solid" block>
           Open team
-        </Link>
+        </Button>
       </div>
     );
   if (metadata.loginRequired && !signedIn)
     return (
-      <div className="invite-form">
-        <p>
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-ink-2">
           This invitation is for an existing account. Sign in with the invited email to continue.
         </p>
-        <Link
-          className="button"
+        <Button
+          as={Link}
           href={`/auth/login?returnTo=${encodeURIComponent(`/team-invite/${token}`)}`}
+          variant="solid"
+          block
         >
           Sign in to accept
-        </Link>
+        </Button>
       </div>
     );
   return (
-    <form className="invite-form" action={submit}>
-      <p className="invite-summary">
-        <strong>{metadata.name}</strong>
-        <span>{metadata.role}</span>
+    <form className="flex flex-col gap-4" action={submit}>
+      <p className="flex items-center justify-between gap-4 rounded-control border border-dashed border-line bg-inset/50 px-3.5 py-2.5">
+        <strong className="text-sm font-semibold text-ink">{metadata.name}</strong>
+        <span className="font-mono text-2xs uppercase tracking-[0.08em] text-ink-3">
+          {metadata.role}
+        </span>
       </p>
       {!signedIn ? (
         <>
           {!metadata.existingAccount ? (
-            <label>
-              Display name
-              <input name="displayName" maxLength={160} required />
-            </label>
+            <Field label="Display name" htmlFor="team-invite-name">
+              <input
+                id="team-invite-name"
+                className={fieldControlClass}
+                name="displayName"
+                maxLength={160}
+                required
+              />
+            </Field>
           ) : null}
-          <label>
-            Password
-            <input name="password" type="password" minLength={12} required />
-          </label>
+          <Field label="Password" htmlFor="team-invite-password">
+            <input
+              id="team-invite-password"
+              className={fieldControlClass}
+              name="password"
+              type="password"
+              minLength={12}
+              required
+            />
+          </Field>
         </>
       ) : null}
-      {error ? <p className="form-error">{error}</p> : null}
-      <button className="button" type="submit" disabled={state === "busy"}>
+      {error ? <p className={errorBanner}>{error}</p> : null}
+      <Button type="submit" variant="solid" block loading={state === "busy"}>
         {state === "busy" ? "Joining…" : "Accept invitation"}
-      </button>
+      </Button>
     </form>
   );
 }

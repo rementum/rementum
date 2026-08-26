@@ -787,7 +787,7 @@ async function sendInvitationEmail(
 }
 
 function linkEmailHtml(message: LinkEmail): string {
-  return `<!doctype html><html><body style="margin:0;padding:32px;background:#101815;color:#f3f5f1;font:15px/1.6 Arial,sans-serif"><main style="max-width:560px;margin:auto;padding:28px;border:1px solid #30443c;border-radius:14px;background:#17211e"><p style="margin:0 0 30px;color:#79aa98">Rementum</p><h1 style="margin:0 0 14px;font-size:28px">${escapeHtml(message.heading)}</h1><p style="margin:0 0 24px;color:#bdcbc5">${escapeHtml(message.body)}</p><a href="${escapeHtml(message.url)}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#2f6f5e;color:#f3f5f1;text-decoration:none;font-weight:700">${escapeHtml(message.action)}</a><p style="margin:24px 0 0;color:#8fa099;font-size:12px;overflow-wrap:anywhere">${escapeHtml(message.url)}</p></main></body></html>`;
+  return `<!doctype html><html><body style="margin:0;padding:32px;background:#f3f5f1;color:#17211e;font:15px/1.6 Arial,sans-serif"><main style="max-width:560px;margin:auto;padding:28px;border:1px solid #dce6e0;border-radius:14px;background:#ffffff"><p style="margin:0 0 30px;color:#2f6f5e;font-weight:700">Rementum</p><h1 style="margin:0 0 14px;font-size:28px;color:#17211e">${escapeHtml(message.heading)}</h1><p style="margin:0 0 24px;color:#43544d">${escapeHtml(message.body)}</p><a href="${escapeHtml(message.url)}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#2f6f5e;color:#f3f5f1;text-decoration:none;font-weight:700">${escapeHtml(message.action)}</a><p style="margin:24px 0 0;color:#64756d;font-size:12px;overflow-wrap:anywhere">${escapeHtml(message.url)}</p></main></body></html>`;
 }
 
 function escapeHtml(value: string): string {
