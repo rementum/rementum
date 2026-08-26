@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { AuthRepository, type DatabaseClient, OidcPostgresAdapter } from "@rementum/db";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { exportJWK, generateKeyPair, type JWK } from "jose";
 import Provider, { type Configuration, errors } from "oidc-provider";
 import { z } from "zod";
@@ -104,7 +104,7 @@ export async function buildOauthRuntime(
           sub: user.id,
           name: user.displayName,
           email: user.email,
-          email_verified: true,
+          email_verified: Boolean(user.emailVerifiedAt),
         }),
       };
     },
@@ -130,6 +130,28 @@ export async function registerOauthRoutes(
   runtime: OauthRuntime,
   verifyCredentials: VerifyCredentials,
 ): Promise<void> {
+  // The interaction login form checks a password, so it needs the same budget as the
+  // session endpoint rather than the far looser global limit.
+  const loginRateLimit = { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } };
+
+  // The sign-in and consent screens are the only HTML this API serves, and helmet runs
+  // with contentSecurityPolicy disabled. They need no scripts and no remote assets, so
+  // lock them down and refuse to be framed, which is what a consent screen is for.
+  // form-action is deliberately absent: some browsers enforce it across the redirect chain
+  // that follows the sign-in POST, which is exactly how the authorization code reaches the
+  // client's redirect_uri.
+  const interactionCsp = [
+    "default-src 'none'",
+    "style-src 'unsafe-inline'",
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+  ].join("; ");
+  const html = (reply: FastifyReply) =>
+    reply
+      .header("content-security-policy", interactionCsp)
+      .header("referrer-policy", "no-referrer")
+      .type("text/html; charset=utf-8");
+
   app.get("/oauth/interaction/:uid", async (request, reply) => {
     const details = await runtime.provider.interactionDetails(request.raw, reply.raw);
     const client = await runtime.provider.Client.find(String(details.params.client_id));
@@ -142,44 +164,36 @@ export async function registerOauthRoutes(
          <div class="auth-links"><a href="${escapeHtml(`${runtime.publicUrl}/forgot-password`)}">Forgot password?</a>${runtime.allowSignup ? `<a href="${escapeHtml(`${runtime.publicUrl}/register`)}">Create account</a>` : ""}</div>`
         : `<p><strong>${escapeHtml(client?.clientName ?? String(details.params.client_id))}</strong> requests access to Rementum.</p>
          <p class="scope">${escapeHtml(String(details.params.scope ?? ""))}</p>`;
-    return reply
-      .type("text/html; charset=utf-8")
-      .send(interactionPage(prompt, action, details.uid, body));
+    return html(reply).send(interactionPage(prompt, action, details.uid, body));
   });
 
-  app.post("/oauth/interaction/:uid/login", async (request, reply) => {
+  app.post("/oauth/interaction/:uid/login", loginRateLimit, async (request, reply) => {
     const body = request.body as { email?: string; password?: string };
     const user = await verifyCredentials(body.email ?? "", body.password ?? "");
     if (!user) {
-      return reply
-        .code(401)
-        .type("text/html")
-        .send(
-          interactionPage(
-            "login",
-            `/oauth/interaction/${request.params && (request.params as any).uid}/login`,
-            String((request.params as any).uid),
-            `<p class="error">Invalid email or password.</p>
+      return html(reply.code(401)).send(
+        interactionPage(
+          "login",
+          `/oauth/interaction/${request.params && (request.params as any).uid}/login`,
+          String((request.params as any).uid),
+          `<p class="error">Invalid email or password.</p>
            <label>Email<input name="email" type="email" required></label>
            <label>Password<input name="password" type="password" required></label>`,
-          ),
-        );
+        ),
+      );
     }
     if (!user.emailVerifiedAt) {
-      return reply
-        .code(403)
-        .type("text/html")
-        .send(
-          interactionPage(
-            "login",
-            `/oauth/interaction/${request.params && (request.params as any).uid}/login`,
-            String((request.params as any).uid),
-            `<p class="error">Verify your email before signing in.</p>
+      return html(reply.code(403)).send(
+        interactionPage(
+          "login",
+          `/oauth/interaction/${request.params && (request.params as any).uid}/login`,
+          String((request.params as any).uid),
+          `<p class="error">Verify your email before signing in.</p>
            <label>Email<input name="email" type="email" value="${escapeHtml(user.email)}" required></label>
            <label>Password<input name="password" type="password" required></label>
            <div class="auth-links"><a href="${escapeHtml(`${runtime.publicUrl}/resend-verification`)}">Resend verification</a></div>`,
-          ),
-        );
+        ),
+      );
     }
     await runtime.provider.interactionFinished(
       request.raw,

@@ -81,3 +81,36 @@ describe("account email configuration", () => {
     expect(config.REMENTUM_RESEND_API_KEY).toBe("re_test");
   });
 });
+
+describe("development identity header", () => {
+  it("is accepted outside production", () => {
+    expect(loadConfig({ ...baseEnv, REMENTUM_DEV_AUTH: "true" }).REMENTUM_DEV_AUTH).toBe(true);
+  });
+
+  it("is rejected in production because it bypasses authentication", () => {
+    expect(() =>
+      loadConfig({
+        ...baseEnv,
+        NODE_ENV: "production",
+        REMENTUM_PUBLIC_URL: "https://rementum.example.test",
+        REMENTUM_JWT_JWKS: '{"keys":[]}',
+        REMENTUM_DEV_AUTH: "true",
+      }),
+    ).toThrow(/REMENTUM_DEV_AUTH/);
+  });
+});
+
+describe("reverse proxy configuration", () => {
+  it("trusts only private proxies by default so public clients cannot forge an address", () => {
+    expect(loadConfig(baseEnv).REMENTUM_TRUSTED_PROXIES).toBe("loopback,uniquelocal");
+  });
+
+  it("accepts an explicit proxy list and an empty value for direct exposure", () => {
+    expect(
+      loadConfig({ ...baseEnv, REMENTUM_TRUSTED_PROXIES: "10.4.0.7" }).REMENTUM_TRUSTED_PROXIES,
+    ).toBe("10.4.0.7");
+    expect(loadConfig({ ...baseEnv, REMENTUM_TRUSTED_PROXIES: "" }).REMENTUM_TRUSTED_PROXIES).toBe(
+      "",
+    );
+  });
+});

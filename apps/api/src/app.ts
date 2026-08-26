@@ -31,7 +31,7 @@ export async function buildApp(
   const app = Fastify({
     logger: { level: config.REMENTUM_LOG_LEVEL },
     bodyLimit: 2_000_000,
-    trustProxy: true,
+    trustProxy: config.REMENTUM_TRUSTED_PROXIES || false,
     genReqId: (request) => String(request.headers["x-request-id"] ?? crypto.randomUUID()),
   });
   const database = createDatabaseClient(config.REMENTUM_DATABASE_URL);

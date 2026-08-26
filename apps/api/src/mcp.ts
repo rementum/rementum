@@ -4,6 +4,7 @@ import {
   claimTaskSchema,
   createBrainSchema,
   createTaskSchema,
+  externalUrlSchema,
   promoteWriteSchema,
   searchArticlesSchema,
   stageWriteSchema,
@@ -524,7 +525,7 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
       description: "Adds or updates an attributed external link on a task.",
       inputSchema: {
         taskId: z.uuid(),
-        url: z.url(),
+        url: externalUrlSchema,
         label: z.string().max(240).nullable().default(null),
       },
       annotations: write,

@@ -217,7 +217,7 @@ export async function registerApiRoutes(
     };
   });
 
-  app.post("/api/v1/invitations/accept", async (request, reply) => {
+  app.post("/api/v1/invitations/accept", authRateLimit, async (request, reply) => {
     const input = invitationAcceptanceSchema.parse(request.body);
     const tokenHash = hashContent(input.token);
     const invitation = await authRepository.inspectBrainInvitation(tokenHash);
@@ -683,6 +683,19 @@ async function secureHash(password: string): Promise<string> {
   return hash(password, { type: 2, memoryCost: 65_536, timeCost: 3, parallelism: 1 });
 }
 
+/** Returns the signed-in actor, or null when the request carries no usable session. */
+async function optionalActor(
+  request: FastifyRequest,
+  authenticate: Authenticate,
+): Promise<ScopedActor | null> {
+  try {
+    return await authenticate(request);
+  } catch (error) {
+    if (error instanceof DomainError && error.status === 401) return null;
+    throw error;
+  }
+}
+
 async function resolveInvitationIdentity(
   request: FastifyRequest,
   input: z.infer<typeof invitationAcceptanceSchema>,
@@ -690,8 +703,10 @@ async function resolveInvitationIdentity(
   authenticate: Authenticate,
   authRepository: AuthRepository,
 ) {
-  if (request.headers.authorization) {
-    const actor = await authenticate(request);
+  // Browser sessions authenticate with a cookie, never an Authorization header, so this has
+  // to be driven by whether the request actually resolves to an actor.
+  const actor = await optionalActor(request, authenticate);
+  if (actor) {
     const user = await authRepository.findUserById(actor.userId);
     if (!user || user.email.toLowerCase() !== invitedEmail.toLowerCase()) {
       throw new DomainError(

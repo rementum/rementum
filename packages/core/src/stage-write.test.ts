@@ -5,6 +5,7 @@ import { RementumService } from "./service.js";
 import type {
   Actor,
   ArticleGenerator,
+  ArticleRecord,
   BrainRecord,
   DataStore,
   EmbeddingClient,
@@ -53,6 +54,7 @@ function setup(
   const brainRecord = brain();
   const store = {
     getBrain: vi.fn(async () => brainRecord),
+    getArticle: vi.fn(async () => ({ id: articleId, brainId }) as ArticleRecord),
     getStagedWriteByIdempotencyKey: vi.fn(async () => null),
     findPotentialConflicts: vi.fn(async () => []),
     createStagedWrite: vi.fn(async (input) => write(input.summary, input.title)),
@@ -138,6 +140,21 @@ describe("deferred article compaction", () => {
     if (!call) throw new Error("Missing staged-write call");
     const key = unwrapDataKey(brainRecord.wrappedKey, masterKey, brainRecord.id);
     expect(decrypt(call[4], key, call[5]).toString("utf8")).toBe("Current body\n\nNew entry");
+  });
+
+  it("refuses to stage against an article in another brain", async () => {
+    const { service, store } = setup();
+    vi.mocked(store.getArticle).mockResolvedValue({
+      id: articleId,
+      brainId: "00000000-0000-4000-8000-00000000000f",
+    } as ArticleRecord);
+    await expect(
+      service.stageWrite(
+        { ...createInput(), operation: "update", articleId, baseVersion: 1 },
+        actor,
+      ),
+    ).rejects.toThrow(/Article/);
+    expect(store.createStagedWrite).not.toHaveBeenCalled();
   });
 
   it("returns an existing idempotent write without another LLM call", async () => {

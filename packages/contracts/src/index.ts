@@ -7,6 +7,17 @@ export const slugSchema = z
   .max(120)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase kebab-case");
 
+// z.url() accepts any parseable URL, including javascript: and data:. Stored links are
+// handed back to agents and rendered in the app, so only browser-navigable schemes belong
+// in one.
+export const externalUrlSchema = z
+  .url()
+  .max(2048)
+  .refine(
+    (value) => ["http:", "https:"].includes(new URL(value).protocol),
+    "Only http and https links are allowed",
+  );
+
 export const teamRoleSchema = z.enum(["owner", "admin", "member"]);
 export type TeamRole = z.infer<typeof teamRoleSchema>;
 
@@ -225,7 +236,7 @@ export const createTaskSchema = z.object({
   brief: z.string().min(1).max(20_000),
   priority: z.number().int().min(-100).max(100).default(0),
   articleIds: z.array(idSchema).max(100).default([]),
-  links: z.array(z.url()).max(50).default([]),
+  links: z.array(externalUrlSchema).max(50).default([]),
   idempotencyKey: z.string().min(8).max(200).optional(),
 });
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;

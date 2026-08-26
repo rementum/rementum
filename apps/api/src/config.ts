@@ -55,6 +55,13 @@ const configSchema = z
     REMENTUM_LOG_LEVEL: z
       .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
       .default("info"),
+    // Addresses whose X-Forwarded-For entries are believed, as a comma-separated list of
+    // IPs, CIDRs, or the proxy-addr presets loopback, linklocal, and uniquelocal. Anything
+    // outside the list is treated as the client, so a request cannot prepend a fake address
+    // and mint a fresh rate-limit bucket. The default covers the reference Compose stack,
+    // where Caddy reaches the API over the private Docker network. Set it empty to trust no
+    // proxy at all when the API is exposed directly.
+    REMENTUM_TRUSTED_PROXIES: z.string().default("loopback,uniquelocal"),
   })
   .superRefine((value, ctx) => {
     if (value.REMENTUM_LLM_ENABLED && !value.REMENTUM_LLM_BASE_URL) {
@@ -69,6 +76,14 @@ const configSchema = z
         code: "custom",
         path: ["REMENTUM_LLM_MODEL"],
         message: "A model name is required when LLM generation is enabled",
+      });
+    }
+    if (value.NODE_ENV === "production" && value.REMENTUM_DEV_AUTH) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["REMENTUM_DEV_AUTH"],
+        message:
+          "The development identity header bypasses authentication and cannot be enabled in production",
       });
     }
     if (value.NODE_ENV === "production" && !value.REMENTUM_JWT_JWKS) {

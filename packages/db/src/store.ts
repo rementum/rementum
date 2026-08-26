@@ -724,7 +724,8 @@ export class PostgresStore implements DataStore {
         `;
       } else {
         const [article] = await tx<any[]>`
-          SELECT * FROM articles WHERE id = ${write.articleId} FOR UPDATE
+          SELECT * FROM articles
+          WHERE id = ${write.articleId} AND brain_id = ${write.brainId} FOR UPDATE
         `;
         if (!article) throw new NotFoundError("Article");
         if (article.current_version !== write.baseVersion && input.decision !== "override") {
