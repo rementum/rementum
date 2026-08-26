@@ -10,7 +10,6 @@ const LINKS = [
   { href: "/#features", label: "Features" },
   { href: "/#architecture", label: "Architecture" },
   { href: "/#connect", label: "Connect" },
-  { href: "/docs", label: "Docs" },
 ];
 
 export function PublicNav({ signupEnabled }: { signupEnabled: boolean }) {
