@@ -18,6 +18,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "db:migrate": "pnpm --filter @rementum/db migrate",
     "admin": "pnpm --filter @rementum/api admin",
     "auth:jwks": "pnpm --filter @rementum/api generate-jwks"
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.1",
     "@types/node": "^24.10.13",
+    "@vitest/coverage-v8": "^4.1.11",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
