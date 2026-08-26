@@ -330,7 +330,15 @@ export class RementumService {
     requireBrainRole(actor, brainId, ["owner"]);
     const brain = await this.store.getBrain(brainId, actor);
     if (!brain) throw new NotFoundError("Brain");
-    const versions = await this.store.listCurrentVersions(brainId, actor, limit);
+    // One row past the limit tells a full brain apart from a truncated one. Without it a
+    // brain over the limit exported a subset under a manifest that read as complete, and
+    // this archive is the documented way to take a backup out.
+    const versions = await this.store.listCurrentVersions(brainId, actor, limit + 1);
+    if (versions.length > limit) {
+      throw new ConflictError("This brain holds more articles than one export can carry", {
+        limit,
+      });
+    }
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
     const articles = versions.map((version) => ({
       slug: version.slug,

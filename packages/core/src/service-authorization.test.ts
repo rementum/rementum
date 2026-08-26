@@ -107,6 +107,9 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     scanMaintenance: vi.fn(async () => []),
     search: vi.fn(async () => []),
     createTask: vi.fn(async () => ({ id: "task-id", brainId })),
+    listCurrentVersions: vi.fn(async (_brainId: string, _actor: Actor, limit: number) =>
+      exportedVersions(Math.min(limit, 2)),
+    ),
     queueArticleCompaction: vi.fn(async () => undefined),
     claimTask: vi.fn(async () => null),
     getStagedWrite: vi.fn(async () => stagedWrite()),
@@ -136,6 +139,22 @@ function setup(options: { llmAvailable?: boolean } = {}) {
   } as unknown as EmbeddingClient;
   const service = new RementumService(store, embeddings, masterKey, null, options.llmAvailable);
   return { brain, embeddings, key, service, store };
+
+  function exportedVersions(count: number) {
+    return Array.from({ length: count }, (_, index) => {
+      const bodyAad = `brain:${brainId}:article:${articleId}:version:${index + 1}`;
+      return {
+        articleId: `${articleId}-${index}`,
+        slug: `article-${index}`,
+        title: `Article ${index}`,
+        summary: "Summary",
+        kind: "canonical",
+        version: index + 1,
+        body: encrypt(`Body ${index}`, key, bodyAad),
+        bodyAad,
+      };
+    });
+  }
 
   function currentVersion() {
     return {
@@ -415,3 +434,51 @@ describe("article compaction requests", () => {
     expect(store.queueArticleCompaction).not.toHaveBeenCalled();
   });
 });
+
+describe("brain export", () => {
+  it("decrypts every current body once, under the brain key", async () => {
+    const { service, store } = setup();
+    const exported = await service.exportBrain(brainId, actor("owner"));
+    expect(exported.articles).toMatchObject([
+      { slug: "article-0", version: 1, body: "Body 0" },
+      { slug: "article-1", version: 2, body: "Body 1" },
+    ]);
+    expect(exported.brain).not.toHaveProperty("wrappedKey");
+    expect(store.audit).toHaveBeenCalledWith(
+      expect.anything(),
+      "brain.exported",
+      `brain:${brainId}`,
+      { articleCount: 2 },
+    );
+  });
+
+  it("refuses to hand back a truncated archive", async () => {
+    const { service, store } = setup();
+    // One row past the limit is how a full brain is told apart from a truncated one, so
+    // the store is asked for limit + 1 and anything longer has to be refused rather than
+    // written into a manifest that reads as complete.
+    vi.mocked(store.listCurrentVersions).mockImplementationOnce(async (_brain, _actor, limit) =>
+      exportedVersionsFor(limit),
+    );
+    await expect(service.exportBrain(brainId, actor("owner"), 1)).rejects.toThrow(ConflictError);
+  });
+
+  it("keeps an editor out of the export", async () => {
+    const { service } = setup();
+    await expect(service.exportBrain(brainId, actor("editor"))).rejects.toThrow(ForbiddenError);
+  });
+});
+
+/** Always returns as many rows as were asked for, so the limit + 1 probe always trips. */
+function exportedVersionsFor(limit: number) {
+  return Array.from({ length: limit }, (_, index) => ({
+    articleId: `article-${index}`,
+    slug: `article-${index}`,
+    title: `Article ${index}`,
+    summary: "",
+    kind: "canonical",
+    version: 1,
+    body: { version: 1, nonce: "", ciphertext: "", tag: "" },
+    bodyAad: "",
+  }));
+}
