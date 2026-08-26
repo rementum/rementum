@@ -13,6 +13,18 @@ The public probes are:
 - `/readyz` checks PostgreSQL.
 - `/metrics` exposes the current build information metric.
 
+The embedding container turns healthy only once its model is loaded, and the first start downloads
+roughly 465 MB into the `model_cache` volume. A failing probe after that is real; ask the container
+for the reason:
+
+```bash
+docker compose -f docker-compose.yml -f compose.production.yml exec embeddings \
+  wget -qO- http://127.0.0.1:8790/healthz
+```
+
+Until the model loads, the API answers `semanticSearch: false` and search falls back to metadata and
+full-text ranking.
+
 ## Create an encrypted backup
 
 Install `age` on an administrator workstation and create an identity:
