@@ -1,19 +1,21 @@
+import { AuthShell } from "../../../components/auth-shell";
+import { GradientText } from "../../../components/pui";
 import { hasSession } from "../../../lib/api";
 import { InviteForm } from "./invite-form";
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   return (
-    <main className="shell invite-shell">
-      <section className="invite-copy">
-        <p className="kicker">Shared brain invitation</p>
-        <h1>Join the knowledge loop.</h1>
-        <p>
-          Create your local account. The invitation grants access only to the brain and role
-          selected by its owner.
-        </p>
-      </section>
+    <AuthShell
+      kicker="Shared brain invitation"
+      title={
+        <>
+          Join the <GradientText>knowledge</GradientText> loop.
+        </>
+      }
+      description="Create your local account. The invitation grants access only to the brain and role selected by its owner."
+    >
       <InviteForm token={token} signedIn={await hasSession()} />
-    </main>
+    </AuthShell>
   );
 }

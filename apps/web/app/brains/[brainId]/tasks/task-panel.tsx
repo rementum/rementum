@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button, WibblingSpinner } from "../../../../components/pui";
+import { Card } from "../../../../components/ui/card";
+import { Chip } from "../../../../components/ui/chip";
+import { EmptyState } from "../../../../components/ui/empty-state";
+import { Field, fieldControlClass } from "../../../../components/ui/field";
 import { StatusPill } from "../../../../components/ui/status-pill";
 
 interface Task {
@@ -14,6 +19,9 @@ interface Task {
   claimedBy: string | null;
   leaseExpiresAt: string | null;
 }
+
+const ghostButtonClass =
+  "rounded-control px-2 py-1 text-xs font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink disabled:opacity-50 active:scale-[0.98]";
 
 export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialTasks: Task[] }) {
   const router = useRouter();
@@ -50,60 +58,111 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
   }
   return (
     <>
-      <form className="task-create" action={create}>
-        <label>
-          Title
-          <input name="title" required maxLength={240} />
-        </label>
-        <label>
-          Brief
-          <textarea name="brief" required maxLength={20000} />
-        </label>
-        <label>
-          Priority
-          <input name="priority" type="number" min="-100" max="100" defaultValue="0" />
-        </label>
-        <button className="button" disabled={busy === "create"} type="submit">
-          Create task
-        </button>
-      </form>
-      {error ? <p className="form-error">{error}</p> : null}
-      <section className="task-list">
+      <Card>
+        <details className="group">
+          <summary className="flex cursor-pointer select-none list-none items-center justify-between px-4 py-2.5 font-mono text-2xs font-semibold uppercase tracking-[0.08em] text-ink-3 transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
+            New task
+            <span
+              aria-hidden="true"
+              className="text-sm leading-none transition-transform group-open:rotate-45"
+            >
+              +
+            </span>
+          </summary>
+          <form className="grid gap-4 border-t border-dashed border-line p-4" action={create}>
+            <Field label="Title" htmlFor="task-title">
+              <input
+                className={fieldControlClass}
+                id="task-title"
+                name="title"
+                required
+                maxLength={240}
+              />
+            </Field>
+            <Field label="Brief" htmlFor="task-brief">
+              <textarea
+                className={`${fieldControlClass} min-h-24`}
+                id="task-brief"
+                name="brief"
+                required
+                maxLength={20000}
+              />
+            </Field>
+            <Field label="Priority" htmlFor="task-priority">
+              <input
+                className={`${fieldControlClass} max-w-32 tabular-nums`}
+                id="task-priority"
+                name="priority"
+                type="number"
+                min="-100"
+                max="100"
+                defaultValue="0"
+              />
+            </Field>
+            <div className="flex items-center gap-3">
+              <Button variant="solid" size="sm" disabled={busy === "create"} type="submit">
+                Create task
+              </Button>
+              {busy === "create" ? (
+                <WibblingSpinner className="text-xs text-ink-3" verbs={["Creating"]} />
+              ) : null}
+            </div>
+          </form>
+        </details>
+      </Card>
+      {error ? <p className="mt-3 text-sm text-red">{error}</p> : null}
+      <section className="mt-6">
         {initialTasks.length ? (
-          initialTasks.map((task) => (
-            <article className="task-item" key={task.id}>
-              <div>
-                <StatusPill status={task.status} />
-                <h2>
-                  <Link href={`/tasks/${task.id}`}>{task.title}</Link>
-                </h2>
-                <p>{task.brief}</p>
-              </div>
-              <div className="task-controls">
-                <span className="mono">P{task.priority}</span>
-                {!["completed", "cancelled"].includes(task.status) ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => transition(task.id, "review")}
-                      disabled={busy === task.id}
-                    >
-                      Review
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => transition(task.id, "completed")}
-                      disabled={busy === task.id}
-                    >
-                      Complete
-                    </button>
-                  </>
-                ) : null}
-              </div>
-            </article>
-          ))
+          <Card>
+            <div className="divide-y divide-line">
+              {initialTasks.map((task) => (
+                <article className="flex items-start gap-4 px-4 py-3" key={task.id}>
+                  <StatusPill className="mt-0.5" status={task.status} />
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-sm font-medium text-ink">
+                      <Link
+                        className="transition-colors hover:text-accent"
+                        href={`/tasks/${task.id}`}
+                      >
+                        {task.title}
+                      </Link>
+                    </h2>
+                    <p className="mt-0.5 line-clamp-2 text-xs text-ink-2">{task.brief}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Chip tone={task.priority > 0 ? "orange" : "neutral"}>
+                      <span className="tabular-nums">P{task.priority}</span>
+                    </Chip>
+                    {busy === task.id ? (
+                      <WibblingSpinner className="text-xs text-ink-3" verbs={["Updating"]} />
+                    ) : null}
+                    {!["completed", "cancelled"].includes(task.status) ? (
+                      <>
+                        <button
+                          className={ghostButtonClass}
+                          type="button"
+                          onClick={() => transition(task.id, "review")}
+                          disabled={busy === task.id}
+                        >
+                          Review
+                        </button>
+                        <button
+                          className={ghostButtonClass}
+                          type="button"
+                          onClick={() => transition(task.id, "completed")}
+                          disabled={busy === task.id}
+                        >
+                          Complete
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </Card>
         ) : (
-          <div className="empty-inline">No tasks in the queue.</div>
+          <EmptyState title="No tasks in the queue." />
         )}
       </section>
     </>

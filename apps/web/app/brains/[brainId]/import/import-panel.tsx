@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { StatusPill } from "../../../../components/ui/status-pill";
+import { Button, Sparkle, WibblingSpinner } from "../../../../components/pui";
+import { Card } from "../../../../components/ui/card";
+import { Chip } from "../../../../components/ui/chip";
+import { IconImport } from "../../../../components/ui/icons";
 
 interface Preview {
   files: Array<{
@@ -38,60 +41,91 @@ export function ImportPanel({ brainId }: { brainId: string }) {
     setBusy(false);
   }
   return (
-    <section className="import-panel">
-      <div className="upload-field">
-        <label>
+    <section>
+      <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed border-line px-6 py-12 text-center transition-colors hover:border-accent/40">
+        <IconImport className="text-ink-3" />
+        <span className="font-mono text-2xs font-semibold uppercase tracking-[0.08em] text-ink-3">
           Obsidian or Markdown ZIP
-          <input
-            type="file"
-            accept=".zip,application/zip"
-            onChange={(event) => {
-              setFile(event.target.files?.[0] ?? null);
-              setPreview(null);
-              setWrites(null);
-            }}
-          />
-        </label>
-        <button
-          className="button"
+        </span>
+        {file ? (
+          <span className="font-mono text-xs text-ink">{file.name}</span>
+        ) : (
+          <span className="text-xs text-ink-3">Choose a .zip archive to inspect</span>
+        )}
+        <input
+          className="sr-only"
+          type="file"
+          accept=".zip,application/zip"
+          onChange={(event) => {
+            setFile(event.target.files?.[0] ?? null);
+            setPreview(null);
+            setWrites(null);
+          }}
+        />
+      </label>
+      <div className="mt-4 flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
           type="button"
           onClick={() => send("preview")}
           disabled={!file || busy}
         >
           Preview
-        </button>
+        </Button>
+        {busy ? <WibblingSpinner className="text-xs text-ink-3" verbs={["Importing"]} /> : null}
       </div>
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-red">{error}</p> : null}
       {preview ? (
-        <div className="import-preview">
-          <div className="toolbar">
-            <p>
+        <div className="mt-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="font-mono text-xs tabular-nums text-ink-2">
               {preview.files.length} Markdown files · {Math.round(preview.totalBytes / 1024)} KB
             </p>
-            <button className="button" type="button" onClick={() => send("stage")} disabled={busy}>
+            <Button
+              variant="solid"
+              size="sm"
+              type="button"
+              onClick={() => send("stage")}
+              disabled={busy}
+            >
               Stage batch
-            </button>
+            </Button>
           </div>
           {preview.unresolvedLinks.length ? (
-            <p className="warning">{preview.unresolvedLinks.length} unresolved wiki-links</p>
+            <p className="mt-3 rounded-control border border-orange/30 bg-orange/10 px-3 py-2 text-sm text-orange">
+              {preview.unresolvedLinks.length} unresolved wiki-links
+            </p>
           ) : null}
-          <div className="management-list">
-            {preview.files.map((item) => (
-              <div className="management-row" key={item.path}>
-                <StatusPill status="unknown" label={item.suggestedKind} />
-                <div>
-                  <strong>{item.title}</strong>
-                  <p>{item.path}</p>
+          <Card className="mt-4">
+            <div className="divide-y divide-line">
+              {preview.files.map((item) => (
+                <div className="flex items-center gap-4 px-4 py-3" key={item.path}>
+                  <Chip className="shrink-0">{item.suggestedKind}</Chip>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">{item.title}</p>
+                    <p className="truncate font-mono text-2xs text-ink-3">{item.path}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 font-mono text-2xs ${
+                      item.warnings.length ? "text-orange" : "text-green"
+                    }`}
+                  >
+                    {item.warnings.join(", ") || "ready"}
+                  </span>
                 </div>
-                <span className="mono">{item.warnings.join(", ") || "ready"}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </Card>
         </div>
       ) : null}
       {writes !== null ? (
-        <p className="form-success">
-          {writes} writes staged. Review them in Staged writes before promotion.
+        <p className="mt-4 flex items-center gap-2 rounded-control border border-green/25 bg-green/10 px-3 py-2 text-sm text-green">
+          <Sparkle />
+          <span>
+            <span className="tabular-nums">{writes}</span> writes staged. Review them in Staged
+            writes before promotion.
+          </span>
         </p>
       ) : null}
     </section>

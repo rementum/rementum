@@ -1,14 +1,19 @@
 import { ForgotPasswordForm } from "../../components/account-flows";
+import { AuthShell } from "../../components/auth-shell";
+import { GradientText } from "../../components/pui";
 
 export default function ForgotPasswordPage() {
   return (
-    <main className="shell invite-shell">
-      <section className="invite-copy">
-        <p className="kicker">Account recovery</p>
-        <h1>Reset your password.</h1>
-        <p>We will send a one-time link if the account exists.</p>
-      </section>
+    <AuthShell
+      kicker="Account recovery"
+      title={
+        <>
+          Reset your <GradientText>password</GradientText>.
+        </>
+      }
+      description="We will send a one-time link if the account exists."
+    >
       <ForgotPasswordForm />
-    </main>
+    </AuthShell>
   );
 }

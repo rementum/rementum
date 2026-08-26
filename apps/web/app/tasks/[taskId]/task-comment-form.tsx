@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "../../../components/pui";
+import { Field, fieldControlClass } from "../../../components/ui/field";
 
 export function TaskCommentForm({ taskId }: { taskId: string }) {
   const router = useRouter();
@@ -19,15 +21,22 @@ export function TaskCommentForm({ taskId }: { taskId: string }) {
     setBusy(false);
   }
   return (
-    <form className="comment-form" action={submit}>
-      <label>
-        Comment
-        <textarea name="body" required maxLength={20000} />
-      </label>
-      {error ? <p className="form-error">{error}</p> : null}
-      <button className="button" disabled={busy} type="submit">
-        Add comment
-      </button>
+    <form className="grid gap-3" action={submit}>
+      <Field label="Comment" htmlFor="task-comment">
+        <textarea
+          className={`${fieldControlClass} min-h-24`}
+          id="task-comment"
+          name="body"
+          required
+          maxLength={20000}
+        />
+      </Field>
+      {error ? <p className="text-sm text-red">{error}</p> : null}
+      <div>
+        <Button variant="solid" size="sm" disabled={busy} type="submit">
+          Add comment
+        </Button>
+      </div>
     </form>
   );
 }

@@ -1,4 +1,6 @@
 import { TokenActionForm } from "../../components/account-flows";
+import { AuthShell } from "../../components/auth-shell";
+import { GradientText } from "../../components/pui";
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -7,13 +9,16 @@ export default async function ResetPasswordPage({
 }) {
   const { token = "" } = await searchParams;
   return (
-    <main className="shell invite-shell">
-      <section className="invite-copy">
-        <p className="kicker">Account recovery</p>
-        <h1>Choose a new password.</h1>
-        <p>Completing this reset signs out your other sessions.</p>
-      </section>
+    <AuthShell
+      kicker="Account recovery"
+      title={
+        <>
+          Choose a new <GradientText>password</GradientText>.
+        </>
+      }
+      description="Completing this reset signs out your other sessions."
+    >
       <TokenActionForm token={token} kind="reset" />
-    </main>
+    </AuthShell>
   );
 }

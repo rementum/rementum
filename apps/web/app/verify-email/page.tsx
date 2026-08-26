@@ -1,4 +1,6 @@
 import { TokenActionForm } from "../../components/account-flows";
+import { AuthShell } from "../../components/auth-shell";
+import { GradientText } from "../../components/pui";
 
 export default async function VerifyEmailPage({
   searchParams,
@@ -7,13 +9,16 @@ export default async function VerifyEmailPage({
 }) {
   const { token = "" } = await searchParams;
   return (
-    <main className="shell invite-shell">
-      <section className="invite-copy">
-        <p className="kicker">Account verification</p>
-        <h1>Verify your email.</h1>
-        <p>This one-time link activates your account.</p>
-      </section>
+    <AuthShell
+      kicker="Account verification"
+      title={
+        <>
+          Verify your <GradientText>email</GradientText>.
+        </>
+      }
+      description="This one-time link activates your account."
+    >
       <TokenActionForm token={token} kind="verify" />
-    </main>
+    </AuthShell>
   );
 }

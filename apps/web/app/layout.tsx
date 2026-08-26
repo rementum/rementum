@@ -8,10 +8,6 @@ import { StickyBanner } from "../components/pui";
 import { hasSession, publicAuthConfig, workspaceContext } from "../lib/api";
 import { GITHUB_URL } from "../lib/site";
 import "./globals.css";
-import "./styles.css";
-import "./invite.css";
-import "./management.css";
-import "./dashboard.css";
 
 export const metadata: Metadata = {
   title: {

@@ -1,16 +1,21 @@
 import { TeamInviteAcceptance } from "../../../components/account-flows";
+import { AuthShell } from "../../../components/auth-shell";
+import { GradientText } from "../../../components/pui";
 import { hasSession } from "../../../lib/api";
 
 export default async function TeamInvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   return (
-    <main className="shell invite-shell">
-      <section className="invite-copy">
-        <p className="kicker">Team invitation</p>
-        <h1>Build shared memory.</h1>
-        <p>Join the team to access and edit every brain it owns.</p>
-      </section>
+    <AuthShell
+      kicker="Team invitation"
+      title={
+        <>
+          Build shared <GradientText>memory</GradientText>.
+        </>
+      }
+      description="Join the team to access and edit every brain it owns."
+    >
       <TeamInviteAcceptance token={token} signedIn={await hasSession()} />
-    </main>
+    </AuthShell>
   );
 }

@@ -362,3 +362,179 @@
   --glass-strong: rgb(255 255 255 / 7%);
   --glass-border: rgb(255 255 255 / 10%);
 }
+
+/* Article prose — react-markdown output can't take utilities; tuned to the dense ramp. */
+@layer components {
+  .markdown {
+    max-width: 72ch;
+    color: #d5d5d9;
+    font-size: 16px;
+    line-height: 1.78;
+  }
+
+  .markdown h1,
+  .markdown h2,
+  .markdown h3,
+  .markdown h4,
+  .markdown h5,
+  .markdown h6 {
+    margin: 2.1em 0 0.65em;
+    color: var(--color-ink);
+    font-weight: 590;
+    letter-spacing: -0.035em;
+    line-height: 1.15;
+  }
+
+  .markdown h1 {
+    font-size: 36px;
+  }
+
+  .markdown h2 {
+    font-size: 27px;
+  }
+
+  .markdown h3 {
+    font-size: 20px;
+  }
+
+  .markdown h4,
+  .markdown h5,
+  .markdown h6 {
+    font-size: 16px;
+    letter-spacing: -0.015em;
+  }
+
+  .markdown > :first-child {
+    margin-top: 0;
+  }
+
+  .markdown p,
+  .markdown ul,
+  .markdown ol,
+  .markdown blockquote,
+  .markdown table,
+  .markdown pre {
+    margin: 0 0 1.35em;
+  }
+
+  .markdown ul,
+  .markdown ol {
+    padding-left: 1.55em;
+  }
+
+  .markdown li + li {
+    margin-top: 0.35em;
+  }
+
+  .markdown li > ul,
+  .markdown li > ol {
+    margin: 0.35em 0 0;
+  }
+
+  .markdown .contains-task-list {
+    padding-left: 0;
+    list-style: none;
+  }
+
+  .markdown .task-list-item {
+    list-style: none;
+  }
+
+  .markdown input[type="checkbox"] {
+    margin: 0 0.55em 0 0;
+    accent-color: var(--color-ink);
+    vertical-align: middle;
+  }
+
+  .markdown a {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-decoration-color: rgb(255 255 255 / 35%);
+    text-underline-offset: 0.18em;
+  }
+
+  .markdown a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .markdown strong {
+    color: var(--color-ink);
+  }
+
+  .markdown blockquote {
+    padding-left: 1.1em;
+    border-left: 2px solid var(--color-line-strong);
+    color: var(--color-ink-2);
+  }
+
+  .markdown blockquote > :last-child {
+    margin-bottom: 0;
+  }
+
+  .markdown code {
+    padding: 0.18em 0.4em;
+    border: 1px solid var(--color-line);
+    border-radius: 5px;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font: 0.86em / 1.5 var(--font-mono);
+  }
+
+  .markdown pre {
+    padding: 18px;
+    overflow: auto;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-control);
+    background: var(--color-canvas);
+    color: var(--color-ink-2);
+    font: 12px / 1.7 var(--font-mono);
+  }
+
+  .markdown pre code {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+  }
+
+  .markdown hr {
+    height: 1px;
+    margin: 2.1em 0;
+    border: 0;
+    background: var(--color-line);
+  }
+
+  .markdown table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .markdown th,
+  .markdown td {
+    min-width: 120px;
+    padding: 9px 12px;
+    border: 1px solid var(--color-line);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .markdown th {
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-weight: 590;
+  }
+
+  .markdown img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-control);
+  }
+
+  .markdown del {
+    color: var(--color-ink-3);
+  }
+}
