@@ -4,6 +4,14 @@ import { defineConfig } from "vitest/config";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
+// The integration suites skip themselves without a database, so half the code under
+// measurement is never loaded. Holding one floor over both runs would either fail every
+// contributor who has no PostgreSQL to hand or stop guarding what CI actually exercises,
+// so the floor follows the suite that ran.
+const thresholds = process.env.REMENTUM_TEST_DATABASE_URL
+  ? { statements: 78, branches: 68, functions: 78, lines: 81 }
+  : { statements: 45, branches: 41, functions: 37, lines: 45 };
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -40,6 +48,7 @@ export default defineConfig({
         "packages/core/src/types.ts",
         "packages/db/src/migrate.ts",
       ],
+      thresholds,
     },
   },
 });
