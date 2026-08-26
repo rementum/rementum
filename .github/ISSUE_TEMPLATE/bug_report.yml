@@ -1,0 +1,62 @@
+name: Bug report
+description: Something behaves differently from what the documentation describes.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security vulnerabilities here. Follow [SECURITY.md](https://github.com/yibudak/rementum/blob/main/SECURITY.md).
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Stage a write through the MCP endpoint
+        2. Promote it
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - API
+        - Web app
+        - MCP endpoint
+        - Worker or compaction
+        - Search or embeddings
+        - Database or migrations
+        - Deployment, Compose, or installer
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag or commit SHA of the instance.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: How it runs and where. Include Node and pnpm versions for a host install.
+      placeholder: Docker Compose reference stack on Ubuntu 24.04
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant output. Remove tokens, keys, and private article content.
+      render: text
