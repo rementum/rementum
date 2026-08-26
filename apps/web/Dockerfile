@@ -7,6 +7,8 @@ RUN pnpm install --filter @rementum/web... --frozen-lockfile
 
 FROM deps AS build
 COPY apps/web apps/web
+# The /docs pages read repo-root docs/*.md; tracing pulls them into the standalone output.
+COPY docs docs
 ARG NEXT_PUBLIC_REMENTUM_API_URL
 ENV NEXT_PUBLIC_REMENTUM_API_URL=$NEXT_PUBLIC_REMENTUM_API_URL
 RUN pnpm --filter @rementum/web build

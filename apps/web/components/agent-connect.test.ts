@@ -23,6 +23,6 @@ describe("AgentConnect", () => {
     expect(html).toContain(`claude mcp add --scope user --transport http rementum ${mcpUrl}`);
     expect(html).toContain(`codex mcp add rementum --url ${mcpUrl}`);
     expect(html).toContain(`opencode mcp add rementum --url ${mcpUrl}`);
-    expect(html).toContain("https://yibudak.github.io/rementum/integrations/");
+    expect(html).toContain("/docs/integrations");
   });
 });

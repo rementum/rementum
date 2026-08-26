@@ -21,6 +21,7 @@ export function LandingFooter({
             { label: "Features", href: "#features" },
             { label: "Architecture", href: "#architecture" },
             { label: "Connect an agent", href: "#connect" },
+            { label: "Documentation", href: "/docs" },
           ],
         },
         {

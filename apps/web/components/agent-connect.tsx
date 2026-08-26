@@ -5,7 +5,7 @@ import { EyebrowPill } from "./pui";
 import { CopyButton } from "./ui/copy-button";
 import { IconArrowUpRight } from "./ui/icons";
 
-const INTEGRATION_DOCS_URL = "https://yibudak.github.io/rementum/integrations/";
+const INTEGRATION_DOCS_URL = "/docs/integrations";
 
 type HarnessId = (typeof HARNESSES)[number]["id"];
 
@@ -60,8 +60,6 @@ export function AgentConnect({ workspaceName, mcpUrl }: { workspaceName: string;
         <a
           className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent transition-colors hover:text-ink"
           href={INTEGRATION_DOCS_URL}
-          target="_blank"
-          rel="noreferrer"
         >
           Other clients and setup details <IconArrowUpRight />
         </a>
