@@ -17,7 +17,9 @@ export function createAuthenticator(
   return async function authenticate(request: FastifyRequest): Promise<ScopedActor> {
     const path = request.url.split("?", 1)[0] ?? "";
     const workspaceId = workspaceIdFromMcpPath(path);
-    if (config.REMENTUM_DEV_AUTH) {
+    // Defence in depth: loadConfig already refuses this flag in production, so an
+    // enabled flag here can only come from a non-production process.
+    if (config.REMENTUM_DEV_AUTH && config.NODE_ENV !== "production") {
       const userId = request.headers["x-rementum-user-id"];
       if (typeof userId === "string") {
         const actor = await store.loadActor(userId, "dev-header");

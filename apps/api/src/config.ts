@@ -78,6 +78,14 @@ const configSchema = z
         message: "A model name is required when LLM generation is enabled",
       });
     }
+    if (value.NODE_ENV === "production" && value.REMENTUM_DEV_AUTH) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["REMENTUM_DEV_AUTH"],
+        message:
+          "The development identity header bypasses authentication and cannot be enabled in production",
+      });
+    }
     if (value.NODE_ENV === "production" && !value.REMENTUM_JWT_JWKS) {
       ctx.addIssue({
         code: "custom",

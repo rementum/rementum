@@ -13,7 +13,7 @@ Rementum reads `.env` through Docker Compose. The installer writes production va
 | `REMENTUM_COOKIE_KEYS` | Comma-separated cookie signing keys |
 | `REMENTUM_JWT_JWKS` | Private RSA JWKS used to sign OAuth tokens |
 | `REMENTUM_ALLOW_SIGNUP` | Enables public registration when set to `true` |
-| `REMENTUM_DEV_AUTH` | Enables the development identity header; keep `false` in production |
+| `REMENTUM_DEV_AUTH` | Enables the development identity header; rejected when `NODE_ENV=production` |
 | `REMENTUM_TRUSTED_PROXIES` | Reverse proxies whose `X-Forwarded-For` entries are trusted, as IPs, CIDRs, or the `loopback`, `linklocal`, and `uniquelocal` presets; empty when the API is exposed directly |
 
 The production Compose override sets `NODE_ENV=production`. The API rejects a non-HTTPS public URL
