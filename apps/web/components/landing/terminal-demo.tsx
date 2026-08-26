@@ -12,13 +12,13 @@ interface Line {
 }
 
 const SCRIPT: Line[] = [
-  { prompt: "agent", text: "search_articles 'staged write conflict policy'", kind: "cmd" },
+  { prompt: "agent@rementum", text: "search_articles 'staged write conflict policy'", kind: "cmd" },
   { text: "4 matches · routing index scan", kind: "out" },
-  { prompt: "agent", text: "read_article 'write-promotion-policy'", kind: "cmd" },
+  { prompt: "agent@rementum", text: "read_article 'write-promotion-policy'", kind: "cmd" },
   { text: "v2 · current · 2 sources", kind: "out" },
-  { prompt: "agent", text: "stage_write baseVersion=2 ...", kind: "cmd" },
+  { prompt: "agent@rementum", text: "stage_write baseVersion=2 ...", kind: "cmd" },
   { text: "staged · conflict-free · writeId 9c4f", kind: "ok" },
-  { prompt: "agent", text: "promote_staged_write 9c4f", kind: "cmd" },
+  { prompt: "agent@rementum", text: "promote_staged_write 9c4f", kind: "cmd" },
   { text: "promoted → canon v3 · audit recorded", kind: "mut" },
 ];
 
@@ -77,7 +77,14 @@ export function TerminalDemo() {
 function TerminalLine({ line, text, caret }: { line: Line; text: string; caret?: boolean }) {
   return (
     <code className={`block ${KIND_CLASSES[line.kind]}`}>
-      {line.prompt ? <span className="mr-2 text-accent">{line.prompt} ❯</span> : null}
+      {line.prompt ? (
+        <span className="mr-2">
+          <span className="text-grad-mid">{line.prompt.split("@")[0]}</span>
+          <span className="text-ink-3">@</span>
+          <span className="text-accent">{line.prompt.split("@")[1]}</span>
+          <span className="ml-1.5 text-ink-3">❯</span>
+        </span>
+      ) : null}
       <span>{text}</span>
       {caret ? (
         <span className="ml-0.5 inline-block h-[1.1em] w-[7px] translate-y-[0.2em] animate-caret bg-ink" />
