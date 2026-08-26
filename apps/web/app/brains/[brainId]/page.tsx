@@ -31,9 +31,6 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
           >
             ← All brains
           </Link>
-          <div className="mt-4">
-            <BrainNav brainId={brainId} />
-          </div>
           <div className="mt-5 flex items-center gap-3">
             <span
               aria-hidden="true"
@@ -85,41 +82,44 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
           </details>
         </aside>
         <section>
-          <Card>
-            <CardHeader
-              title="Current canon"
-              count={`${data.routingIndex.length} ${data.routingIndex.length === 1 ? "article" : "articles"}`}
-            />
-            {data.routingIndex.length ? (
-              <div className="divide-y divide-line">
-                {data.routingIndex.map((article, index) => (
-                  <Link
-                    className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-hover active:scale-[0.98]"
-                    href={`/articles/${article.id}`}
-                    key={article.id}
-                  >
-                    <span className="shrink-0 font-mono text-2xs tabular-nums text-ink-3">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="truncate text-sm font-medium text-ink">{article.title}</h2>
-                      <p className="line-clamp-1 text-xs text-ink-2">{article.summary}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <StatusPill status={article.freshness} />
-                      <span className="font-mono text-2xs tabular-nums text-ink-3">
-                        v{article.currentVersion}
+          <BrainNav brainId={brainId} />
+          <div className="mt-6">
+            <Card>
+              <CardHeader
+                title="Current canon"
+                count={`${data.routingIndex.length} ${data.routingIndex.length === 1 ? "article" : "articles"}`}
+              />
+              {data.routingIndex.length ? (
+                <div className="divide-y divide-line">
+                  {data.routingIndex.map((article, index) => (
+                    <Link
+                      className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-hover active:scale-[0.98]"
+                      href={`/articles/${article.id}`}
+                      key={article.id}
+                    >
+                      <span className="shrink-0 font-mono text-2xs tabular-nums text-ink-3">
+                        {String(index + 1).padStart(2, "0")}
                       </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="px-4 py-6 text-sm text-ink-2">
-                The routing index is empty. Ask a connected agent to stage the first article.
-              </p>
-            )}
-          </Card>
+                      <div className="min-w-0 flex-1">
+                        <h2 className="truncate text-sm font-medium text-ink">{article.title}</h2>
+                        <p className="line-clamp-1 text-xs text-ink-2">{article.summary}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <StatusPill status={article.freshness} />
+                        <span className="font-mono text-2xs tabular-nums text-ink-3">
+                          v{article.currentVersion}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="px-4 py-6 text-sm text-ink-2">
+                  The routing index is empty. Ask a connected agent to stage the first article.
+                </p>
+              )}
+            </Card>
+          </div>
         </section>
       </div>
     </main>
