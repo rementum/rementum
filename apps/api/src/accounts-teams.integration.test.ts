@@ -272,6 +272,18 @@ integration("account and team HTTP flows", () => {
       expect(invitation.json().acceptanceUrl).toContain("/team-invite/");
       expect(mailer.messages[1]?.idempotencyKey).toMatch(/^team-invite\//);
 
+      // Browser sessions carry a cookie and no Authorization header, so acceptance has to
+      // recognise the signed-in actor and refuse an invitation addressed to someone else.
+      const inviteToken = String(invitation.json().acceptanceUrl).split("/team-invite/")[1] ?? "";
+      const wrongAccount = await app.inject({
+        method: "POST",
+        url: "/api/v1/team-invitations/accept",
+        headers: { cookie: sessionCookie, origin: "http://rementum.example.test" },
+        payload: { token: inviteToken },
+      });
+      expect(wrongAccount.statusCode).toBe(403);
+      expect(wrongAccount.json()).toMatchObject({ code: "wrong_account" });
+
       const logout = await app.inject({
         method: "DELETE",
         url: "/api/v1/auth/session",
