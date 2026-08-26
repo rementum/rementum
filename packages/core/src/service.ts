@@ -291,19 +291,12 @@ export class RementumService {
   }
 
   async readArticle(articleId: string, actor: Actor): Promise<ReadArticleResult> {
-    const article = await this.store.getArticle(articleId, actor);
-    if (!article) throw new NotFoundError("Article");
+    // One transaction rather than six: these reads all need the same row-level security
+    // context, and opening it separately for each was most of the cost of a read.
+    const bundle = await this.store.readArticleBundle(articleId, actor);
+    if (!bundle) throw new NotFoundError("Article");
+    const { article, brain, version, links, sources, compactionEnabled } = bundle;
     requireBrainRole(actor, article.brainId, ["owner", "editor", "commenter", "viewer"]);
-    const [brain, version, links] = await Promise.all([
-      this.store.getBrain(article.brainId, actor),
-      this.store.getCurrentVersion(articleId, actor),
-      this.store.getArticleLinks(articleId, actor),
-    ]);
-    if (!brain || !version) throw new NotFoundError("Article version");
-    const [sources, compactionEnabled] = await Promise.all([
-      this.store.getArticleSources(articleId, version.version, actor),
-      this.store.isBrainCompactionEnabled(article.brainId, actor),
-    ]);
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
     const body = decrypt(version.body, key, version.bodyAad).toString("utf8");
     await this.store.audit(actor, "article.read", `article:${articleId}`, {
@@ -324,6 +317,41 @@ export class RementumService {
         createdAt: version.createdAt.toISOString(),
       },
     };
+  }
+
+  /**
+   * Reads a whole brain for export in two queries.
+   *
+   * The route used to call readArticle once per article, which is seven transactions and
+   * one audit row each. An export is a single act by one owner, so it records one
+   * brain.exported event carrying the article count rather than an article.read per file.
+   */
+  async exportBrain(brainId: string, actor: Actor, limit = 10_000) {
+    requireBrainRole(actor, brainId, ["owner"]);
+    const brain = await this.store.getBrain(brainId, actor);
+    if (!brain) throw new NotFoundError("Brain");
+    // One row past the limit tells a full brain apart from a truncated one. Without it a
+    // brain over the limit exported a subset under a manifest that read as complete, and
+    // this archive is the documented way to take a backup out.
+    const versions = await this.store.listCurrentVersions(brainId, actor, limit + 1);
+    if (versions.length > limit) {
+      throw new ConflictError("This brain holds more articles than one export can carry", {
+        limit,
+      });
+    }
+    const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
+    const articles = versions.map((version) => ({
+      slug: version.slug,
+      title: version.title,
+      summary: version.summary,
+      kind: version.kind,
+      version: version.version,
+      body: decrypt(version.body, key, version.bodyAad).toString("utf8"),
+    }));
+    await this.store.audit(actor, "brain.exported", `brain:${brainId}`, {
+      articleCount: articles.length,
+    });
+    return { brain: withoutWrappedKey(brain), articles };
   }
 
   async queueArticleCompaction(articleId: string, actor: Actor) {

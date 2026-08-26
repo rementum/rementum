@@ -99,6 +99,28 @@ export interface VersionRecord {
   createdAt: Date;
 }
 
+/** Everything one article view needs, read together. */
+export interface ArticleBundle {
+  article: ArticleRecord;
+  brain: BrainRecord;
+  version: VersionRecord;
+  links: Array<{ articleId: string; slug: string; relation: string }>;
+  sources: Array<SourceInput & { id: string }>;
+  compactionEnabled: boolean;
+}
+
+/** One current article body, as the export reads them in bulk. */
+export interface ExportedVersion {
+  articleId: string;
+  slug: string;
+  title: string;
+  summary: string;
+  kind: string;
+  version: number;
+  body: CipherEnvelope;
+  bodyAad: string;
+}
+
 export interface StagedWriteRecord {
   id: string;
   brainId: string;
@@ -255,6 +277,9 @@ export interface DataStore {
     actor: Actor,
   ): Promise<Array<SourceInput & { id: string }>>;
   listArticleVersions(articleId: string, actor: Actor): Promise<VersionRecord[]>;
+  /** Null when the article is not visible; throws when its brain or version is missing. */
+  readArticleBundle(articleId: string, actor: Actor): Promise<ArticleBundle | null>;
+  listCurrentVersions(brainId: string, actor: Actor, limit: number): Promise<ExportedVersion[]>;
   verifyArticle(articleId: string, reviewAfter: Date | null, actor: Actor): Promise<ArticleRecord>;
   setArticleLinks(
     articleId: string,

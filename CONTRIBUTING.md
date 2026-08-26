@@ -99,6 +99,19 @@ REMENTUM_TEST_DATABASE_URL=postgres://owl_app:YOUR_APP_PASSWORD@127.0.0.1:55432/
 They exercise row-level security, so the URL must use the unprivileged `owl_app` role rather than
 the superuser. They write to whatever database you point them at, so use a throwaway one.
 
+### Benchmark
+
+`pnpm bench` measures the database round trips and wall time of the paths a running
+instance repeats most. It needs the same throwaway database the integration tests use:
+
+```bash
+REMENTUM_TEST_DATABASE_URL=postgres://owl_app:YOUR_APP_PASSWORD@127.0.0.1:55432/owl pnpm bench
+```
+
+It reports statements as well as milliseconds. A local socket hides the latency a managed
+database charges on every statement, so the statement count is the number to watch when
+changing a query path.
+
 ### Documentation
 
 ```bash

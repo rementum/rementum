@@ -85,18 +85,16 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     })),
     getBrain: vi.fn(async () => brain),
     getArticle: vi.fn(async () => articleRecord()),
-    getCurrentVersion: vi.fn(async () => ({
-      version: 2,
-      body: encrypt(
-        "# Architecture\n\nThe canonical body.",
-        key,
-        `brain:${brainId}:article:${articleId}:version:2`,
-      ),
-      bodyAad: `brain:${brainId}:article:${articleId}:version:2`,
-      actorId: userId,
-      clientId: "test",
-      changeSummary: "Rewrite",
-      createdAt: new Date(),
+    getCurrentVersion: vi.fn(async () => currentVersion()),
+    // readArticle reads all of this in one transaction, so the bundle has to agree with
+    // the pieces the other mocks return.
+    readArticleBundle: vi.fn(async () => ({
+      article: articleRecord(),
+      brain,
+      version: currentVersion(),
+      links: [],
+      sources: [],
+      compactionEnabled: false,
     })),
     getArticleLinks: vi.fn(async () => []),
     getArticleSources: vi.fn(async () => []),
@@ -109,6 +107,9 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     scanMaintenance: vi.fn(async () => []),
     search: vi.fn(async () => []),
     createTask: vi.fn(async () => ({ id: "task-id", brainId })),
+    listCurrentVersions: vi.fn(async (_brainId: string, _actor: Actor, limit: number) =>
+      exportedVersions(Math.min(limit, 2)),
+    ),
     queueArticleCompaction: vi.fn(async () => undefined),
     claimTask: vi.fn(async () => null),
     getStagedWrite: vi.fn(async () => stagedWrite()),
@@ -138,6 +139,38 @@ function setup(options: { llmAvailable?: boolean } = {}) {
   } as unknown as EmbeddingClient;
   const service = new RementumService(store, embeddings, masterKey, null, options.llmAvailable);
   return { brain, embeddings, key, service, store };
+
+  function exportedVersions(count: number) {
+    return Array.from({ length: count }, (_, index) => {
+      const bodyAad = `brain:${brainId}:article:${articleId}:version:${index + 1}`;
+      return {
+        articleId: `${articleId}-${index}`,
+        slug: `article-${index}`,
+        title: `Article ${index}`,
+        summary: "Summary",
+        kind: "canonical",
+        version: index + 1,
+        body: encrypt(`Body ${index}`, key, bodyAad),
+        bodyAad,
+      };
+    });
+  }
+
+  function currentVersion() {
+    return {
+      version: 2,
+      body: encrypt(
+        "# Architecture\n\nThe canonical body.",
+        key,
+        `brain:${brainId}:article:${articleId}:version:2`,
+      ),
+      bodyAad: `brain:${brainId}:article:${articleId}:version:2`,
+      actorId: userId,
+      clientId: "test",
+      changeSummary: "Rewrite",
+      createdAt: new Date(),
+    };
+  }
 
   function stagedWrite(overrides: Partial<StagedWriteRecord> = {}): StagedWriteRecord {
     const bodyAad = `brain:${brainId}:article:${articleId}:write:write-id`;
@@ -238,13 +271,17 @@ describe("brain keys", () => {
 
   it("refuses to read an article in a brain the actor has no role on", async () => {
     const { service, store } = setup();
-    vi.mocked(store.getArticle).mockResolvedValueOnce(articleRecord({ brainId: otherBrainId }));
+    const bundle = await store.readArticleBundle(articleId, actor("owner"));
+    vi.mocked(store.readArticleBundle).mockResolvedValueOnce({
+      ...(bundle as NonNullable<typeof bundle>),
+      article: articleRecord({ brainId: otherBrainId }),
+    });
     await expect(service.readArticle(articleId, actor("owner"))).rejects.toThrow(ForbiddenError);
   });
 
   it("reports a missing article rather than the brain it would have been in", async () => {
     const { service, store } = setup();
-    vi.mocked(store.getArticle).mockResolvedValueOnce(null);
+    vi.mocked(store.readArticleBundle).mockResolvedValueOnce(null);
     await expect(service.readArticle(articleId, actor("owner"))).rejects.toThrow(NotFoundError);
   });
 });
@@ -397,3 +434,51 @@ describe("article compaction requests", () => {
     expect(store.queueArticleCompaction).not.toHaveBeenCalled();
   });
 });
+
+describe("brain export", () => {
+  it("decrypts every current body once, under the brain key", async () => {
+    const { service, store } = setup();
+    const exported = await service.exportBrain(brainId, actor("owner"));
+    expect(exported.articles).toMatchObject([
+      { slug: "article-0", version: 1, body: "Body 0" },
+      { slug: "article-1", version: 2, body: "Body 1" },
+    ]);
+    expect(exported.brain).not.toHaveProperty("wrappedKey");
+    expect(store.audit).toHaveBeenCalledWith(
+      expect.anything(),
+      "brain.exported",
+      `brain:${brainId}`,
+      { articleCount: 2 },
+    );
+  });
+
+  it("refuses to hand back a truncated archive", async () => {
+    const { service, store } = setup();
+    // One row past the limit is how a full brain is told apart from a truncated one, so
+    // the store is asked for limit + 1 and anything longer has to be refused rather than
+    // written into a manifest that reads as complete.
+    vi.mocked(store.listCurrentVersions).mockImplementationOnce(async (_brain, _actor, limit) =>
+      exportedVersionsFor(limit),
+    );
+    await expect(service.exportBrain(brainId, actor("owner"), 1)).rejects.toThrow(ConflictError);
+  });
+
+  it("keeps an editor out of the export", async () => {
+    const { service } = setup();
+    await expect(service.exportBrain(brainId, actor("editor"))).rejects.toThrow(ForbiddenError);
+  });
+});
+
+/** Always returns as many rows as were asked for, so the limit + 1 probe always trips. */
+function exportedVersionsFor(limit: number) {
+  return Array.from({ length: limit }, (_, index) => ({
+    articleId: `article-${index}`,
+    slug: `article-${index}`,
+    title: `Article ${index}`,
+    summary: "",
+    kind: "canonical",
+    version: 1,
+    body: { version: 1, nonce: "", ciphertext: "", tag: "" },
+    bodyAad: "",
+  }));
+}

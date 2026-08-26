@@ -21,10 +21,14 @@
     "test:coverage": "vitest run --coverage",
     "db:migrate": "pnpm --filter @rementum/db migrate",
     "admin": "pnpm --filter @rementum/api admin",
-    "auth:jwks": "pnpm --filter @rementum/api generate-jwks"
+    "auth:jwks": "pnpm --filter @rementum/api generate-jwks",
+    "bench": "pnpm build && tsx bench/bench.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.1",
+    "@rementum/contracts": "workspace:*",
+    "@rementum/core": "workspace:*",
+    "@rementum/db": "workspace:*",
     "@types/node": "^24.10.13",
     "@vitest/coverage-v8": "^4.1.11",
     "tsx": "^4.20.6",

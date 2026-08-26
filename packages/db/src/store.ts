@@ -11,6 +11,7 @@ import type {
 } from "@rementum/contracts";
 import {
   type Actor,
+  type ArticleBundle,
   type ArticleRecord,
   type BrainRecord,
   type CipherEnvelope,
@@ -18,6 +19,7 @@ import {
   type CompactionJobRecord,
   ConflictError,
   type DataStore,
+  type ExportedVersion,
   ForbiddenError,
   type GeneratedArticle,
   NotFoundError,
@@ -422,7 +424,7 @@ export class PostgresStore implements DataStore {
   async listRoutingIndex(brainId: string, actor: Actor, limit: number): Promise<ArticleRecord[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
-        SELECT * FROM articles
+        SELECT ${tx.unsafe(ARTICLE_COLUMNS)} FROM articles
         WHERE brain_id = ${brainId} AND archived_at IS NULL
         ORDER BY updated_at DESC, slug ASC LIMIT ${limit}
       `;
@@ -477,6 +479,42 @@ export class PostgresStore implements DataStore {
     });
   }
 
+  /**
+   * Reads every current article body in one query, for the export.
+   *
+   * The export used to read articles one at a time through the service, which cost seven
+   * transactions each. A brain is a bounded set of current versions, so one join answers
+   * the whole thing.
+   */
+  async listCurrentVersions(
+    brainId: string,
+    actor: Actor,
+    limit: number,
+  ): Promise<ExportedVersion[]> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<any[]>`
+        SELECT a.id, a.slug, a.title, a.summary, a.kind, a.current_version,
+               av.body_ciphertext, av.body_nonce, av.body_tag, av.cipher_version, av.body_aad
+        FROM articles a
+        JOIN article_versions av
+          ON av.article_id = a.id AND av.version = a.current_version
+        WHERE a.brain_id = ${brainId} AND a.archived_at IS NULL
+        ORDER BY a.slug
+        LIMIT ${limit}
+      `;
+      return rows.map((row) => ({
+        articleId: row.id as string,
+        slug: row.slug as string,
+        title: row.title as string,
+        summary: row.summary as string,
+        kind: row.kind as string,
+        version: Number(row.current_version),
+        body: envelopeFromRow(row),
+        bodyAad: row.body_aad as string,
+      }));
+    });
+  }
+
   async listArticleVersions(articleId: string, actor: Actor): Promise<VersionRecord[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
@@ -525,6 +563,73 @@ export class PostgresStore implements DataStore {
     });
   }
 
+  /**
+   * Reads everything one article view needs, inside a single transaction.
+   *
+   * readArticle used to make six scoped calls plus an audit write, and each opened its
+   * own transaction: seven connections and seven RLS setups for one logical read. The
+   * queries are unchanged, they just share the context they all needed anyway.
+   *
+   * Returns null when the article is not visible. An article whose brain or current
+   * version is missing is a different failure, and still reports itself as one: that
+   * combination means the rows disagree, not that the caller asked for nothing.
+   */
+  async readArticleBundle(articleId: string, actor: Actor): Promise<ArticleBundle | null> {
+    return this.withActor(actor, async (tx) => {
+      const [articleRow] = await tx<any[]>`
+        SELECT * FROM articles WHERE id = ${articleId} AND archived_at IS NULL
+      `;
+      if (!articleRow) return null;
+      const article = mapArticle(articleRow);
+      const [brainRow] = await tx<any[]>`
+        SELECT * FROM brains WHERE id = ${article.brainId} AND deleted_at IS NULL
+      `;
+      if (!brainRow) throw new NotFoundError("Article version");
+      const [versionRow] = await tx<any[]>`
+        SELECT av.* FROM article_versions av
+        JOIN articles a ON a.id = av.article_id AND a.current_version = av.version
+        WHERE av.article_id = ${articleId} AND a.archived_at IS NULL
+      `;
+      if (!versionRow) throw new NotFoundError("Article version");
+      const version = mapVersion(versionRow);
+      const linkRows = await tx<Array<{ article_id: string; slug: string; relation: string }>>`
+        SELECT target.id AS article_id, target.slug, links.relation
+        FROM article_links links
+        JOIN articles target ON target.id = links.to_article_id
+        WHERE links.from_article_id = ${articleId} AND target.archived_at IS NULL
+        ORDER BY target.slug
+      `;
+      const sourceRows = await tx<any[]>`
+        SELECT s.* FROM article_sources ars
+        JOIN sources s ON s.id = ars.source_id
+        WHERE ars.article_id = ${articleId} AND ars.version = ${version.version}
+        ORDER BY s.created_at
+      `;
+      const [enabled] = await tx<Array<{ enabled: boolean }>>`
+        SELECT owl_brain_compaction_enabled(${article.brainId}) AS enabled
+      `;
+      return {
+        article,
+        brain: mapBrain(brainRow),
+        version,
+        links: linkRows.map((row) => ({
+          articleId: row.article_id,
+          slug: row.slug,
+          relation: row.relation,
+        })),
+        sources: sourceRows.map((row) => ({
+          id: row.id as string,
+          kind: row.kind,
+          locator: row.locator ?? undefined,
+          checksum: row.checksum ?? undefined,
+          label: row.label ?? undefined,
+          metadata: row.metadata ?? {},
+        })),
+        compactionEnabled: enabled?.enabled ?? false,
+      };
+    });
+  }
+
   async verifyArticle(
     articleId: string,
     reviewAfter: Date | null,
@@ -550,16 +655,35 @@ export class PostgresStore implements DataStore {
       const [article] = await tx<any[]>`SELECT brain_id FROM articles WHERE id = ${articleId}`;
       if (!article) throw new NotFoundError("Article");
       await tx`DELETE FROM article_links WHERE from_article_id = ${articleId}`;
-      for (const link of links) {
-        const [target] = await tx<any[]>`
-          SELECT id FROM articles WHERE id = ${link.toArticleId} AND brain_id = ${article.brain_id}
-        `;
-        if (!target) throw new ConflictError("Article links must remain inside one brain");
-        await tx`
-          INSERT INTO article_links (from_article_id, to_article_id, relation, created_by)
-          VALUES (${articleId}, ${link.toArticleId}, ${link.relation}, ${actor.userId})
-        `;
+      if (links.length === 0) return;
+      // Validating and inserting one link at a time cost two round trips each. Both
+      // halves answer the same question for the whole set, so both are set operations.
+      const targets = [...new Set(links.map((link) => link.toArticleId))];
+      const found = await tx<Array<{ id: string }>>`
+        SELECT id FROM articles WHERE id = ANY(${targets}::uuid[]) AND brain_id = ${article.brain_id}
+      `;
+      if (found.length !== targets.length) {
+        throw new ConflictError("Article links must remain inside one brain");
       }
+      // The table holds a set keyed by (from, to, relation) but the input is a list, so
+      // the same pair twice used to fail the whole call on the primary key. Naming the
+      // links an article has is idempotent; asking for one twice is not an error.
+      const values = [
+        ...new Map(
+          links.map((link) => [
+            `${link.toArticleId}:${link.relation}`,
+            {
+              from_article_id: articleId,
+              to_article_id: link.toArticleId,
+              relation: link.relation,
+              created_by: actor.userId,
+            },
+          ]),
+        ).values(),
+      ];
+      await tx`
+        INSERT INTO article_links ${tx(values, "from_article_id", "to_article_id", "relation", "created_by")}
+      `;
     });
   }
 
@@ -1026,7 +1150,8 @@ export class PostgresStore implements DataStore {
   ): Promise<SearchHit[]> {
     return this.withActor(actor, async (tx) => {
       const fts = await tx<any[]>`
-        SELECT a.*, ts_rank_cd(a.search_document, websearch_to_tsquery('simple', ${input.query})) AS rank
+        SELECT ${tx.unsafe(ARTICLE_COLUMNS_A)},
+               ts_rank_cd(a.search_document, websearch_to_tsquery('simple', ${input.query})) AS rank
         FROM articles a
         WHERE a.brain_id = ${input.brainId} AND a.archived_at IS NULL
           AND a.search_document @@ websearch_to_tsquery('simple', ${input.query})
@@ -1035,7 +1160,8 @@ export class PostgresStore implements DataStore {
       `;
       const vectorRows = embedding
         ? await tx<any[]>`
-            SELECT DISTINCT ON (a.id) a.*, (1 - (ae.embedding <=> ${vectorLiteral(embedding)}::vector))::float8 AS rank
+            SELECT DISTINCT ON (a.id) ${tx.unsafe(ARTICLE_COLUMNS_A)},
+                   (1 - (ae.embedding <=> ${vectorLiteral(embedding)}::vector))::float8 AS rank
             FROM article_embeddings ae
             JOIN articles a ON a.id = ae.article_id AND a.current_version = ae.version
             WHERE a.brain_id = ${input.brainId} AND a.archived_at IS NULL
@@ -1112,11 +1238,28 @@ export class PostgresStore implements DataStore {
         RETURNING *
       `;
       if (!row) throw new Error("Task insert did not return a row");
-      for (const articleId of input.articleIds) {
-        await tx`INSERT INTO task_articles (task_id, article_id) VALUES (${row.id}, ${articleId}) ON CONFLICT DO NOTHING`;
+      // One statement per attachment turned a task with ten articles into a round trip
+      // each. A multi-row insert costs the same as a single-row one.
+      if (input.articleIds.length > 0) {
+        const values = input.articleIds.map((articleId) => ({
+          task_id: row.id,
+          article_id: articleId,
+        }));
+        await tx`
+          INSERT INTO task_articles ${tx(values, "task_id", "article_id")}
+          ON CONFLICT DO NOTHING
+        `;
       }
-      for (const url of input.links) {
-        await tx`INSERT INTO task_links (task_id, url, created_by) VALUES (${row.id}, ${url}, ${actor.userId}) ON CONFLICT DO NOTHING`;
+      if (input.links.length > 0) {
+        const values = input.links.map((url) => ({
+          task_id: row.id,
+          url,
+          created_by: actor.userId,
+        }));
+        await tx`
+          INSERT INTO task_links ${tx(values, "task_id", "url", "created_by")}
+          ON CONFLICT DO NOTHING
+        `;
       }
       return mapTask(row);
     });
@@ -1447,19 +1590,38 @@ export class PostgresStore implements DataStore {
     version: number,
     actor: Actor,
   ): Promise<void> {
-    for (const source of write.sources) {
-      const [row] = await tx<any[]>`
-        INSERT INTO sources (brain_id, kind, locator, checksum, label, metadata, created_by)
-        VALUES (${write.brainId}, ${source.kind}, ${source.locator ?? null}, ${source.checksum ?? null},
-          ${source.label ?? null}, ${JSON.stringify(source.metadata)}::jsonb, ${actor.userId})
-        RETURNING id
-      `;
-      if (!row) throw new Error("Source insert did not return a row");
-      await tx`
-        INSERT INTO article_sources (article_id, version, source_id)
-        VALUES (${write.articleId}, ${version}, ${row.id})
-      `;
+    if (write.sources.length === 0) return;
+    // Promotion runs on the write path an agent waits on, and every source cost two
+    // round trips. Both inserts batch, so the cost no longer scales with the citation
+    // count.
+    const values = write.sources.map((source) => ({
+      brain_id: write.brainId,
+      kind: source.kind,
+      locator: source.locator ?? null,
+      checksum: source.checksum ?? null,
+      label: source.label ?? null,
+      metadata: JSON.stringify(source.metadata),
+      created_by: actor.userId,
+    }));
+    const rows = await tx`
+      INSERT INTO sources ${tx(values, "brain_id", "kind", "locator", "checksum", "label", "metadata", "created_by")}
+      RETURNING id
+    `;
+    if (rows.length !== write.sources.length) {
+      throw new Error("Source insert did not return every row");
     }
+    await tx`
+      INSERT INTO article_sources ${tx(
+        rows.map((row) => ({
+          article_id: write.articleId,
+          version,
+          source_id: row.id as string,
+        })),
+        "article_id",
+        "version",
+        "source_id",
+      )}
+    `;
   }
 
   private async listMaintenanceInTx(tx: Tx, brainId: string): Promise<MaintenanceCandidate[]> {
@@ -1481,6 +1643,18 @@ export class PostgresStore implements DataStore {
     })) as T;
   }
 }
+
+// Every articles column except search_document. That column is a tsvector maintained by a
+// trigger for the full-text index; nothing maps it, but SELECT * shipped it on every row.
+// A routing index or a search result set carries hundreds of rows, so it was the largest
+// part of those payloads. The list is a constant, never built from input.
+const ARTICLE_COLUMNS =
+  "id, brain_id, slug, title, summary, keywords, kind, freshness, current_version, " +
+  "verified_at, review_after, created_by, created_at, updated_at, archived_at, " +
+  "compaction_status, compaction_attempts, compaction_error, compacted_at";
+const ARTICLE_COLUMNS_A = ARTICLE_COLUMNS.split(", ")
+  .map((column) => `a.${column}`)
+  .join(", ");
 
 export async function setActorConfig(
   tx: Tx,
@@ -1519,16 +1693,23 @@ export async function setActorConfig(
     editBrainIds.push(extra.ownerBrainId);
     ownerBrainIds.push(extra.ownerBrainId);
   }
-  await tx`SELECT set_config('app.user_id', ${actor.userId}, true)`;
-  await tx`SELECT set_config('app.team_ids', ${teamIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.manage_team_ids', ${manageTeamIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.owner_team_ids', ${ownerTeamIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.workspace_ids', ${workspaceIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.manage_workspace_ids', ${manageWorkspaceIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.owner_workspace_ids', ${ownerWorkspaceIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.brain_ids', ${brainIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.edit_brain_ids', ${editBrainIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.owner_brain_ids', ${ownerBrainIds.join(",")}, true)`;
+  // One statement rather than ten. Every RLS-scoped call in this store opens a
+  // transaction and sets these first, so the round trips were paid on every read: a
+  // single-row lookup spent twelve of its thirteen statements getting ready. They are
+  // independent settings, so evaluating them in one target list is equivalent.
+  await tx`
+    SELECT
+      set_config('app.user_id', ${actor.userId}, true),
+      set_config('app.team_ids', ${teamIds.join(",")}, true),
+      set_config('app.manage_team_ids', ${manageTeamIds.join(",")}, true),
+      set_config('app.owner_team_ids', ${ownerTeamIds.join(",")}, true),
+      set_config('app.workspace_ids', ${workspaceIds.join(",")}, true),
+      set_config('app.manage_workspace_ids', ${manageWorkspaceIds.join(",")}, true),
+      set_config('app.owner_workspace_ids', ${ownerWorkspaceIds.join(",")}, true),
+      set_config('app.brain_ids', ${brainIds.join(",")}, true),
+      set_config('app.edit_brain_ids', ${editBrainIds.join(",")}, true),
+      set_config('app.owner_brain_ids', ${ownerBrainIds.join(",")}, true)
+  `;
 }
 
 function mapBrain(row: any): BrainRecord {
