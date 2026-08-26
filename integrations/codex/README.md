@@ -1,8 +1,10 @@
 # Codex
 
-Copy the workspace MCP URL from Rementum's **Teams** page, then run:
+Install the Rementum skills, copy the workspace MCP URL from Rementum's **Teams** page, then run:
 
 ```bash
+npx -y skills add yibudak/rementum --global \
+  --agent codex --skill '*' --yes
 codex mcp add rementum --url https://YOUR_HOST/mcp/workspace/WORKSPACE_UUID
 codex mcp login rementum
 ```
