@@ -65,7 +65,7 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.74 }}
           >
-            <Button as={Link} href="/auth/login" variant="glow" size="lg" sparkle>
+            <Button as={Link} href="/auth/login" variant="solid" size="lg" sparkle>
               Get started
             </Button>
             <Button as="a" href={githubUrl} variant="wave" size="lg">

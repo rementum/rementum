@@ -42,7 +42,7 @@ export function WriteActions({ writeId, status }: { writeId: string; status: str
           Withdraw
         </button>
         <Button
-          variant="glow"
+          variant="solid"
           disabled={busy || status === "conflicted"}
           onClick={() => act("promote")}
           type="button"

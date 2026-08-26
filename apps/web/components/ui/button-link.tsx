@@ -7,7 +7,7 @@ import { Button } from "../pui";
 /** PUI Button rendered as a next/link — usable from server components (serializable props only). */
 export function ButtonLink({
   href,
-  variant = "glow",
+  variant = "solid",
   size = "md",
   sparkle,
   block,

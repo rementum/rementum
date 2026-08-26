@@ -65,7 +65,7 @@ export function InviteForm({ token, signedIn }: { token: string; signedIn: boole
         <Button
           as={Link}
           href={`/auth/login?returnTo=${encodeURIComponent(`/invite/${token}`)}`}
-          variant="glow"
+          variant="solid"
           block
         >
           Sign in to accept
@@ -115,7 +115,7 @@ export function InviteForm({ token, signedIn }: { token: string; signedIn: boole
       {state === "success" ? (
         <p className={successBanner}>Account created. Redirecting to sign in.</p>
       ) : null}
-      <Button type="submit" variant="glow" block loading={state === "submitting"}>
+      <Button type="submit" variant="solid" block loading={state === "submitting"}>
         {state === "submitting" ? "Creating account…" : "Accept invite"}
       </Button>
     </form>

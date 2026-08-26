@@ -68,7 +68,7 @@ export function LoginForm({
         />
       </Field>
       {error ? <p className={errorBanner}>{error}</p> : null}
-      <Button type="submit" variant="glow" block loading={busy}>
+      <Button type="submit" variant="solid" block loading={busy}>
         {busy ? "Signing in…" : "Sign in"}
       </Button>
       {signupEnabled ? (
@@ -109,7 +109,7 @@ export function RegisterForm() {
     return (
       <div className="flex flex-col gap-4">
         <p className={successBanner}>Check your inbox and verify your email before signing in.</p>
-        <Button as={Link} href="/auth/login" variant="glow" block>
+        <Button as={Link} href="/auth/login" variant="solid" block>
           Go to sign in
         </Button>
         <Button as={Link} href="/resend-verification" variant="ghost" block>
@@ -161,7 +161,7 @@ export function RegisterForm() {
         />
       </Field>
       {error ? <p className={errorBanner}>{error}</p> : null}
-      <Button type="submit" variant="glow" block loading={state === "busy"}>
+      <Button type="submit" variant="solid" block loading={state === "busy"}>
         {state === "busy" ? "Creating account…" : "Create account"}
       </Button>
     </form>
@@ -196,7 +196,7 @@ export function ForgotPasswordForm() {
         <p className={successBanner}>If the account exists, a reset link is on its way.</p>
       ) : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
-      <Button type="submit" variant="glow" block>
+      <Button type="submit" variant="solid" block>
         Send reset link
       </Button>
     </form>
@@ -231,7 +231,7 @@ export function ResendVerificationForm() {
         <p className={successBanner}>If verification is pending, a new link is on its way.</p>
       ) : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
-      <Button type="submit" variant="glow" block>
+      <Button type="submit" variant="solid" block>
         Resend verification
       </Button>
     </form>
@@ -261,7 +261,7 @@ export function TokenActionForm({ token, kind }: { token: string; kind: "verify"
             ? "Email verified."
             : "Password updated and existing sessions revoked."}
         </p>
-        <Button as={Link} href="/auth/login" variant="glow" block>
+        <Button as={Link} href="/auth/login" variant="solid" block>
           Sign in
         </Button>
       </div>
@@ -282,7 +282,7 @@ export function TokenActionForm({ token, kind }: { token: string; kind: "verify"
         </Field>
       ) : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
-      <Button type="submit" variant="glow" block>
+      <Button type="submit" variant="solid" block>
         {kind === "verify" ? "Verify email" : "Set new password"}
       </Button>
     </form>
@@ -351,7 +351,7 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
     return (
       <div className="flex flex-col gap-4">
         <p className={successBanner}>You joined {metadata.name}.</p>
-        <Button as={Link} href="/" variant="glow" block>
+        <Button as={Link} href="/" variant="solid" block>
           Open team
         </Button>
       </div>
@@ -365,7 +365,7 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
         <Button
           as={Link}
           href={`/auth/login?returnTo=${encodeURIComponent(`/team-invite/${token}`)}`}
-          variant="glow"
+          variant="solid"
           block
         >
           Sign in to accept
@@ -406,7 +406,7 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
         </>
       ) : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
-      <Button type="submit" variant="glow" block loading={state === "busy"}>
+      <Button type="submit" variant="solid" block loading={state === "busy"}>
         {state === "busy" ? "Joining…" : "Accept invitation"}
       </Button>
     </form>

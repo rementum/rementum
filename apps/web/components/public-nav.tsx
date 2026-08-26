@@ -40,7 +40,7 @@ export function PublicNav({ signupEnabled }: { signupEnabled: boolean }) {
             Sign in
           </Button>
           {signupEnabled ? (
-            <Button as={Link} href="/register" variant="glow" size="sm">
+            <Button as={Link} href="/register" variant="solid" size="sm">
               Create account
             </Button>
           ) : null}

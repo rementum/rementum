@@ -376,7 +376,7 @@ function NoWorkspace({ sharedBrains }: { sharedBrains: Brain[] }) {
           Create a team and workspace to collect brains and invite members.
         </p>
         <div className="mt-6 flex justify-center">
-          <ButtonLink href="/teams" variant="glow" sparkle>
+          <ButtonLink href="/teams" variant="solid" sparkle>
             Set up your team
           </ButtonLink>
         </div>

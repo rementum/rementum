@@ -26,7 +26,7 @@ export function CTASection({ githubUrl }: { githubUrl: string }) {
               Self-host it. Connect a client. Keep the history.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <Button as={Link} href="/auth/login" variant="glow" size="lg" sparkle>
+              <Button as={Link} href="/auth/login" variant="solid" size="lg" sparkle>
                 Get started
               </Button>
               <CommunityBadge
