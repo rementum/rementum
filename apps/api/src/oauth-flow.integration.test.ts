@@ -244,7 +244,7 @@ integration("OAuth authorization code flow", () => {
         bearer_methods_supported: ["header"],
       });
 
-      await expectMcpToolsListed(app, account.workspaceId, grant.access_token);
+      await expectMcpInitialized(app, account.workspaceId, grant.access_token);
 
       // A token minted for this workspace is not accepted at another workspace's endpoint.
       const otherWorkspace = "00000000-0000-4000-8000-0000000000ff";
@@ -270,7 +270,7 @@ integration("OAuth authorization code flow", () => {
   }, 120_000);
 });
 
-async function expectMcpToolsListed(
+async function expectMcpInitialized(
   app: FastifyInstance,
   workspaceId: string,
   accessToken: string,
