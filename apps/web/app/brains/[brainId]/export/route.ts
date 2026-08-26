@@ -3,11 +3,11 @@ import { NextResponse } from "next/server";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ brainId: string }> }) {
   const { brainId } = await params;
-  const token = (await cookies()).get("rementum_access")?.value;
+  const token = (await cookies()).get("rementum_session")?.value;
   if (!token) return NextResponse.redirect(new URL("/auth/login", _request.url));
   const base = process.env.REMENTUM_API_INTERNAL_URL ?? "http://api:8787";
   const response = await fetch(`${base}/api/v1/brains/${brainId}/export`, {
-    headers: { authorization: `Bearer ${token}` },
+    headers: { cookie: `rementum_session=${token}` },
     cache: "no-store",
   });
   if (!response.ok) return new NextResponse(await response.text(), { status: response.status });

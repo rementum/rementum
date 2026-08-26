@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AppNavigation } from "../components/app-navigation";
 import { BrandMark } from "../components/brand";
-import { hasSession, publicAuthConfig, teamContext } from "../lib/api";
+import { hasSession, publicAuthConfig, workspaceContext } from "../lib/api";
 import "./styles.css";
 import "./invite.css";
 import "./management.css";
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const signedIn = await hasSession();
-  const teams = signedIn ? await teamContext() : null;
+  const context = signedIn ? await workspaceContext() : null;
   const authConfig = signedIn ? null : await publicAuthConfig();
 
   return (
@@ -29,8 +29,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         {signedIn ? (
           <div className="workspace">
             <AppNavigation
-              teams={teams?.teams ?? []}
-              activeTeamId={teams?.activeTeam?.id ?? null}
+              teams={context?.teams ?? []}
+              workspaces={context?.workspaces ?? []}
+              activeWorkspaceId={context?.activeWorkspace?.id ?? null}
             />
             <div className="workspace-main">{children}</div>
           </div>

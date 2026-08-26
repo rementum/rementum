@@ -19,6 +19,7 @@ const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
 
 export const brainRole = pgEnum("brain_role", ["owner", "editor", "commenter", "viewer"]);
 export const workspaceRole = pgEnum("workspace_role", ["owner", "admin", "member"]);
+export const teamRole = pgEnum("team_role", ["owner", "admin", "member"]);
 export const articleKind = pgEnum("article_kind", ["canonical", "log"]);
 export const freshness = pgEnum("freshness", ["current", "review_due", "stale", "unknown"]);
 export const writeOperation = pgEnum("write_operation", ["create", "update", "append"]);
@@ -53,7 +54,7 @@ export const users = pgTable(
   (table) => [uniqueIndex("users_email_lower_uq").on(sql`lower(${table.email})`)],
 );
 
-export const workspaces = pgTable("workspaces", {
+export const teams = pgTable("teams", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
@@ -63,19 +64,36 @@ export const workspaces = pgTable("workspaces", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const workspaceMembers = pgTable(
-  "workspace_members",
+export const teamMembers = pgTable(
+  "team_members",
   {
-    workspaceId: uuid("workspace_id")
+    teamId: uuid("team_id")
       .notNull()
-      .references(() => workspaces.id, { onDelete: "cascade" }),
+      .references(() => teams.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    role: workspaceRole("role").notNull(),
+    role: teamRole("role").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.workspaceId, table.userId] })],
+  (table) => [primaryKey({ columns: [table.teamId, table.userId] })],
+);
+
+export const workspaces = pgTable(
+  "workspaces",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teamId: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("workspaces_team_slug_uq").on(table.teamId, table.slug)],
 );
 
 export const brains = pgTable(
@@ -303,8 +321,9 @@ export const auditEvents = pgTable(
   "audit_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
-    brainId: uuid("brain_id").references(() => brains.id, { onDelete: "cascade" }),
+    teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+    workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "set null" }),
+    brainId: uuid("brain_id").references(() => brains.id, { onDelete: "set null" }),
     actorId: uuid("actor_id")
       .notNull()
       .references(() => users.id),
@@ -347,15 +366,32 @@ export const authTokens = pgTable(
   ],
 );
 
+export const webSessions = pgTable(
+  "web_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("web_sessions_user_expires_idx").on(table.userId, table.expiresAt),
+    index("web_sessions_expires_idx").on(table.expiresAt),
+  ],
+);
+
 export const teamInvitations = pgTable(
   "team_invitations",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    workspaceId: uuid("workspace_id")
+    teamId: uuid("team_id")
       .notNull()
-      .references(() => workspaces.id, { onDelete: "cascade" }),
+      .references(() => teams.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
-    role: workspaceRole("role").notNull(),
+    role: teamRole("role").notNull(),
     tokenHash: text("token_hash").notNull().unique(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
@@ -365,5 +401,5 @@ export const teamInvitations = pgTable(
       .references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("team_invitations_workspace_idx").on(table.workspaceId, table.createdAt)],
+  (table) => [index("team_invitations_team_idx").on(table.teamId, table.createdAt)],
 );

@@ -16,6 +16,55 @@ async function request(path: string, body: Record<string, unknown>) {
   return payload;
 }
 
+export function LoginForm({
+  returnTo,
+  signupEnabled,
+}: {
+  returnTo: string;
+  signupEnabled: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(formData: FormData) {
+    setBusy(true);
+    setError("");
+    try {
+      await request("/api/v1/auth/session", {
+        email: formData.get("email"),
+        password: formData.get("password"),
+      });
+      window.location.assign(returnTo);
+    } catch (value) {
+      setError((value as Error).message);
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="invite-form" action={submit}>
+      <label>
+        Email
+        <input name="email" type="email" autoComplete="username" required />
+      </label>
+      <label>
+        Password
+        <input name="password" type="password" autoComplete="current-password" required />
+      </label>
+      {error ? <p className="form-error">{error}</p> : null}
+      <button className="button" type="submit" disabled={busy}>
+        {busy ? "Signing in…" : "Sign in"}
+      </button>
+      <Link className="button secondary" href="/forgot-password">
+        Forgot password?
+      </Link>
+      {signupEnabled ? (
+        <Link className="button secondary" href="/register">
+          Create account
+        </Link>
+      ) : null}
+    </form>
+  );
+}
+
 export function RegisterForm() {
   const [state, setState] = useState<"idle" | "busy" | "sent">("idle");
   const [error, setError] = useState("");
@@ -228,9 +277,9 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.title ?? "Invitation could not be accepted.");
       if (signedIn && body.workspaceId) {
-        await fetch("/teams/select", {
+        await fetch("/workspaces/select", {
           method: "POST",
-          body: new URLSearchParams({ teamId: body.workspaceId }),
+          body: new URLSearchParams({ workspaceId: body.workspaceId }),
         });
       }
       setState("done");

@@ -28,7 +28,7 @@ The installer asks for the domain, owner account, optional LLM, and optional mai
    key.
 2. Writes `.env` with mode `0600` and creates a private `backups/` directory.
 3. Builds the containers, runs every pending migration, and waits for the API and web health checks.
-4. Creates the first owner and default workspace.
+4. Creates the first owner, default team, and that team's default workspace.
 
 ## Run from an agent or automation
 

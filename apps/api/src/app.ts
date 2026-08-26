@@ -1,25 +1,25 @@
 import { mkdir } from "node:fs/promises";
+import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
 import helmet from "@fastify/helmet";
 import middie from "@fastify/middie";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
-import swagger from "@fastify/swagger";
-import swaggerUi from "@fastify/swagger-ui";
 import { DomainError, parseMasterKey, RementumService } from "@rementum/core";
 import { AuthRepository, createDatabaseClient, PostgresStore } from "@rementum/db";
 import Fastify from "fastify";
 import { ZodError } from "zod";
-import { accessScopeDescriptions } from "./access.js";
-import { createAuthenticator } from "./auth.js";
+import { createAuthenticator, workspaceIdFromMcpPath } from "./auth.js";
 import type { AppConfig } from "./config.js";
+import { createCredentialVerifier } from "./credentials.js";
 import { HttpEmbeddingClient } from "./embeddings.js";
 import { ResendMailer, type TransactionalMailer } from "./mailer.js";
-import { registerMcpEndpoint } from "./mcp.js";
+import { registerWorkspaceMcpEndpoint } from "./mcp.js";
 import { buildOauthRuntime, registerOauthRoutes } from "./oauth.js";
 import { registerApiRoutes } from "./routes.js";
 import { OpenAICompatibleSummaryGenerator } from "./summaries.js";
+import { registerWebSessionRoutes } from "./web-session.js";
 
 export async function buildApp(
   config: AppConfig,
@@ -66,10 +66,12 @@ export async function buildApp(
     summaries,
   );
   const oauth = await buildOauthRuntime(config, database);
-  const authenticate = createAuthenticator(config, oauth, store);
+  const verifyCredentials = await createCredentialVerifier(authRepository);
+  const authenticate = createAuthenticator(config, oauth, store, authRepository);
 
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(cors, { origin: false });
+  await app.register(cookie);
   await app.register(formbody);
   await app.register(multipart, {
     limits: { fileSize: 100 * 1024 * 1024, files: 1, fields: 20 },
@@ -79,34 +81,10 @@ export async function buildApp(
     timeWindow: "1 minute",
     keyGenerator: (request) => request.ip,
   });
-  await app.register(swagger, {
-    openapi: {
-      info: {
-        title: "Rementum API",
-        version: "0.1.0",
-        description: "Versioned shared knowledge, tasks, imports, and maintenance for AI agents.",
-      },
-      servers: [{ url: config.REMENTUM_PUBLIC_URL }],
-      components: {
-        securitySchemes: {
-          oauth2: {
-            type: "oauth2",
-            flows: {
-              authorizationCode: {
-                authorizationUrl: `${oauth.issuer}/auth`,
-                tokenUrl: `${oauth.issuer}/token`,
-                scopes: accessScopeDescriptions,
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-  await app.register(swaggerUi, { routePrefix: "/docs" });
   await app.register(middie);
 
-  await registerOauthRoutes(app, oauth, authRepository);
+  await registerOauthRoutes(app, oauth, verifyCredentials);
+  await registerWebSessionRoutes(app, authRepository, verifyCredentials, config);
   app.use((request, response, next) => {
     const original = request.url ?? "";
     if (!original.startsWith("/oauth/") || original.startsWith("/oauth/interaction/")) {
@@ -147,14 +125,12 @@ export async function buildApp(
         ].join("\n"),
       ),
   );
-  app.get("/openapi.json", async () => app.swagger());
-
   await registerApiRoutes(app, service, authenticate, authRepository, config, mailer);
-  await registerMcpEndpoint(
+  await registerWorkspaceMcpEndpoint(
     app,
     service,
     authenticate,
-    `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource/mcp`,
+    config.REMENTUM_PUBLIC_URL.replace(/\/$/, ""),
   );
 
   app.setErrorHandler((error, request, reply) => {
@@ -176,10 +152,13 @@ export async function buildApp(
     }
     if (error instanceof DomainError) {
       if (error.status === 401) {
-        reply.header(
-          "WWW-Authenticate",
-          `Bearer resource_metadata="${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource"`,
-        );
+        const workspaceId = workspaceIdFromMcpPath(request.url.split("?", 1)[0] ?? "");
+        if (workspaceId) {
+          reply.header(
+            "WWW-Authenticate",
+            `Bearer resource_metadata="${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource/mcp/workspace/${workspaceId}"`,
+          );
+        }
       }
       if (error.code === "insufficient_scope") {
         reply.header(

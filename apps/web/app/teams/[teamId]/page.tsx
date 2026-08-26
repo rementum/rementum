@@ -1,5 +1,9 @@
-import { TeamManagement } from "../../../components/team-management";
-import { api, teamContext } from "../../../lib/api";
+import {
+  TeamManagement,
+  WorkspaceCreateForm,
+  WorkspaceManagement,
+} from "../../../components/team-management";
+import { api, workspaceContext } from "../../../lib/api";
 
 interface Member {
   userId: string;
@@ -17,7 +21,7 @@ interface Invitation {
 
 export default async function TeamPage({ params }: { params: Promise<{ teamId: string }> }) {
   const { teamId } = await params;
-  const { teams } = await teamContext();
+  const { teams, workspaces } = await workspaceContext();
   const team = teams.find((candidate) => candidate.id === teamId);
   if (!team) throw new Error("Team was not found");
   const members = await api<Member[]>(`/api/v1/teams/${teamId}/members`);
@@ -29,7 +33,31 @@ export default async function TeamPage({ params }: { params: Promise<{ teamId: s
         <div>
           <p className="kicker">Team · {team.role}</p>
           <h1>{team.name}</h1>
-          <p>Members share access to every brain in this team.</p>
+          <p>Members share access to every workspace and brain in this team.</p>
+        </div>
+      </section>
+      {team.role === "owner" || team.role === "admin" ? (
+        <WorkspaceCreateForm teamId={teamId} />
+      ) : null}
+      <section className="team-section">
+        <div className="section-title">
+          <h2>Workspaces</h2>
+          <span>{workspaces.filter((workspace) => workspace.teamId === teamId).length}</span>
+        </div>
+        <div className="team-workspace-list">
+          {workspaces
+            .filter((workspace) => workspace.teamId === teamId)
+            .map((workspace) => (
+              <WorkspaceManagement
+                key={workspace.id}
+                workspaceId={workspace.id}
+                name={workspace.name}
+                slug={workspace.slug}
+                mcpUrl={workspace.mcpUrl}
+                canRename={team.role === "owner" || team.role === "admin"}
+                canDelete={team.role === "owner"}
+              />
+            ))}
         </div>
       </section>
       <TeamManagement

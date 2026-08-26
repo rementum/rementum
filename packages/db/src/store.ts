@@ -7,7 +7,7 @@ import type {
   SearchArticlesInput,
   SourceInput,
   Task,
-  WorkspaceRole,
+  TeamRole,
 } from "@rementum/contracts";
 import {
   type Actor,
@@ -26,6 +26,7 @@ import {
   type TeamMemberRecord,
   type TeamRecord,
   type VersionRecord,
+  type WorkspaceRecord,
   type WrappedKey,
 } from "@rementum/core";
 import type postgres from "postgres";
@@ -43,7 +44,8 @@ export class PostgresStore implements DataStore {
     const [row] = await this.client.sql<
       Array<{
         context: {
-          workspaceRoles: Record<string, WorkspaceRole>;
+          teamRoles: Record<string, TeamRole>;
+          workspaceRoles: Record<string, TeamRole>;
           brainRoles: Record<string, BrainRole>;
         };
       }>
@@ -52,51 +54,183 @@ export class PostgresStore implements DataStore {
     return {
       userId,
       clientId,
+      teamRoles: new Map(Object.entries(row.context.teamRoles ?? {})),
       workspaceRoles: new Map(Object.entries(row.context.workspaceRoles ?? {})),
       brainRoles: new Map(Object.entries(row.context.brainRoles ?? {})),
     };
   }
 
-  async createTeam(name: string, slug: string, actor: Actor, id: string): Promise<TeamRecord> {
+  async scopeActorToWorkspace(actor: Actor, workspaceId: string): Promise<Actor> {
+    const workspaceRole = actor.workspaceRoles.get(workspaceId);
+    if (!workspaceRole) throw new ForbiddenError();
+    const scoped = await this.withActor(actor, async (tx) => {
+      const [workspace] = await tx<Array<{ team_id: string }>>`
+        SELECT team_id FROM workspaces WHERE id = ${workspaceId}
+      `;
+      if (!workspace) throw new ForbiddenError();
+      const rows = await tx<Array<{ id: string }>>`
+        SELECT id FROM brains WHERE workspace_id = ${workspaceId} AND deleted_at IS NULL
+      `;
+      return { teamId: workspace.team_id, brainIds: new Set(rows.map((row) => row.id)) };
+    });
+    const teamRole = actor.teamRoles.get(scoped.teamId);
+    if (!teamRole) throw new ForbiddenError();
+    return {
+      ...actor,
+      teamRoles: new Map([[scoped.teamId, teamRole]]),
+      workspaceRoles: new Map([[workspaceId, workspaceRole]]),
+      brainRoles: new Map(
+        [...actor.brainRoles].filter(([brainId]) => scoped.brainIds.has(brainId)),
+      ),
+    };
+  }
+
+  async createTeam(
+    name: string,
+    slug: string,
+    actor: Actor,
+    teamId: string,
+    workspaceId: string,
+  ): Promise<{ team: TeamRecord; workspace: WorkspaceRecord }> {
     return this.withActor(
       actor,
       async (tx) => {
-        const [row] = await tx<any[]>`
-          INSERT INTO workspaces (id, slug, name, created_by)
-          VALUES (${id}, ${slug}, ${name}, ${actor.userId}) RETURNING *
+        const [team] = await tx<any[]>`
+          INSERT INTO teams (id, slug, name, created_by)
+          VALUES (${teamId}, ${slug}, ${name}, ${actor.userId}) RETURNING *
         `;
         await tx`
-          INSERT INTO workspace_members (workspace_id, user_id, role)
-          VALUES (${id}, ${actor.userId}, 'owner')
+          INSERT INTO team_members (team_id, user_id, role)
+          VALUES (${teamId}, ${actor.userId}, 'owner')
         `;
-        if (!row) throw new Error("Team insert did not return a row");
-        actor.workspaceRoles.set(id, "owner");
-        return { ...mapTeam(row), role: "owner" };
+        const [workspace] = await tx<any[]>`
+          INSERT INTO workspaces (id, team_id, slug, name, created_by)
+          VALUES (${workspaceId}, ${teamId}, 'default', 'Default workspace', ${actor.userId})
+          RETURNING *
+        `;
+        if (!team || !workspace) throw new Error("Team creation did not return its records");
+        actor.teamRoles.set(teamId, "owner");
+        actor.workspaceRoles.set(workspaceId, "owner");
+        return {
+          team: { ...mapTeam(team), role: "owner" },
+          workspace: { ...mapWorkspace(workspace), role: "owner" },
+        };
       },
-      { ownerWorkspaceId: id },
+      { ownerTeamId: teamId, workspaceId },
     );
   }
 
   async listTeams(actor: Actor): Promise<TeamRecord[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
-        SELECT w.*, wm.role
-        FROM workspaces w
-        JOIN workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = ${actor.userId}
-        ORDER BY w.created_at ASC, w.name ASC
+        SELECT t.*, tm.role
+        FROM teams t
+        JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ${actor.userId}
+        ORDER BY t.created_at ASC, t.name ASC
       `;
       return rows.map(mapTeam);
+    });
+  }
+
+  async createWorkspace(
+    teamId: string,
+    name: string,
+    slug: string,
+    actor: Actor,
+    workspaceId: string,
+  ): Promise<WorkspaceRecord> {
+    return this.withActor(
+      actor,
+      async (tx) => {
+        const [row] = await tx<any[]>`
+          INSERT INTO workspaces (id, team_id, slug, name, created_by)
+          VALUES (${workspaceId}, ${teamId}, ${slug}, ${name}, ${actor.userId}) RETURNING *
+        `;
+        if (!row) throw new Error("Workspace insert did not return a row");
+        const role = actor.teamRoles.get(teamId);
+        if (!role) throw new ForbiddenError();
+        actor.workspaceRoles.set(workspaceId, role);
+        return { ...mapWorkspace(row), role };
+      },
+      { workspaceId },
+    );
+  }
+
+  async listWorkspaces(actor: Actor, teamId?: string): Promise<WorkspaceRecord[]> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<any[]>`
+        SELECT w.*, tm.role
+        FROM workspaces w
+        JOIN team_members tm ON tm.team_id = w.team_id AND tm.user_id = ${actor.userId}
+        WHERE (${teamId ?? null}::uuid IS NULL OR w.team_id = ${teamId ?? null})
+        ORDER BY w.created_at ASC, w.name ASC
+      `;
+      return rows.map(mapWorkspace);
+    });
+  }
+
+  async updateWorkspace(
+    workspaceId: string,
+    name: string,
+    slug: string,
+    actor: Actor,
+  ): Promise<WorkspaceRecord> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        UPDATE workspaces SET name = ${name}, slug = ${slug}
+        WHERE id = ${workspaceId} RETURNING *
+      `;
+      if (!row) throw new NotFoundError("Workspace");
+      const role = actor.workspaceRoles.get(workspaceId);
+      if (!role) throw new ForbiddenError();
+      return { ...mapWorkspace(row), role };
+    });
+  }
+
+  async deleteWorkspace(
+    workspaceId: string,
+    confirmation: string,
+    actor: Actor,
+  ): Promise<WorkspaceRecord> {
+    return this.withActor(actor, async (tx) => {
+      const [workspace] = await tx<any[]>`SELECT * FROM workspaces WHERE id = ${workspaceId}`;
+      if (!workspace) throw new NotFoundError("Workspace");
+      const role = actor.teamRoles.get(workspace.team_id);
+      if (!role) throw new ForbiddenError();
+      if (confirmation !== workspace.name) {
+        throw new ConflictError("Workspace name confirmation does not match");
+      }
+      await tx`SELECT id FROM teams WHERE id = ${workspace.team_id} FOR UPDATE`;
+      const [count] = await tx<Array<{ count: number }>>`
+        SELECT count(*)::int AS count FROM workspaces WHERE team_id = ${workspace.team_id}
+      `;
+      if ((count?.count ?? 0) <= 1) {
+        throw new ConflictError("A team must keep at least one workspace");
+      }
+      const brainRows = await tx<Array<{ id: string }>>`
+        SELECT id FROM brains WHERE workspace_id = ${workspaceId}
+      `;
+      const deleted = await tx<
+        any[]
+      >`DELETE FROM workspaces WHERE id = ${workspaceId} RETURNING id`;
+      if (!deleted.length) throw new NotFoundError("Workspace");
+      actor.workspaceRoles.delete(workspaceId);
+      for (const brain of brainRows) actor.brainRoles.delete(brain.id);
+      return {
+        ...mapWorkspace(workspace),
+        role,
+      };
     });
   }
 
   async listTeamMembers(teamId: string, actor: Actor): Promise<TeamMemberRecord[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
-        SELECT wm.user_id, u.email, u.display_name, wm.role, wm.created_at
-        FROM workspace_members wm
-        JOIN users u ON u.id = wm.user_id
-        WHERE wm.workspace_id = ${teamId}
-        ORDER BY CASE wm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+        SELECT tm.user_id, u.email, u.display_name, tm.role, tm.created_at
+        FROM team_members tm
+        JOIN users u ON u.id = tm.user_id
+        WHERE tm.team_id = ${teamId}
+        ORDER BY CASE tm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
           lower(u.email)
       `;
       return rows.map(mapTeamMember);
@@ -111,8 +245,8 @@ export class PostgresStore implements DataStore {
   ): Promise<TeamMemberRecord> {
     return this.withActor(actor, async (tx) => {
       const [row] = await tx<any[]>`
-        UPDATE workspace_members SET role = ${role}
-        WHERE workspace_id = ${teamId} AND user_id = ${userId} AND role <> 'owner'
+        UPDATE team_members SET role = ${role}
+        WHERE team_id = ${teamId} AND user_id = ${userId} AND role <> 'owner'
         RETURNING user_id, role, created_at
       `;
       if (!row) throw new NotFoundError("Editable team member");
@@ -124,15 +258,16 @@ export class PostgresStore implements DataStore {
   async removeTeamMember(teamId: string, userId: string, actor: Actor): Promise<void> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
-        DELETE FROM workspace_members
-        WHERE workspace_id = ${teamId} AND user_id = ${userId} AND role <> 'owner'
+        DELETE FROM team_members
+        WHERE team_id = ${teamId} AND user_id = ${userId} AND role <> 'owner'
         RETURNING user_id
       `;
       if (!rows.length) throw new NotFoundError("Removable team member");
       await tx`
         DELETE FROM brain_members bm
-        USING brains b
-        WHERE bm.brain_id = b.id AND b.workspace_id = ${teamId} AND bm.user_id = ${userId}
+        USING brains b, workspaces w
+        WHERE bm.brain_id = b.id AND b.workspace_id = w.id
+          AND w.team_id = ${teamId} AND bm.user_id = ${userId}
       `;
     });
   }
@@ -141,7 +276,7 @@ export class PostgresStore implements DataStore {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
         SELECT * FROM team_invitations
-        WHERE workspace_id = ${teamId} AND accepted_at IS NULL AND revoked_at IS NULL
+        WHERE team_id = ${teamId} AND accepted_at IS NULL AND revoked_at IS NULL
           AND expires_at > now()
         ORDER BY created_at DESC
       `;
@@ -160,12 +295,12 @@ export class PostgresStore implements DataStore {
     return this.withActor(actor, async (tx) => {
       await tx`
         UPDATE team_invitations SET revoked_at = now()
-        WHERE workspace_id = ${teamId} AND lower(email) = lower(${email})
+        WHERE team_id = ${teamId} AND lower(email) = lower(${email})
           AND accepted_at IS NULL AND revoked_at IS NULL
       `;
       const [row] = await tx<any[]>`
         INSERT INTO team_invitations (
-          workspace_id, email, role, token_hash, expires_at, invited_by
+          team_id, email, role, token_hash, expires_at, invited_by
         ) VALUES (
           ${teamId}, ${email}, ${role}, ${tokenHash}, ${expiresAt.toISOString()}, ${actor.userId}
         ) RETURNING *
@@ -943,15 +1078,22 @@ export class PostgresStore implements DataStore {
         brainId = row?.brain_id ?? null;
       }
       const teamMatch = resource.match(/^team:([0-9a-f-]{36})$/i);
+      const workspaceMatch = resource.match(/^workspace:([0-9a-f-]{36})$/i);
       const workspaceId =
-        teamMatch?.[1] ??
+        workspaceMatch?.[1] ??
         (brainId
           ? ((await tx<any[]>`SELECT workspace_id FROM brains WHERE id = ${brainId}`)[0]
               ?.workspace_id ?? null)
           : null);
+      const teamId =
+        teamMatch?.[1] ??
+        (workspaceId
+          ? ((await tx<any[]>`SELECT team_id FROM workspaces WHERE id = ${workspaceId}`)[0]
+              ?.team_id ?? null)
+          : null);
       await tx`
-        INSERT INTO audit_events (workspace_id, brain_id, actor_id, client_id, action, resource, detail)
-        VALUES (${workspaceId}, ${brainId}, ${actor.userId}, ${actor.clientId}, ${action}, ${resource}, ${JSON.stringify(detail)}::jsonb)
+        INSERT INTO audit_events (team_id, workspace_id, brain_id, actor_id, client_id, action, resource, detail)
+        VALUES (${teamId}, ${workspaceId}, ${brainId}, ${actor.userId}, ${actor.clientId}, ${action}, ${resource}, ${JSON.stringify(detail)}::jsonb)
       `;
     });
   }
@@ -1032,7 +1174,7 @@ export class PostgresStore implements DataStore {
   private async withActor<T>(
     actor: Actor,
     callback: (tx: Tx) => Promise<T>,
-    extra: { ownerWorkspaceId?: string } = {},
+    extra: { ownerTeamId?: string; workspaceId?: string } = {},
   ): Promise<T> {
     return (await this.client.sql.begin(async (tx) => {
       await setActorConfig(tx, actor, extra);
@@ -1044,8 +1186,20 @@ export class PostgresStore implements DataStore {
 export async function setActorConfig(
   tx: Tx,
   actor: Actor,
-  extra: { ownerBrainId?: string; ownerWorkspaceId?: string } = {},
+  extra: { ownerBrainId?: string; ownerTeamId?: string; workspaceId?: string } = {},
 ): Promise<void> {
+  const teamIds = [...actor.teamRoles.keys()];
+  const manageTeamIds = [...actor.teamRoles]
+    .filter(([, role]) => role === "owner" || role === "admin")
+    .map(([id]) => id);
+  const ownerTeamIds = [...actor.teamRoles]
+    .filter(([, role]) => role === "owner")
+    .map(([id]) => id);
+  if (extra.ownerTeamId) {
+    teamIds.push(extra.ownerTeamId);
+    manageTeamIds.push(extra.ownerTeamId);
+    ownerTeamIds.push(extra.ownerTeamId);
+  }
   const workspaceIds = [...actor.workspaceRoles.keys()];
   const manageWorkspaceIds = [...actor.workspaceRoles]
     .filter(([, role]) => role === "owner" || role === "admin")
@@ -1053,11 +1207,7 @@ export async function setActorConfig(
   const ownerWorkspaceIds = [...actor.workspaceRoles]
     .filter(([, role]) => role === "owner")
     .map(([id]) => id);
-  if (extra.ownerWorkspaceId) {
-    workspaceIds.push(extra.ownerWorkspaceId);
-    manageWorkspaceIds.push(extra.ownerWorkspaceId);
-    ownerWorkspaceIds.push(extra.ownerWorkspaceId);
-  }
+  if (extra.workspaceId) workspaceIds.push(extra.workspaceId);
   const brainIds = [...actor.brainRoles.keys()];
   const editBrainIds = [...actor.brainRoles]
     .filter(([, role]) => role === "owner" || role === "editor")
@@ -1071,6 +1221,9 @@ export async function setActorConfig(
     ownerBrainIds.push(extra.ownerBrainId);
   }
   await tx`SELECT set_config('app.user_id', ${actor.userId}, true)`;
+  await tx`SELECT set_config('app.team_ids', ${teamIds.join(",")}, true)`;
+  await tx`SELECT set_config('app.manage_team_ids', ${manageTeamIds.join(",")}, true)`;
+  await tx`SELECT set_config('app.owner_team_ids', ${ownerTeamIds.join(",")}, true)`;
   await tx`SELECT set_config('app.workspace_ids', ${workspaceIds.join(",")}, true)`;
   await tx`SELECT set_config('app.manage_workspace_ids', ${manageWorkspaceIds.join(",")}, true)`;
   await tx`SELECT set_config('app.owner_workspace_ids', ${ownerWorkspaceIds.join(",")}, true)`;
@@ -1104,6 +1257,17 @@ function mapTeam(row: any): TeamRecord {
   };
 }
 
+function mapWorkspace(row: any): WorkspaceRecord {
+  return {
+    id: row.id,
+    teamId: row.team_id,
+    slug: row.slug,
+    name: row.name,
+    role: row.role,
+    createdAt: asDate(row.created_at),
+  };
+}
+
 function mapTeamMember(row: any): TeamMemberRecord {
   return {
     userId: row.user_id,
@@ -1117,7 +1281,7 @@ function mapTeamMember(row: any): TeamMemberRecord {
 function mapTeamInvitation(row: any): TeamInvitationRecord {
   return {
     id: row.id,
-    workspaceId: row.workspace_id,
+    teamId: row.team_id,
     email: row.email,
     role: row.role,
     expiresAt: asDate(row.expires_at),

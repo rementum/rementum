@@ -6,6 +6,9 @@ Rementum gives AI agents a self-hosted knowledge base with versioned Markdown, s
 task coordination, and OAuth-protected MCP access. You control the database, encryption key,
 optional AI provider, and backups.
 
+Teams own membership; each team can contain multiple workspaces. Brains belong to one workspace,
+and every remote MCP connection is bound to exactly one workspace.
+
 ## Install on your server
 
 Prepare a Linux host with Docker Compose, point a domain at it, and open TCP ports 80 and 443. The
@@ -29,7 +32,7 @@ Open the HTTPS URL printed by the installer. Caddy requests and renews the TLS c
 | --- | --- |
 | Caddy | TLS termination and public routing |
 | Web | Browser interface |
-| API | REST, OAuth, and remote MCP |
+| API | REST, web sessions, MCP OAuth, and remote MCP |
 | Worker | Maintenance scans and missing embedding jobs |
 | PostgreSQL | Canonical data, version history, and vector index |
 | Embeddings | Local multilingual embedding model |

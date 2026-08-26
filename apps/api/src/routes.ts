@@ -5,10 +5,12 @@ import {
   createTaskSchema,
   createTeamInvitationSchema,
   createTeamSchema,
+  createWorkspaceSchema,
   promoteWriteSchema,
   searchArticlesSchema,
   stageWriteSchema,
   taskStatusSchema,
+  updateWorkspaceSchema,
 } from "@rementum/contracts";
 import {
   DomainError,
@@ -247,6 +249,53 @@ export async function registerApiRoutes(
         ),
       ),
   );
+  app.get("/api/v1/workspaces", async (request) => {
+    const workspaces = await service.listWorkspaces(await authorize(request, "team:read"));
+    return workspaces.map((workspace) => ({
+      ...workspace,
+      mcpUrl: `${publicUrl}/mcp/workspace/${workspace.id}`,
+    }));
+  });
+  app.get("/api/v1/teams/:teamId/workspaces", async (request) => {
+    const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
+    const workspaces = await service.listWorkspaces(await authorize(request, "team:read"), teamId);
+    return workspaces.map((workspace) => ({
+      ...workspace,
+      mcpUrl: `${publicUrl}/mcp/workspace/${workspace.id}`,
+    }));
+  });
+  app.post("/api/v1/teams/:teamId/workspaces", async (request, reply) => {
+    const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
+    return reply
+      .code(201)
+      .send(
+        await service.createWorkspace(
+          teamId,
+          createWorkspaceSchema.parse(request.body),
+          await authorize(request, "team:write"),
+        ),
+      );
+  });
+  app.patch("/api/v1/workspaces/:workspaceId", async (request) => {
+    const { workspaceId } = z.object({ workspaceId: z.uuid() }).parse(request.params);
+    return service.updateWorkspace(
+      workspaceId,
+      updateWorkspaceSchema.parse(request.body),
+      await authorize(request, "team:write"),
+    );
+  });
+  app.delete("/api/v1/workspaces/:workspaceId", async (request, reply) => {
+    const { workspaceId } = z.object({ workspaceId: z.uuid() }).parse(request.params);
+    const { confirmation } = z
+      .object({ confirmation: z.string().min(1).max(160) })
+      .parse(request.body);
+    await service.deleteWorkspace(
+      workspaceId,
+      confirmation,
+      await authorize(request, "team:write"),
+    );
+    return reply.code(204).send();
+  });
   app.get("/api/v1/teams/:teamId/members", async (request) => {
     const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
     return service.listTeamMembers(teamId, await authorize(request, "team:read"));

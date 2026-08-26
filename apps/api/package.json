@@ -19,8 +19,6 @@
     "@fastify/middie": "^9.3.3",
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
-    "@fastify/swagger": "^9.8.1",
-    "@fastify/swagger-ui": "^5.2.5",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@rementum/contracts": "workspace:*",
     "@rementum/core": "workspace:*",

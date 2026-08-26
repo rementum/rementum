@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { hashContent } from "@rementum/core";
 import { AuthRepository, createDatabaseClient } from "@rementum/db";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
@@ -72,6 +73,15 @@ integration("account and team HTTP flows", () => {
       expect(verificationMessage.idempotencyKey).toMatch(/^verify-email\//);
       const verificationToken = tokenFromUrl(verificationMessage.text);
 
+      const unverifiedLogin = await app.inject({
+        method: "POST",
+        url: "/api/v1/auth/session",
+        headers: { origin: "http://rementum.example.test" },
+        payload: { email, password: "correct horse battery staple" },
+      });
+      expect(unverifiedLogin.statusCode).toBe(403);
+      expect(unverifiedLogin.json()).toMatchObject({ code: "email_unverified" });
+
       const verification = await app.inject({
         method: "POST",
         url: "/api/v1/auth/verify-email",
@@ -82,38 +92,115 @@ integration("account and team HTTP flows", () => {
       expect(user?.emailVerifiedAt).not.toBeNull();
       if (!user) throw new Error("Registered user was not found");
 
-      const accessToken = (scope: string) =>
-        new SignJWT({ client_id: "integration-test", scope })
-          .setProtectedHeader({ alg: "RS256", kid: privateJwk.kid })
-          .setIssuer("http://rementum.example.test/oauth")
-          .setAudience("http://rementum.example.test/api")
-          .setSubject(user.id)
-          .setExpirationTime("5m")
-          .sign(privateKey);
+      const invalidLogin = await app.inject({
+        method: "POST",
+        url: "/api/v1/auth/session",
+        headers: { origin: "http://rementum.example.test" },
+        payload: { email, password: "this is not the password" },
+      });
+      expect(invalidLogin.statusCode).toBe(401);
+      expect(invalidLogin.json()).toMatchObject({ code: "invalid_credentials" });
 
-      const insufficient = await app.inject({
+      const oauthApiToken = new SignJWT({ client_id: "integration-test", scope: "team:read" })
+        .setProtectedHeader({ alg: "RS256", kid: privateJwk.kid })
+        .setIssuer("http://rementum.example.test/oauth")
+        .setAudience("http://rementum.example.test/api")
+        .setSubject(user.id)
+        .setExpirationTime("5m")
+        .sign(privateKey);
+
+      const oauthRestRequest = await app.inject({
         method: "GET",
         url: "/api/v1/teams",
-        headers: { authorization: `Bearer ${await accessToken("brain:read")}` },
+        headers: { authorization: `Bearer ${await oauthApiToken}` },
       });
-      expect(insufficient.statusCode).toBe(403);
-      expect(insufficient.json()).toMatchObject({ code: "insufficient_scope" });
+      expect(oauthRestRequest.statusCode).toBe(401);
+      expect(oauthRestRequest.headers["www-authenticate"]).toBeUndefined();
 
-      const scopedTeams = await app.inject({
-        method: "GET",
-        url: "/api/v1/teams",
-        headers: { authorization: `Bearer ${await accessToken("team:read")}` },
+      const login = await app.inject({
+        method: "POST",
+        url: "/api/v1/auth/session",
+        headers: { origin: "http://rementum.example.test" },
+        payload: { email, password: "correct horse battery staple" },
       });
-      expect(scopedTeams.statusCode).toBe(200);
-      expect(scopedTeams.json()).toHaveLength(1);
+      expect(login.statusCode).toBe(204);
+      expect(String(login.headers["set-cookie"])).toContain("HttpOnly");
+      expect(String(login.headers["set-cookie"])).toContain("SameSite=Lax");
+      const sessionCookie = responseCookie(login.headers["set-cookie"], "rementum_session");
+
+      const session = await app.inject({
+        method: "GET",
+        url: "/api/v1/auth/session",
+        headers: { cookie: sessionCookie },
+      });
+      expect(session.statusCode).toBe(200);
+      expect(session.json()).toEqual({ authenticated: true });
 
       const teams = await app.inject({
         method: "GET",
         url: "/api/v1/teams",
-        headers: { "x-rementum-user-id": user.id },
+        headers: { cookie: sessionCookie },
       });
       expect(teams.statusCode).toBe(200);
       expect(teams.json()).toHaveLength(1);
+      const firstTeamId = teams.json()[0].id as string;
+      const workspaces = await app.inject({
+        method: "GET",
+        url: "/api/v1/workspaces",
+        headers: { cookie: sessionCookie },
+      });
+      expect(workspaces.statusCode).toBe(200);
+      expect(workspaces.json()).toHaveLength(1);
+
+      const rejectedMutation = await app.inject({
+        method: "POST",
+        url: "/api/v1/teams",
+        headers: { cookie: sessionCookie },
+        payload: { name: "Rejected origin" },
+      });
+      expect(rejectedMutation.statusCode).toBe(403);
+      expect(rejectedMutation.json()).toMatchObject({ code: "invalid_origin" });
+
+      const firstWorkspaceId = workspaces.json()[0].id as string;
+      expect(firstWorkspaceId).not.toBe(firstTeamId);
+      expect(workspaces.json()[0]).toMatchObject({
+        teamId: firstTeamId,
+        mcpUrl: `http://rementum.example.test/mcp/workspace/${firstWorkspaceId}`,
+      });
+
+      const metadata = await app.inject({
+        method: "GET",
+        url: `/.well-known/oauth-protected-resource/mcp/workspace/${firstWorkspaceId}`,
+      });
+      expect(metadata.statusCode).toBe(200);
+      expect(metadata.json()).toMatchObject({
+        resource: `http://rementum.example.test/mcp/workspace/${firstWorkspaceId}`,
+        authorization_servers: ["http://rementum.example.test/oauth"],
+      });
+      expect(metadata.json().scopes_supported).toEqual([
+        "brain:read",
+        "brain:write",
+        "task:read",
+        "task:write",
+      ]);
+      expect((await app.inject({ method: "GET", url: "/mcp" })).statusCode).toBe(404);
+      expect(
+        (await app.inject({ method: "GET", url: `/mcp/teams/${firstTeamId}` })).statusCode,
+      ).toBe(404);
+      expect(
+        (await app.inject({ method: "GET", url: "/.well-known/oauth-protected-resource" }))
+          .statusCode,
+      ).toBe(404);
+      expect((await app.inject({ method: "GET", url: "/docs" })).statusCode).toBe(404);
+      expect((await app.inject({ method: "GET", url: "/openapi.json" })).statusCode).toBe(404);
+      expect(
+        (
+          await app.inject({
+            method: "GET",
+            url: "/.well-known/oauth-protected-resource/mcp",
+          })
+        ).statusCode,
+      ).toBe(404);
 
       const secondTeam = await app.inject({
         method: "POST",
@@ -122,6 +209,57 @@ integration("account and team HTTP flows", () => {
         payload: { name: "Another team" },
       });
       expect(secondTeam.statusCode).toBe(201);
+      expect(secondTeam.json().defaultWorkspaceId).not.toBe(secondTeam.json().id);
+
+      const secondWorkspace = await app.inject({
+        method: "POST",
+        url: `/api/v1/teams/${secondTeam.json().id}/workspaces`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { name: "Another workspace" },
+      });
+      expect(secondWorkspace.statusCode).toBe(201);
+      expect(secondWorkspace.json()).toMatchObject({ teamId: secondTeam.json().id });
+
+      const secondTeamWorkspaces = await app.inject({
+        method: "GET",
+        url: `/api/v1/teams/${secondTeam.json().id}/workspaces`,
+        headers: { "x-rementum-user-id": user.id },
+      });
+      expect(secondTeamWorkspaces.statusCode).toBe(200);
+      expect(secondTeamWorkspaces.json()).toHaveLength(2);
+
+      const renamedWorkspace = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/workspaces/${secondWorkspace.json().id}`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { name: "Renamed workspace" },
+      });
+      expect(renamedWorkspace.statusCode).toBe(200);
+      expect(renamedWorkspace.json().name).toBe("Renamed workspace");
+
+      const wrongConfirmation = await app.inject({
+        method: "DELETE",
+        url: `/api/v1/workspaces/${secondWorkspace.json().id}`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { confirmation: "Wrong name" },
+      });
+      expect(wrongConfirmation.statusCode).toBe(409);
+
+      const deletedWorkspace = await app.inject({
+        method: "DELETE",
+        url: `/api/v1/workspaces/${secondWorkspace.json().id}`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { confirmation: "Renamed workspace" },
+      });
+      expect(deletedWorkspace.statusCode).toBe(204);
+
+      const lastWorkspace = await app.inject({
+        method: "DELETE",
+        url: `/api/v1/workspaces/${secondTeam.json().defaultWorkspaceId}`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { confirmation: "Default workspace" },
+      });
+      expect(lastWorkspace.statusCode).toBe(409);
 
       const invitation = await app.inject({
         method: "POST",
@@ -133,6 +271,55 @@ integration("account and team HTTP flows", () => {
       expect(invitation.json().emailSent).toBe(true);
       expect(invitation.json().acceptanceUrl).toContain("/team-invite/");
       expect(mailer.messages[1]?.idempotencyKey).toMatch(/^team-invite\//);
+
+      const logout = await app.inject({
+        method: "DELETE",
+        url: "/api/v1/auth/session",
+        headers: { cookie: sessionCookie, origin: "http://rementum.example.test" },
+      });
+      expect(logout.statusCode).toBe(204);
+      expect(
+        (
+          await app.inject({
+            method: "GET",
+            url: "/api/v1/auth/session",
+            headers: { cookie: sessionCookie },
+          })
+        ).statusCode,
+      ).toBe(401);
+
+      const relogin = await app.inject({
+        method: "POST",
+        url: "/api/v1/auth/session",
+        headers: { origin: "http://rementum.example.test" },
+        payload: { email, password: "correct horse battery staple" },
+      });
+      const resetSessionCookie = responseCookie(relogin.headers["set-cookie"], "rementum_session");
+      const resetToken = randomBytes(32).toString("base64url");
+      await auth.createAuthToken(
+        user.id,
+        "reset_password",
+        hashContent(resetToken),
+        new Date(Date.now() + 60_000),
+      );
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/api/v1/auth/reset-password",
+            payload: { token: resetToken, password: "new correct horse battery staple" },
+          })
+        ).statusCode,
+      ).toBe(204);
+      expect(
+        (
+          await app.inject({
+            method: "GET",
+            url: "/api/v1/auth/session",
+            headers: { cookie: resetSessionCookie },
+          })
+        ).statusCode,
+      ).toBe(401);
     } finally {
       await database.close();
       await app.close();
@@ -144,4 +331,13 @@ function tokenFromUrl(value: string): string {
   const match = value.match(/[?&]token=([^\s]+)/);
   if (!match?.[1]) throw new Error("Email did not contain a token URL");
   return decodeURIComponent(match[1]);
+}
+
+function responseCookie(value: string | string[] | undefined, name: string): string {
+  const headers = Array.isArray(value) ? value : value ? [value] : [];
+  const cookie = headers
+    .map((header) => header.split(";", 1)[0])
+    .find((item) => item?.startsWith(`${name}=`));
+  if (!cookie) throw new Error(`Response did not set ${name}`);
+  return cookie;
 }

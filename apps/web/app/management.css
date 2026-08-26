@@ -56,7 +56,8 @@
 .team-picker select,
 .team-create input,
 .team-invite-form input,
-.team-invite-form select {
+.team-invite-form select,
+.workspace-rename-form input {
   min-height: 40px;
   padding: 0 10px;
   border: 1px solid var(--line-strong);
@@ -71,6 +72,133 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 28px;
+}
+
+.team-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.team-card:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+  transform: translateY(-2px);
+}
+
+.team-card-main {
+  display: flex;
+  min-height: 180px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px;
+}
+
+.team-card-main h2 {
+  margin: 40px 0 8px;
+  font-size: clamp(25px, 3vw, 36px);
+  font-weight: 560;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.team-card-main p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.team-workspaces,
+.team-workspace-list {
+  display: grid;
+}
+
+.team-workspace-row {
+  min-width: 0;
+  padding: 15px 18px;
+  border-top: 1px solid var(--line);
+}
+
+.team-workspace-row > strong,
+.team-workspace-row > div > strong,
+.workspace-row-head strong {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.team-workspace-row > div > p {
+  margin: 4px 0 12px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.workspace-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.workspace-row-head p {
+  margin: 4px 0 12px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.workspace-rename-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.workspace-mcp-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 15px 18px;
+  background: var(--canvas-raised);
+}
+
+.team-card > .team-workspaces .workspace-mcp-link,
+.team-workspace-row > .workspace-mcp-link {
+  padding: 0;
+}
+
+.workspace-mcp-link span {
+  grid-column: 1 / -1;
+  color: var(--text-tertiary);
+  font: 600 9px / 1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.workspace-mcp-link code {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font: 11px / 1.4 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-mcp-link button {
+  white-space: nowrap;
+}
+
+.workspace-mcp-link small {
+  grid-column: 1 / -1;
+  color: var(--danger);
+  font-size: 11px;
 }
 
 .shared-brains {
@@ -944,6 +1072,20 @@
   .team-invite-form,
   .team-member-row {
     grid-template-columns: 1fr;
+  }
+
+  .workspace-mcp-link {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-mcp-link button {
+    justify-self: start;
+  }
+
+  .workspace-row-head,
+  .workspace-rename-form {
+    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 
   .row-actions {

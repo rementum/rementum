@@ -7,8 +7,8 @@ export const slugSchema = z
   .max(120)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase kebab-case");
 
-export const workspaceRoleSchema = z.enum(["owner", "admin", "member"]);
-export type WorkspaceRole = z.infer<typeof workspaceRoleSchema>;
+export const teamRoleSchema = z.enum(["owner", "admin", "member"]);
+export type TeamRole = z.infer<typeof teamRoleSchema>;
 
 export const brainRoleSchema = z.enum(["owner", "editor", "commenter", "viewer"]);
 export type BrainRole = z.infer<typeof brainRoleSchema>;
@@ -93,15 +93,33 @@ export const teamSchema = z.object({
   id: idSchema,
   slug: slugSchema,
   name: z.string(),
-  role: workspaceRoleSchema,
+  role: teamRoleSchema,
   createdAt: z.iso.datetime(),
 });
 export type Team = z.infer<typeof teamSchema>;
+
+export const workspaceSchema = z.object({
+  id: idSchema,
+  teamId: idSchema,
+  slug: slugSchema,
+  name: z.string(),
+  role: teamRoleSchema,
+  createdAt: z.iso.datetime(),
+});
+export type Workspace = z.infer<typeof workspaceSchema>;
 
 export const createTeamSchema = z.object({
   name: z.string().trim().min(1).max(160),
 });
 export type CreateTeamInput = z.infer<typeof createTeamSchema>;
+
+export const createWorkspaceSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+});
+export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
+
+export const updateWorkspaceSchema = createWorkspaceSchema;
+export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
 
 export const createTeamInvitationSchema = z.object({
   email: z.email(),
@@ -233,9 +251,6 @@ export const problemSchema = z.object({
 export type Problem = z.infer<typeof problemSchema>;
 
 export const toolNames = [
-  "list_teams",
-  "create_team",
-  "propose_team_invite",
   "list_brains",
   "create_brain",
   "get_brain",

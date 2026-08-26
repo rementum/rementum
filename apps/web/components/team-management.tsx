@@ -39,11 +39,11 @@ export function TeamCreateForm() {
       const team = await bridge("/teams", "POST", { name: formData.get("name") });
       const form = document.createElement("form");
       form.method = "post";
-      form.action = "/teams/select";
+      form.action = "/workspaces/select";
       const input = document.createElement("input");
       input.type = "hidden";
-      input.name = "teamId";
-      input.value = team.id;
+      input.name = "workspaceId";
+      input.value = team.defaultWorkspaceId;
       form.append(input);
       document.body.append(form);
       form.submit();
@@ -63,6 +63,164 @@ export function TeamCreateForm() {
       </button>
       {error ? <p className="form-error">{error}</p> : null}
     </form>
+  );
+}
+
+export function WorkspaceCreateForm({ teamId }: { teamId: string }) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(formData: FormData) {
+    setBusy(true);
+    setError("");
+    try {
+      const workspace = await bridge(`/teams/${teamId}/workspaces`, "POST", {
+        name: formData.get("name"),
+      });
+      const form = document.createElement("form");
+      form.method = "post";
+      form.action = "/workspaces/select";
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "workspaceId";
+      input.value = workspace.id;
+      form.append(input);
+      document.body.append(form);
+      form.submit();
+    } catch (value) {
+      setError((value as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="team-create" action={submit}>
+      <label>
+        Workspace name
+        <input name="name" maxLength={160} placeholder="Product knowledge" required />
+      </label>
+      <button className="button" type="submit" disabled={busy}>
+        {busy ? "Creating…" : "Create workspace"}
+      </button>
+      {error ? <p className="form-error">{error}</p> : null}
+    </form>
+  );
+}
+
+export function WorkspaceMcpLink({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setCopyError(false);
+    } catch {
+      setCopied(false);
+      setCopyError(true);
+    }
+  }
+
+  return (
+    <div className="workspace-mcp-link">
+      <span>Workspace MCP URL</span>
+      <code title={url}>{url}</code>
+      <button className="text-button" type="button" onClick={copy}>
+        {copied ? "Copied" : "Copy URL"}
+      </button>
+      {copyError ? <small>Copy failed. Select the URL manually.</small> : null}
+    </div>
+  );
+}
+
+export function WorkspaceManagement({
+  workspaceId,
+  name,
+  slug,
+  mcpUrl,
+  canRename,
+  canDelete,
+}: {
+  workspaceId: string;
+  name: string;
+  slug: string;
+  mcpUrl: string;
+  canRename: boolean;
+  canDelete: boolean;
+}) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function rename(formData: FormData) {
+    setBusy(true);
+    setError("");
+    try {
+      await bridge(`/workspaces/${workspaceId}`, "PATCH", { name: formData.get("name") });
+      setEditing(false);
+      router.refresh();
+    } catch (value) {
+      setError((value as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    const confirmation = window.prompt(
+      `Deleting this workspace permanently deletes all of its brains and notes. Type "${name}" to continue.`,
+    );
+    if (confirmation === null) return;
+    setBusy(true);
+    setError("");
+    try {
+      await bridge(`/workspaces/${workspaceId}`, "DELETE", { confirmation });
+      router.refresh();
+    } catch (value) {
+      setError((value as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <article className="team-workspace-row">
+      <div className="workspace-row-head">
+        <div>
+          <strong>{name}</strong>
+          <p>{slug}</p>
+        </div>
+        <div className="row-actions">
+          {canRename ? (
+            <button className="text-button" type="button" onClick={() => setEditing(!editing)}>
+              {editing ? "Cancel" : "Rename"}
+            </button>
+          ) : null}
+          {canDelete ? (
+            <button
+              className="text-button danger-button"
+              type="button"
+              disabled={busy}
+              onClick={remove}
+            >
+              Delete
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {editing ? (
+        <form className="workspace-rename-form" action={rename}>
+          <input name="name" defaultValue={name} maxLength={160} required />
+          <button className="button" type="submit" disabled={busy}>
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </form>
+      ) : null}
+      <WorkspaceMcpLink url={mcpUrl} />
+      {error ? <p className="form-error">{error}</p> : null}
+    </article>
   );
 }
 
