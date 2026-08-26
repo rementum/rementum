@@ -104,7 +104,7 @@ export async function buildOauthRuntime(
           sub: user.id,
           name: user.displayName,
           email: user.email,
-          email_verified: true,
+          email_verified: Boolean(user.emailVerifiedAt),
         }),
       };
     },
