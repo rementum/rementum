@@ -23,7 +23,7 @@ export function ConnectTeaser() {
           remembers.
         </SectionHead>
         <Reveal>
-          <MockIDE filename="connect.sh" tokens={TOKENS} loop thinkingLabel={false} />
+          <MockIDE tokens={TOKENS} loop thinkingLabel={false} />
         </Reveal>
       </div>
     </section>

@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import { AsciiHero, Button, EyebrowPill, GradientText, WordRoll } from "../pui";
 import { AURORA_HERO, AuroraBackdrop, LazyCanvas } from "../ui/backdrop";
+import { IconGitHub } from "../ui/icons";
 import { GREEN_PALETTE } from "./palette";
 import { TerminalDemo } from "./terminal-demo";
 
@@ -12,7 +13,7 @@ const HEADLINE = ["Your", "agents", "should", "remember."];
 export function Hero({ githubUrl }: { githubUrl: string }) {
   return (
     <section className="relative overflow-hidden">
-      <AuroraBackdrop blobs={AURORA_HERO} blur={100} />
+      <AuroraBackdrop blobs={AURORA_HERO} blur={100} intensity="bold" />
       <LazyCanvas className="absolute inset-0">
         <AsciiHero
           variant="bare"
@@ -68,7 +69,10 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
               Get started
             </Button>
             <Button as="a" href={githubUrl} variant="wave" size="lg">
-              Star on GitHub
+              <span className="inline-flex items-center gap-2">
+                <IconGitHub />
+                Star on GitHub
+              </span>
             </Button>
           </motion.div>
           <motion.p

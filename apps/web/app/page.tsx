@@ -9,7 +9,6 @@ import { Hero } from "../components/landing/hero";
 import { MotionProvider } from "../components/landing/motion-provider";
 import { ScrollProgress } from "../components/landing/scroll-progress";
 import { SectionHead } from "../components/landing/section-head";
-import { StatsBand } from "../components/landing/stats";
 import { Stepper } from "../components/landing/stepper";
 import { GradientText } from "../components/pui";
 import { hasSession, publicAuthConfig } from "../lib/api";
@@ -28,7 +27,6 @@ async function Landing() {
         <ScrollProgress />
         <Hero githubUrl={GITHUB_URL} />
         <CapabilityMarquee />
-        <StatsBand />
         <WorkflowLanding />
         <FeatureGrid />
         <Architecture />

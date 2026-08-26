@@ -51,24 +51,30 @@ export function LazyCanvas({
 }
 
 /**
- * Aurora wash pinned behind a `relative` parent. Halved intensity in light theme via
- * wrapper opacity, so blob colors stay theme-agnostic.
+ * Aurora wash pinned behind a `relative` parent. Blob colors stay theme-agnostic; the
+ * light theme dims them via wrapper opacity — "bold" keeps light mode saturated instead.
  */
 export function AuroraBackdrop({
   blobs = AURORA_SOFT,
   animated = false,
   blur = 90,
+  intensity = "soft",
   className,
 }: {
   blobs?: typeof AURORA_SOFT;
   animated?: boolean;
   blur?: number;
+  intensity?: "soft" | "bold";
   className?: string;
 }) {
+  const light =
+    intensity === "bold"
+      ? "opacity-90 saturate-150 dark:opacity-100 dark:saturate-100"
+      : "opacity-50 dark:opacity-100";
   return (
     <div
       aria-hidden="true"
-      className={`pointer-events-none absolute inset-0 overflow-hidden opacity-50 dark:opacity-100 ${className ?? ""}`}
+      className={`pointer-events-none absolute inset-0 overflow-hidden ${light} ${className ?? ""}`}
     >
       <Aurora blobs={blobs} animated={animated} blur={blur} />
     </div>

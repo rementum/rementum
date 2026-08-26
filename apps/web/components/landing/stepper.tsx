@@ -18,10 +18,10 @@ export function Stepper({ steps }: { steps: Step[] }) {
   const scaleY = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   return (
-    <div className="relative flex flex-col gap-10 pl-2" ref={ref}>
+    <div className="relative flex flex-col gap-10" ref={ref}>
       <div
         aria-hidden="true"
-        className="absolute bottom-4 left-[21px] top-4 w-px overflow-hidden bg-line"
+        className="absolute bottom-5 left-[19.5px] top-5 w-px overflow-hidden bg-line"
       >
         <motion.div
           className="h-full w-full origin-top bg-gradient-to-b from-grad-from via-grad-mid to-grad-to"
