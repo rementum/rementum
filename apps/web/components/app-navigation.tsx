@@ -8,6 +8,7 @@ import type { Team, Workspace } from "../lib/api";
 import { BrandMark } from "./brand";
 import { GlideNav } from "./ui/glide";
 import {
+  IconActivity,
   IconBrains,
   IconCheck,
   IconChevronDown,
@@ -22,14 +23,16 @@ import { ThemeToggle } from "./ui/theme-toggle";
 
 const NAV_ITEMS = [
   { label: "Brains", href: "/", icon: IconBrains },
+  { label: "Activity", href: "/activity", icon: IconActivity },
   { label: "Teams", href: "/teams", icon: IconTeams },
   { label: "Connections", href: "/connections", icon: IconConnections },
 ];
 
 function activeIndexFor(pathname: string) {
   if (pathname === "/" || pathname.startsWith("/brains/")) return 0;
-  if (pathname.startsWith("/teams")) return 1;
-  if (pathname.startsWith("/connections")) return 2;
+  if (pathname.startsWith("/activity")) return 1;
+  if (pathname.startsWith("/teams")) return 2;
+  if (pathname.startsWith("/connections")) return 3;
   return -1;
 }
 

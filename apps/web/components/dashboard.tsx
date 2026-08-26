@@ -32,24 +32,13 @@ interface Write {
   createdAt: string;
 }
 
-interface Activity {
-  id: string;
-  action: string;
-  resource: string;
-  clientId: string | null;
-  createdAt: string;
-}
-
 interface BrainOverview {
   brain: Brain;
   articleCount: number;
   writes: Write[];
-  activity: Activity[];
 }
 
 const OVERVIEW_LIMIT = 12;
-
-const ACCENT_ACTIONS = new Set(["write.promoted", "write.approved", "promote", "approve"]);
 
 export async function Dashboard() {
   const { workspaces, activeTeam, activeWorkspace } = await workspaceContext();
@@ -73,16 +62,14 @@ export async function Dashboard() {
   );
   const overviews = await Promise.all(
     recentFirst.slice(0, OVERVIEW_LIMIT).map(async (brain): Promise<BrainOverview> => {
-      const [detail, writes, activity] = await Promise.all([
+      const [detail, writes] = await Promise.all([
         api<BrainDetail>(`/api/v1/brains/${brain.id}`),
         api<Write[]>(`/api/v1/brains/${brain.id}/writes`),
-        api<Activity[]>(`/api/v1/brains/${brain.id}/activity?limit=12`),
       ]);
-      return { brain, articleCount: detail.routingIndex.length, writes, activity };
+      return { brain, articleCount: detail.routingIndex.length, writes };
     }),
   );
 
-  const brainName = new Map(brains.map((brain) => [brain.id, brain.name]));
   const reviewQueue = overviews
     .flatMap(({ brain, writes }) =>
       writes
@@ -93,10 +80,6 @@ export async function Dashboard() {
       if (a.status !== b.status) return a.status === "conflicted" ? -1 : 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  const feed = overviews
-    .flatMap(({ brain, activity }) => activity.map((event) => ({ ...event, brainId: brain.id })))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 10);
   const articleTotal = overviews.reduce((sum, item) => sum + item.articleCount, 0);
   const pendingByBrain = new Map(
     overviews.map(({ brain, writes }) => [
@@ -174,72 +157,37 @@ export async function Dashboard() {
           </Card>
         </section>
 
-        <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <section aria-labelledby="dash-brains-title">
-            <SectionHead id="dash-brains-title" title="Brains" note="Most recently updated first" />
-            <div className="grid gap-4 sm:grid-cols-2">
-              {recentFirst.map((brain) => {
-                const pending = pendingByBrain.get(brain.id) ?? 0;
-                const overview = overviews.find((item) => item.brain.id === brain.id);
-                return (
-                  <BrainCard
-                    key={brain.id}
-                    brain={brain}
-                    badge={
-                      pending ? (
-                        <Chip tone="orange">
-                          <span
-                            aria-hidden="true"
-                            className="size-1.5 animate-pulse-dot rounded-full bg-current"
-                          />
-                          {pending} to review
-                        </Chip>
-                      ) : null
-                    }
-                    meta={
-                      overview
-                        ? `${overview.articleCount} ${overview.articleCount === 1 ? "article" : "articles"}`
-                        : null
-                    }
-                  />
-                );
-              })}
-            </div>
-          </section>
-
-          <aside aria-labelledby="dash-activity-title">
-            <SectionHead id="dash-activity-title" title="Recent activity" />
-            {feed.length ? (
-              <ol className="border-l border-line">
-                {feed.map((event) => (
-                  <li key={event.id} className="relative pb-5 pl-5 last:pb-0">
-                    <span
-                      aria-hidden="true"
-                      className={`absolute -left-[3px] top-1.5 size-[5px] rounded-full ${
-                        ACCENT_ACTIONS.has(event.action) ? "bg-accent" : "bg-ink-3"
-                      }`}
-                    />
-                    <time
-                      className="font-mono text-[10.5px] tabular-nums text-ink-3"
-                      dateTime={event.createdAt}
-                    >
-                      {relativeTime(event.createdAt)}
-                    </time>
-                    <p className="mt-0.5 text-xs font-medium text-ink">{event.action}</p>
-                    <p className="truncate font-mono text-2xs text-ink-3">{event.resource}</p>
-                    <p className="text-[10.5px] text-ink-3">
-                      {brainName.get(event.brainId) ?? "Unknown brain"} · {event.clientId ?? "web"}
-                    </p>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="text-sm text-ink-2">
-                No activity yet. Connected agents will appear here.
-              </p>
-            )}
-          </aside>
-        </div>
+        <section className="mt-10" aria-labelledby="dash-brains-title">
+          <SectionHead id="dash-brains-title" title="Brains" note="Most recently updated first" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {recentFirst.map((brain) => {
+              const pending = pendingByBrain.get(brain.id) ?? 0;
+              const overview = overviews.find((item) => item.brain.id === brain.id);
+              return (
+                <BrainCard
+                  key={brain.id}
+                  brain={brain}
+                  badge={
+                    pending ? (
+                      <Chip tone="orange">
+                        <span
+                          aria-hidden="true"
+                          className="size-1.5 animate-pulse-dot rounded-full bg-current"
+                        />
+                        {pending} to review
+                      </Chip>
+                    ) : null
+                  }
+                  meta={
+                    overview
+                      ? `${overview.articleCount} ${overview.articleCount === 1 ? "article" : "articles"}`
+                      : null
+                  }
+                />
+              );
+            })}
+          </div>
+        </section>
 
         <div className="mt-10">
           <AgentConnect workspaceName={activeWorkspace.name} mcpUrl={activeWorkspace.mcpUrl} />
