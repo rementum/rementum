@@ -38,6 +38,11 @@ Keep public registration disabled unless you need it. Public registration requir
 delivery and applies request rate limits. Use team invitations for controlled access and remove
 members who no longer need access to the team's workspaces.
 
+The web interface uses a 14-day opaque session cookie. Only its hash is stored in PostgreSQL; logout
+revokes the current session and a password reset revokes every web session and MCP OAuth grant for
+the account. OAuth bearer tokens are accepted only at the exact workspace MCP URL, not by the REST
+API. The MCP consent screen is therefore expected only while connecting an agent.
+
 Team owners and admins can create or rename workspaces. Only the team owner can delete one, the
 last workspace is protected, and deletion requires the exact workspace name because it permanently
 removes every brain and note inside that workspace.

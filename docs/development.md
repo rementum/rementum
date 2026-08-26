@@ -33,8 +33,8 @@ pnpm dev
 ```
 
 Set host-side database and embedding URLs in the shell when they differ from the container values in
-`.env`. Use the container stack for end-to-end OAuth testing because the web and API share one public
-origin behind Caddy.
+`.env`. Use the container stack for end-to-end authentication testing because the web session API
+and MCP OAuth endpoints share one public origin behind Caddy.
 
 ## Checks
 

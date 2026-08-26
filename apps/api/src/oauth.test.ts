@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { verifyLoginPassword, workspaceIdFromResource } from "./oauth.js";
+import { verifyLoginPassword } from "./credentials.js";
+import { workspaceIdFromResource } from "./oauth.js";
 
 const workspaceId = "00000000-0000-4000-8000-000000000002";
 

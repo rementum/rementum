@@ -8,7 +8,7 @@ Rementum reads `.env` through Docker Compose. The installer writes production va
 | Variable | Purpose |
 | --- | --- |
 | `REMENTUM_DOMAIN` | Caddy hostname without a scheme or path |
-| `REMENTUM_PUBLIC_URL` | Public HTTPS origin used by OAuth, REST metadata, and MCP |
+| `REMENTUM_PUBLIC_URL` | Public HTTPS origin shared by the web app, session API, and MCP OAuth endpoints |
 | `REMENTUM_MASTER_KEY` | Base64-encoded 32-byte key that wraps every brain data key |
 | `REMENTUM_COOKIE_KEYS` | Comma-separated cookie signing keys |
 | `REMENTUM_JWT_JWKS` | Private RSA JWKS used to sign OAuth tokens |
@@ -17,6 +17,9 @@ Rementum reads `.env` through Docker Compose. The installer writes production va
 
 The production Compose override sets `NODE_ENV=production`. The API rejects a non-HTTPS public URL
 or a missing persistent JWKS in that mode.
+
+Browser sign-in uses a 14-day, server-side session stored as a hashed opaque token. OAuth is not
+used for the web app; it is exposed only for workspace MCP connections.
 
 Do not replace `REMENTUM_MASTER_KEY` on an existing instance. Rementum will lose access to every
 wrapped brain key. Keep the original value with your disaster-recovery material.

@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 
 async function forward(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  const token = (await cookies()).get("rementum_access")?.value;
+  const token = (await cookies()).get("rementum_session")?.value;
   if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { path } = await context.params;
   const base = process.env.REMENTUM_API_INTERNAL_URL ?? "http://api:8787";
@@ -10,7 +10,11 @@ async function forward(request: NextRequest, context: { params: Promise<{ path: 
   request.nextUrl.searchParams.forEach((value, key) => {
     url.searchParams.append(key, value);
   });
-  const headers = new Headers({ authorization: `Bearer ${token}` });
+  const publicUrl = process.env.NEXT_PUBLIC_REMENTUM_API_URL ?? request.nextUrl.origin;
+  const headers = new Headers({
+    cookie: `rementum_session=${token}`,
+    origin: new URL(publicUrl).origin,
+  });
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
   const body = ["GET", "HEAD"].includes(request.method) ? undefined : await request.arrayBuffer();

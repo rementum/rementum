@@ -366,6 +366,23 @@ export const authTokens = pgTable(
   ],
 );
 
+export const webSessions = pgTable(
+  "web_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("web_sessions_user_expires_idx").on(table.userId, table.expiresAt),
+    index("web_sessions_expires_idx").on(table.expiresAt),
+  ],
+);
+
 export const teamInvitations = pgTable(
   "team_invitations",
   {

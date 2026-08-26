@@ -9,6 +9,8 @@ https://memory.example.com/mcp/workspace/WORKSPACE_UUID
 
 The URL identifies the workspace; it is not a credential. Rementum opens OAuth in your browser,
 checks your team membership, and limits that connection to the selected workspace's brains and tasks.
+This approval belongs to the MCP client. Signing in to the Rementum web interface uses a separate
+web session and never displays an OAuth consent screen.
 
 ## Claude Code
 

@@ -166,6 +166,7 @@ export class AuthRepository {
         await tx`DELETE FROM oauth_records WHERE payload->>'grantId' = ANY(${grantIds})`;
       }
       await tx`DELETE FROM oauth_records WHERE payload->>'accountId' = ${token.user_id}`;
+      await tx`DELETE FROM web_sessions WHERE user_id = ${token.user_id}`;
       await tx`
         UPDATE users SET password_hash = ${passwordHash}, email_verified_at = coalesce(email_verified_at, now())
         WHERE id = ${token.user_id}
@@ -173,6 +174,32 @@ export class AuthRepository {
       await tx`UPDATE auth_tokens SET consumed_at = now() WHERE user_id = ${token.user_id}`;
       return true;
     })) as boolean;
+  }
+
+  async createWebSession(userId: string, tokenHash: string, expiresAt: Date): Promise<void> {
+    await this.client.sql.begin(async (tx) => {
+      await tx`DELETE FROM web_sessions WHERE expires_at <= now()`;
+      await tx`
+        INSERT INTO web_sessions (user_id, token_hash, expires_at)
+        VALUES (${userId}, ${tokenHash}, ${expiresAt.toISOString()})
+      `;
+    });
+  }
+
+  async findWebSession(tokenHash: string): Promise<{ userId: string } | null> {
+    const [row] = await this.client.sql<Array<{ user_id: string }>>`
+      SELECT sessions.user_id
+      FROM web_sessions sessions
+      JOIN users ON users.id = sessions.user_id
+      WHERE sessions.token_hash = ${tokenHash}
+        AND sessions.expires_at > now()
+        AND users.disabled_at IS NULL
+    `;
+    return row ? { userId: row.user_id } : null;
+  }
+
+  async revokeWebSession(tokenHash: string): Promise<void> {
+    await this.client.sql`DELETE FROM web_sessions WHERE token_hash = ${tokenHash}`;
   }
 
   async inspectTeamInvitation(tokenHash: string) {

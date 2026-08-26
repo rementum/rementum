@@ -32,7 +32,7 @@ Open the HTTPS URL printed by the installer. Caddy requests and renews the TLS c
 | --- | --- |
 | Caddy | TLS termination and public routing |
 | Web | Browser interface |
-| API | REST, OAuth, and remote MCP |
+| API | REST, web sessions, MCP OAuth, and remote MCP |
 | Worker | Maintenance scans and missing embedding jobs |
 | PostgreSQL | Canonical data, version history, and vector index |
 | Embeddings | Local multilingual embedding model |
