@@ -85,18 +85,16 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     })),
     getBrain: vi.fn(async () => brain),
     getArticle: vi.fn(async () => articleRecord()),
-    getCurrentVersion: vi.fn(async () => ({
-      version: 2,
-      body: encrypt(
-        "# Architecture\n\nThe canonical body.",
-        key,
-        `brain:${brainId}:article:${articleId}:version:2`,
-      ),
-      bodyAad: `brain:${brainId}:article:${articleId}:version:2`,
-      actorId: userId,
-      clientId: "test",
-      changeSummary: "Rewrite",
-      createdAt: new Date(),
+    getCurrentVersion: vi.fn(async () => currentVersion()),
+    // readArticle reads all of this in one transaction, so the bundle has to agree with
+    // the pieces the other mocks return.
+    readArticleBundle: vi.fn(async () => ({
+      article: articleRecord(),
+      brain,
+      version: currentVersion(),
+      links: [],
+      sources: [],
+      compactionEnabled: false,
     })),
     getArticleLinks: vi.fn(async () => []),
     getArticleSources: vi.fn(async () => []),
@@ -138,6 +136,22 @@ function setup(options: { llmAvailable?: boolean } = {}) {
   } as unknown as EmbeddingClient;
   const service = new RementumService(store, embeddings, masterKey, null, options.llmAvailable);
   return { brain, embeddings, key, service, store };
+
+  function currentVersion() {
+    return {
+      version: 2,
+      body: encrypt(
+        "# Architecture\n\nThe canonical body.",
+        key,
+        `brain:${brainId}:article:${articleId}:version:2`,
+      ),
+      bodyAad: `brain:${brainId}:article:${articleId}:version:2`,
+      actorId: userId,
+      clientId: "test",
+      changeSummary: "Rewrite",
+      createdAt: new Date(),
+    };
+  }
 
   function stagedWrite(overrides: Partial<StagedWriteRecord> = {}): StagedWriteRecord {
     const bodyAad = `brain:${brainId}:article:${articleId}:write:write-id`;
@@ -238,13 +252,17 @@ describe("brain keys", () => {
 
   it("refuses to read an article in a brain the actor has no role on", async () => {
     const { service, store } = setup();
-    vi.mocked(store.getArticle).mockResolvedValueOnce(articleRecord({ brainId: otherBrainId }));
+    const bundle = await store.readArticleBundle(articleId, actor("owner"));
+    vi.mocked(store.readArticleBundle).mockResolvedValueOnce({
+      ...(bundle as NonNullable<typeof bundle>),
+      article: articleRecord({ brainId: otherBrainId }),
+    });
     await expect(service.readArticle(articleId, actor("owner"))).rejects.toThrow(ForbiddenError);
   });
 
   it("reports a missing article rather than the brain it would have been in", async () => {
     const { service, store } = setup();
-    vi.mocked(store.getArticle).mockResolvedValueOnce(null);
+    vi.mocked(store.readArticleBundle).mockResolvedValueOnce(null);
     await expect(service.readArticle(articleId, actor("owner"))).rejects.toThrow(NotFoundError);
   });
 });

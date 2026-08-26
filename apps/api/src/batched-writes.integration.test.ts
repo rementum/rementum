@@ -159,7 +159,11 @@ integration("batched multi-row writes", () => {
         return { articles: articles.map((row) => row.article_id), links: links.map((r) => r.url) };
       });
       expect(attached.articles).toEqual([first, second].sort());
-      expect(attached.links).toEqual(["https://one.test", "https://three.test", "https://two.test"]);
+      expect(attached.links).toEqual([
+        "https://one.test",
+        "https://three.test",
+        "https://two.test",
+      ]);
     } finally {
       await app.close();
       await database.close();

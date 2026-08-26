@@ -11,6 +11,7 @@ import type {
 } from "@rementum/contracts";
 import {
   type Actor,
+  type ArticleBundle,
   type ArticleRecord,
   type BrainRecord,
   type CipherEnvelope,
@@ -559,6 +560,71 @@ export class PostgresStore implements DataStore {
         label: row.label ?? undefined,
         metadata: row.metadata ?? {},
       }));
+    });
+  }
+
+  /**
+   * Reads everything one article view needs, inside a single transaction.
+   *
+   * readArticle used to make six scoped calls plus an audit write, and each opened its
+   * own transaction: seven connections and seven RLS setups for one logical read. The
+   * queries are unchanged, they just share the context they all needed anyway.
+   *
+   * Returns null when the article is not visible, so the caller still decides the error.
+   */
+  async readArticleBundle(articleId: string, actor: Actor): Promise<ArticleBundle | null> {
+    return this.withActor(actor, async (tx) => {
+      const [articleRow] = await tx<any[]>`
+        SELECT * FROM articles WHERE id = ${articleId} AND archived_at IS NULL
+      `;
+      if (!articleRow) return null;
+      const article = mapArticle(articleRow);
+      const [brainRow] = await tx<any[]>`
+        SELECT * FROM brains WHERE id = ${article.brainId} AND deleted_at IS NULL
+      `;
+      if (!brainRow) return null;
+      const [versionRow] = await tx<any[]>`
+        SELECT av.* FROM article_versions av
+        JOIN articles a ON a.id = av.article_id AND a.current_version = av.version
+        WHERE av.article_id = ${articleId} AND a.archived_at IS NULL
+      `;
+      if (!versionRow) return null;
+      const version = mapVersion(versionRow);
+      const linkRows = await tx<Array<{ article_id: string; slug: string; relation: string }>>`
+        SELECT target.id AS article_id, target.slug, links.relation
+        FROM article_links links
+        JOIN articles target ON target.id = links.to_article_id
+        WHERE links.from_article_id = ${articleId} AND target.archived_at IS NULL
+        ORDER BY target.slug
+      `;
+      const sourceRows = await tx<any[]>`
+        SELECT s.* FROM article_sources ars
+        JOIN sources s ON s.id = ars.source_id
+        WHERE ars.article_id = ${articleId} AND ars.version = ${version.version}
+        ORDER BY s.created_at
+      `;
+      const [enabled] = await tx<Array<{ enabled: boolean }>>`
+        SELECT owl_brain_compaction_enabled(${article.brainId}) AS enabled
+      `;
+      return {
+        article,
+        brain: mapBrain(brainRow),
+        version,
+        links: linkRows.map((row) => ({
+          articleId: row.article_id,
+          slug: row.slug,
+          relation: row.relation,
+        })),
+        sources: sourceRows.map((row) => ({
+          id: row.id as string,
+          kind: row.kind,
+          locator: row.locator ?? undefined,
+          checksum: row.checksum ?? undefined,
+          label: row.label ?? undefined,
+          metadata: row.metadata ?? {},
+        })),
+        compactionEnabled: enabled?.enabled ?? false,
+      };
     });
   }
 

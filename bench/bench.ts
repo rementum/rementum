@@ -151,6 +151,7 @@ async function main() {
     ),
   );
 
+  await measure("readArticle (single)", () => service.readArticle(index[0]?.id as string, actor));
   await measure(`export the old way: readArticle x${index.length}`, async () => {
     for (const article of index) await service.readArticle(article.id, actor);
   });

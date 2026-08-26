@@ -291,19 +291,12 @@ export class RementumService {
   }
 
   async readArticle(articleId: string, actor: Actor): Promise<ReadArticleResult> {
-    const article = await this.store.getArticle(articleId, actor);
-    if (!article) throw new NotFoundError("Article");
+    // One transaction rather than six: these reads all need the same row-level security
+    // context, and opening it separately for each was most of the cost of a read.
+    const bundle = await this.store.readArticleBundle(articleId, actor);
+    if (!bundle) throw new NotFoundError("Article");
+    const { article, brain, version, links, sources, compactionEnabled } = bundle;
     requireBrainRole(actor, article.brainId, ["owner", "editor", "commenter", "viewer"]);
-    const [brain, version, links] = await Promise.all([
-      this.store.getBrain(article.brainId, actor),
-      this.store.getCurrentVersion(articleId, actor),
-      this.store.getArticleLinks(articleId, actor),
-    ]);
-    if (!brain || !version) throw new NotFoundError("Article version");
-    const [sources, compactionEnabled] = await Promise.all([
-      this.store.getArticleSources(articleId, version.version, actor),
-      this.store.isBrainCompactionEnabled(article.brainId, actor),
-    ]);
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
     const body = decrypt(version.body, key, version.bodyAad).toString("utf8");
     await this.store.audit(actor, "article.read", `article:${articleId}`, {
