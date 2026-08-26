@@ -191,7 +191,21 @@ export function AppNavigation({
             {collapsed ? null : <span>Rementum</span>}
           </Link>
         </div>
-        {collapsed ? null : (
+        {collapsed ? (
+          workspaces.length ? (
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              title="Expand sidebar to switch workspace"
+              aria-label="Expand sidebar to switch workspace"
+              className="mx-auto mb-4 grid size-7 place-items-center rounded-chip bg-gradient-to-br from-grad-from to-grad-to font-mono text-[10px] font-bold uppercase text-white transition-transform active:scale-[0.94]"
+            >
+              {(
+                workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0]
+              ).name.slice(0, 2)}
+            </button>
+          ) : null
+        ) : (
           <div className="px-2 pb-4">
             <WorkspacePicker
               teams={teams}
@@ -205,6 +219,7 @@ export function AppNavigation({
           activeIndex={activeIndex}
           collapsed={collapsed}
           className={collapsed ? "px-1.5" : "px-2"}
+          ariaLabel="Workspace"
         />
         <div
           className={`mt-auto flex items-center gap-1 border-t border-line py-2.5 ${
@@ -282,7 +297,7 @@ export function AppNavigation({
                 workspaces={workspaces}
                 activeWorkspaceId={activeWorkspaceId}
               />
-              <GlideNav items={NAV_ITEMS} activeIndex={activeIndex} />
+              <GlideNav items={NAV_ITEMS} activeIndex={activeIndex} ariaLabel="Workspace" />
               <div className="mt-auto flex items-center justify-between border-t border-line pt-3">
                 <ThemeToggle />
                 <SignOutButton />

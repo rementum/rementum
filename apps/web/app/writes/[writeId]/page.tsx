@@ -54,10 +54,10 @@ export default async function WritePage({ params }: { params: Promise<{ writeId:
           Read them before promotion.
         </p>
       ) : null}
-      <section className="mt-8 overflow-hidden rounded-card bg-inset shadow-hairline">
+      <section className="mt-8 overflow-clip rounded-card bg-inset shadow-hairline">
         <div className="grid divide-y divide-line md:grid-cols-2 md:divide-x md:divide-y-0">
           <div className="min-w-0">
-            <div className="sticky top-0 flex items-center gap-2 border-b border-line bg-inset px-4 py-2 font-mono text-[10.5px] uppercase tracking-[0.1em] text-ink-3">
+            <div className="sticky top-14 z-10 flex items-center gap-2 border-b border-line bg-inset px-4 py-2 font-mono text-[10.5px] uppercase tracking-[0.1em] text-ink-3 md:top-0">
               <span aria-hidden="true" className="size-1.5 rounded-full bg-ink-3" />
               Current canon
             </div>
@@ -66,7 +66,7 @@ export default async function WritePage({ params }: { params: Promise<{ writeId:
             </pre>
           </div>
           <div className="min-w-0 bg-green/[0.03]">
-            <div className="sticky top-0 flex items-center gap-2 border-b border-line bg-inset px-4 py-2 font-mono text-[10.5px] uppercase tracking-[0.1em] text-ink-3">
+            <div className="sticky top-14 z-10 flex items-center gap-2 border-b border-line bg-inset px-4 py-2 font-mono text-[10.5px] uppercase tracking-[0.1em] text-ink-3 md:top-0">
               <span aria-hidden="true" className="size-1.5 rounded-full bg-green" />
               Candidate
             </div>

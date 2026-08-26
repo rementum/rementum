@@ -1,5 +1,3 @@
-"use client";
-
 import { EyebrowPill } from "./pui";
 import { CopyButton } from "./ui/copy-button";
 import { IconArrowUpRight } from "./ui/icons";

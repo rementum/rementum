@@ -2,7 +2,13 @@
 
 import { BigBack } from "../pui";
 
-export function LandingFooter({ githubUrl }: { githubUrl: string }) {
+export function LandingFooter({
+  githubUrl,
+  signupEnabled,
+}: {
+  githubUrl: string;
+  signupEnabled: boolean;
+}) {
   return (
     <BigBack
       company="Rementum"
@@ -29,7 +35,7 @@ export function LandingFooter({ githubUrl }: { githubUrl: string }) {
           heading: "Account",
           links: [
             { label: "Sign in", href: "/auth/login" },
-            { label: "Create account", href: "/register" },
+            ...(signupEnabled ? [{ label: "Create account", href: "/register" }] : []),
             { label: "Reset password", href: "/forgot-password" },
           ],
         },

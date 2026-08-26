@@ -20,12 +20,14 @@ export function GlideNav({
   orientation = "vertical",
   collapsed = false,
   className,
+  ariaLabel,
 }: {
   items: GlideItem[];
   activeIndex: number;
   orientation?: "vertical" | "horizontal";
   collapsed?: boolean;
   className?: string;
+  ariaLabel?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const [, setMeasured] = useState(false);
@@ -50,6 +52,7 @@ export function GlideNav({
 
   return (
     <nav
+      aria-label={ariaLabel}
       className={`relative ${vertical ? "flex flex-col gap-px" : "flex items-center gap-px"} ${className ?? ""}`}
       onMouseLeave={() => setHover(null)}
     >

@@ -25,7 +25,12 @@ export function BrainNav({ brainId }: { brainId: string }) {
 
   return (
     <div className="overflow-x-auto border-b border-dashed border-line pb-2">
-      <GlideNav items={items} activeIndex={activeIndex} orientation="horizontal" />
+      <GlideNav
+        items={items}
+        activeIndex={activeIndex}
+        orientation="horizontal"
+        ariaLabel="Brain management"
+      />
     </div>
   );
 }

@@ -7,15 +7,16 @@ export function relativeTime(value: string) {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 14) return `${days}d ago`;
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
+  return dateFormat.format(new Date(value));
 }
 
+const dateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
+const dateTimeFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" });
+
 export function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
+  return dateFormat.format(new Date(value));
 }
 
 export function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(
-    new Date(value),
-  );
+  return dateTimeFormat.format(new Date(value));
 }

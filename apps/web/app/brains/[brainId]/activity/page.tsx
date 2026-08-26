@@ -38,7 +38,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ brain
         {days.length ? (
           days.map((group) => (
             <div key={group.day}>
-              <div className="sticky top-0 z-10 border-b border-dashed border-line bg-page/90 py-2 backdrop-blur">
+              <div className="sticky top-14 z-10 border-b border-dashed border-line bg-page/90 py-2 backdrop-blur md:top-0">
                 <span className="font-mono text-2xs font-semibold uppercase tracking-[0.08em] text-ink-3">
                   {group.day}
                 </span>

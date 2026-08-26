@@ -338,7 +338,7 @@
 @layer components {
   .markdown {
     max-width: 72ch;
-    color: #d5d5d9;
+    color: var(--color-ink-2);
     font-size: 16px;
     line-height: 1.78;
   }
@@ -420,7 +420,7 @@
   .markdown a {
     color: var(--color-ink);
     text-decoration: underline;
-    text-decoration-color: rgb(255 255 255 / 35%);
+    text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
     text-underline-offset: 0.18em;
   }
 

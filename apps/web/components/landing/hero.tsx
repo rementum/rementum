@@ -31,7 +31,9 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.05 }}
           >
-            <EyebrowPill statusColor="#34d399">Open source memory infrastructure</EyebrowPill>
+            <EyebrowPill statusColor="var(--grad-mid)">
+              Open source memory infrastructure
+            </EyebrowPill>
           </motion.div>
           <h1 className="mt-5 text-display font-medium tracking-tighter text-ink">
             {HEADLINE.map((word, i) => (

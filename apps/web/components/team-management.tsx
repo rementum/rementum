@@ -506,7 +506,10 @@ export function TeamManagement({
               <div className="flex flex-wrap items-center gap-3 px-4 py-3" key={invitation.id}>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-ink">{invitation.email}</p>
-                  <p className="font-mono text-2xs tabular-nums text-ink-3">
+                  <p
+                    suppressHydrationWarning
+                    className="font-mono text-2xs tabular-nums text-ink-3"
+                  >
                     Expires {formatDate(invitation.expiresAt)}
                   </p>
                 </div>

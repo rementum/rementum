@@ -113,7 +113,7 @@ export async function Dashboard() {
       <main className="relative mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
         <header className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <EyebrowPill statusColor="#34d399">
+            <EyebrowPill statusColor="var(--grad-mid)">
               {activeTeam.name} · {activeWorkspace.name}
             </EyebrowPill>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Overview</h1>

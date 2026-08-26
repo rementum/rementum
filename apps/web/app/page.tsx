@@ -12,7 +12,7 @@ import { SectionHead } from "../components/landing/section-head";
 import { StatsBand } from "../components/landing/stats";
 import { Stepper } from "../components/landing/stepper";
 import { GradientText } from "../components/pui";
-import { hasSession } from "../lib/api";
+import { hasSession, publicAuthConfig } from "../lib/api";
 import { GITHUB_URL } from "../lib/site";
 
 export default async function Home() {
@@ -20,7 +20,8 @@ export default async function Home() {
   return <Dashboard />;
 }
 
-function Landing() {
+async function Landing() {
+  const authConfig = await publicAuthConfig();
   return (
     <main className="relative">
       <MotionProvider>
@@ -33,7 +34,7 @@ function Landing() {
         <Architecture />
         <ConnectTeaser />
         <CTASection githubUrl={GITHUB_URL} />
-        <LandingFooter githubUrl={GITHUB_URL} />
+        <LandingFooter githubUrl={GITHUB_URL} signupEnabled={authConfig.signupEnabled} />
       </MotionProvider>
     </main>
   );

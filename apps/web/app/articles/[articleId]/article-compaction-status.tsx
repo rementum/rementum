@@ -79,7 +79,9 @@ export function ArticleCompactionStatus({
       ) : null}
       {compaction.compactedAt ? (
         <small className="font-mono text-2xs tabular-nums text-ink-3">
-          <time dateTime={compaction.compactedAt}>{formatDateTime(compaction.compactedAt)}</time>
+          <time suppressHydrationWarning dateTime={compaction.compactedAt}>
+            {formatDateTime(compaction.compactedAt)}
+          </time>
         </small>
       ) : null}
       {compaction.error ? <small className="text-2xs text-red">{compaction.error}</small> : null}

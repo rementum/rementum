@@ -40,7 +40,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               activeWorkspaceId={context?.activeWorkspace?.id ?? null}
               initialCollapsed={sidebarCollapsed}
             />
-            <main className="min-w-0 flex-1">{children}</main>
+            <div className="min-w-0 flex-1">{children}</div>
           </div>
         ) : (
           <div className="flex min-h-dvh flex-col">

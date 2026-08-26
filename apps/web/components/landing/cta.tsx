@@ -10,8 +10,8 @@ export function CTASection({ githubUrl }: { githubUrl: string }) {
     <section className="mx-auto w-full max-w-6xl px-6 py-20">
       <Reveal>
         <div className="relative overflow-hidden rounded-window border border-line bg-surface/60 px-6 py-16 text-center shadow-card sm:px-12 sm:py-20">
-          <AuroraBackdrop blobs={AURORA_HERO} animated blur={80} />
           <LazyCanvas className="pointer-events-none absolute inset-0">
+            <AuroraBackdrop blobs={AURORA_HERO} animated blur={80} />
             <FloatingSparkles count={14} sizeRange={[8, 14]} />
           </LazyCanvas>
           <div className="relative">
