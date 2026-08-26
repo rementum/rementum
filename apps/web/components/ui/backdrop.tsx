@@ -53,6 +53,8 @@ export function LazyCanvas({
 /**
  * Aurora wash pinned behind a `relative` parent. Blob colors stay theme-agnostic; the
  * light theme dims them via wrapper opacity — "bold" keeps light mode saturated instead.
+ * Non-animated blobs render static: the drift keeps the huge blurred layer changing every
+ * frame, which forces glass (backdrop-blur) elements above it to re-blur continuously.
  */
 export function AuroraBackdrop({
   blobs = AURORA_SOFT,
@@ -76,7 +78,7 @@ export function AuroraBackdrop({
       aria-hidden="true"
       className={`pointer-events-none absolute inset-0 overflow-hidden ${light} ${className ?? ""}`}
     >
-      <Aurora blobs={blobs} animated={animated} blur={blur} />
+      <Aurora blobs={blobs} animated={animated} static={!animated} blur={blur} />
     </div>
   );
 }

@@ -14,14 +14,15 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
   return (
     <section className="relative overflow-hidden">
       <AuroraBackdrop blobs={AURORA_HERO} blur={100} intensity="bold" />
-      <LazyCanvas className="absolute inset-0">
+      <LazyCanvas className="absolute inset-0 mx-auto max-w-[1600px]">
         <AsciiHero
           variant="bare"
           palette={GREEN_PALETTE}
-          baseOpacity={0.1}
-          spotlightOpacity={0.5}
+          baseOpacity={0.06}
+          spotlightOpacity={0.4}
           spotlightRadius={9}
-          fontSize={11}
+          fontSize={14}
+          frameMs={66}
           style={{ position: "absolute", inset: 0 }}
         />
       </LazyCanvas>
@@ -100,7 +101,9 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
             aria-hidden="true"
             className="absolute -inset-[12%] bg-[radial-gradient(closest-side,rgb(47_138_112/30%),transparent)] blur-2xl"
           />
-          <div className="relative overflow-hidden rounded-window border border-line-strong/60 bg-surface/70 shadow-raised backdrop-blur-xl">
+          {/* No backdrop-blur here: the ASCII canvas repaints beneath, and glass over an
+              animating backdrop forces a GPU re-blur on every canvas frame. */}
+          <div className="relative overflow-hidden rounded-window border border-line-strong/60 bg-surface/95 shadow-raised">
             <TerminalDemo />
           </div>
         </motion.div>
