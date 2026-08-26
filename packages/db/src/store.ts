@@ -550,16 +550,25 @@ export class PostgresStore implements DataStore {
       const [article] = await tx<any[]>`SELECT brain_id FROM articles WHERE id = ${articleId}`;
       if (!article) throw new NotFoundError("Article");
       await tx`DELETE FROM article_links WHERE from_article_id = ${articleId}`;
-      for (const link of links) {
-        const [target] = await tx<any[]>`
-          SELECT id FROM articles WHERE id = ${link.toArticleId} AND brain_id = ${article.brain_id}
-        `;
-        if (!target) throw new ConflictError("Article links must remain inside one brain");
-        await tx`
-          INSERT INTO article_links (from_article_id, to_article_id, relation, created_by)
-          VALUES (${articleId}, ${link.toArticleId}, ${link.relation}, ${actor.userId})
-        `;
+      if (links.length === 0) return;
+      // Validating and inserting one link at a time cost two round trips each. Both
+      // halves answer the same question for the whole set, so both are set operations.
+      const targets = [...new Set(links.map((link) => link.toArticleId))];
+      const found = await tx<Array<{ id: string }>>`
+        SELECT id FROM articles WHERE id = ANY(${targets}::uuid[]) AND brain_id = ${article.brain_id}
+      `;
+      if (found.length !== targets.length) {
+        throw new ConflictError("Article links must remain inside one brain");
       }
+      const values = links.map((link) => ({
+        from_article_id: articleId,
+        to_article_id: link.toArticleId,
+        relation: link.relation,
+        created_by: actor.userId,
+      }));
+      await tx`
+        INSERT INTO article_links ${tx(values, "from_article_id", "to_article_id", "relation", "created_by")}
+      `;
     });
   }
 
@@ -1112,11 +1121,28 @@ export class PostgresStore implements DataStore {
         RETURNING *
       `;
       if (!row) throw new Error("Task insert did not return a row");
-      for (const articleId of input.articleIds) {
-        await tx`INSERT INTO task_articles (task_id, article_id) VALUES (${row.id}, ${articleId}) ON CONFLICT DO NOTHING`;
+      // One statement per attachment turned a task with ten articles into a round trip
+      // each. A multi-row insert costs the same as a single-row one.
+      if (input.articleIds.length > 0) {
+        const values = input.articleIds.map((articleId) => ({
+          task_id: row.id,
+          article_id: articleId,
+        }));
+        await tx`
+          INSERT INTO task_articles ${tx(values, "task_id", "article_id")}
+          ON CONFLICT DO NOTHING
+        `;
       }
-      for (const url of input.links) {
-        await tx`INSERT INTO task_links (task_id, url, created_by) VALUES (${row.id}, ${url}, ${actor.userId}) ON CONFLICT DO NOTHING`;
+      if (input.links.length > 0) {
+        const values = input.links.map((url) => ({
+          task_id: row.id,
+          url,
+          created_by: actor.userId,
+        }));
+        await tx`
+          INSERT INTO task_links ${tx(values, "task_id", "url", "created_by")}
+          ON CONFLICT DO NOTHING
+        `;
       }
       return mapTask(row);
     });
@@ -1447,19 +1473,38 @@ export class PostgresStore implements DataStore {
     version: number,
     actor: Actor,
   ): Promise<void> {
-    for (const source of write.sources) {
-      const [row] = await tx<any[]>`
-        INSERT INTO sources (brain_id, kind, locator, checksum, label, metadata, created_by)
-        VALUES (${write.brainId}, ${source.kind}, ${source.locator ?? null}, ${source.checksum ?? null},
-          ${source.label ?? null}, ${JSON.stringify(source.metadata)}::jsonb, ${actor.userId})
-        RETURNING id
-      `;
-      if (!row) throw new Error("Source insert did not return a row");
-      await tx`
-        INSERT INTO article_sources (article_id, version, source_id)
-        VALUES (${write.articleId}, ${version}, ${row.id})
-      `;
+    if (write.sources.length === 0) return;
+    // Promotion runs on the write path an agent waits on, and every source cost two
+    // round trips. Both inserts batch, so the cost no longer scales with the citation
+    // count.
+    const values = write.sources.map((source) => ({
+      brain_id: write.brainId,
+      kind: source.kind,
+      locator: source.locator ?? null,
+      checksum: source.checksum ?? null,
+      label: source.label ?? null,
+      metadata: JSON.stringify(source.metadata),
+      created_by: actor.userId,
+    }));
+    const rows = await tx`
+      INSERT INTO sources ${tx(values, "brain_id", "kind", "locator", "checksum", "label", "metadata", "created_by")}
+      RETURNING id
+    `;
+    if (rows.length !== write.sources.length) {
+      throw new Error("Source insert did not return every row");
     }
+    await tx`
+      INSERT INTO article_sources ${tx(
+        rows.map((row) => ({
+          article_id: write.articleId,
+          version,
+          source_id: row.id as string,
+        })),
+        "article_id",
+        "version",
+        "source_id",
+      )}
+    `;
   }
 
   private async listMaintenanceInTx(tx: Tx, brainId: string): Promise<MaintenanceCandidate[]> {
