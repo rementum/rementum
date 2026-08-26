@@ -367,6 +367,13 @@ export class RementumService {
       const existing = await this.store.getStagedWriteByIdempotencyKey(input.idempotencyKey, actor);
       if (existing) return existing;
     }
+    if (input.articleId) {
+      // The write only proves editor rights on input.brainId. Without this the target
+      // article could live in another brain, and promotion would attach a version
+      // encrypted with this brain's key to that article.
+      const target = await this.store.getArticle(input.articleId, actor);
+      if (!target || target.brainId !== input.brainId) throw new NotFoundError("Article");
+    }
     const articleId = input.articleId ?? randomUUID();
     const writeId = randomUUID();
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
