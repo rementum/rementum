@@ -3,6 +3,7 @@ packages:
   - packages/*
 
 onlyBuiltDependencies:
+  - "@tailwindcss/oxide"
   - argon2
   - esbuild
   - onnxruntime-node
