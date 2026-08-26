@@ -8,3 +8,9 @@ onlyBuiltDependencies:
   - esbuild
   - onnxruntime-node
   - sharp
+
+# @huggingface/transformers still resolves sharp 0.34, which ships a libvips with
+# GHSA-f88m-g3jw-g9cj. The embedding service never decodes images, but the native
+# library is loaded, so pull the whole workspace onto the patched line.
+overrides:
+  sharp: ">=0.35.0"
