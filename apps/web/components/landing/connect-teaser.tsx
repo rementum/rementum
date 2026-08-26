@@ -7,7 +7,7 @@ import { SectionHead } from "./section-head";
 const TOKENS = [
   { c: "❯ ", cls: "str" as const },
   { c: "claude ", cls: "fn" as const },
-  { c: "mcp add --transport http rementum \\\n  " },
+  { c: "mcp add --transport http rementum " },
   { c: "https://your-host/mcp", cls: "str" as const },
   { c: "\n" },
   { c: "❯ ", cls: "str" as const },
@@ -25,7 +25,7 @@ export function ConnectTeaser() {
           in your browser.
         </SectionHead>
         <Reveal>
-          <MockIDE tokens={TOKENS} loop thinkingLabel={false} />
+          <MockIDE className="[&_pre]:text-xs/[1.65]" tokens={TOKENS} loop thinkingLabel={false} />
         </Reveal>
       </div>
     </section>
