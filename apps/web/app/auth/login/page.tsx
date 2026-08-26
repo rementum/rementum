@@ -22,7 +22,7 @@ export default async function LoginPage({
           Sign in to <GradientText>Rementum</GradientText>.
         </>
       }
-      description="Open your teams and workspaces. OAuth approval is only used when connecting an MCP client."
+      description="Open your teams and workspaces. You approve OAuth grants only when an MCP client connects."
     >
       <LoginForm returnTo={destination} signupEnabled={signupEnabled} />
     </AuthShell>

@@ -23,7 +23,8 @@ export function CTASection({ githubUrl }: { githubUrl: string }) {
               Give your agents a memory.
             </GradientText>
             <p className="mx-auto mt-3 max-w-md text-base text-ink-2">
-              Self-host it. Connect a client. Keep the history.
+              Host it on your own server, connect a client over MCP, and keep every version your
+              agents write.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <Button as={Link} href="/auth/login" variant="solid" size="lg" sparkle>

@@ -19,8 +19,8 @@ export function ConnectTeaser() {
     <section className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 py-20" id="connect">
       <div className="grid items-center gap-12 lg:grid-cols-2">
         <SectionHead kicker="MCP-native" title="Connect an agent in two commands.">
-          OAuth grants each client its own revocable access. Your browser approves; the agent
-          remembers.
+          OAuth gives each client its own revocable access to the workspace. You approve each grant
+          in your browser.
         </SectionHead>
         <Reveal>
           <MockIDE tokens={TOKENS} loop thinkingLabel={false} />

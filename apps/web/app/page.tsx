@@ -48,12 +48,12 @@ function WorkflowLanding() {
     {
       code: "read",
       title: "Load current canon.",
-      body: "The full article is opened only after the index identifies it. The rest of the brain stays untouched.",
+      body: "Agents open the full article only after the index identifies it. The rest of the brain stays untouched.",
     },
     {
       code: "stage",
       title: "Analyze and stage the memory.",
-      body: "Rementum stages the submitted knowledge immediately, then an opted-in workspace can compact the promoted title, summary, and body in the background.",
+      body: "Rementum stages the submitted knowledge as written; an opted-in workspace compacts the promoted title, summary, and body in the background.",
     },
     {
       code: "promote",
@@ -76,8 +76,8 @@ function WorkflowLanding() {
           </>
         }
       >
-        Agents read a compact index, open the relevant article, and leave the rest of the brain
-        untouched. Every change is staged before it lands.
+        Agents read a compact index and open one article. Rementum stages each change before it
+        lands.
       </SectionHead>
       <Stepper steps={steps} />
     </section>

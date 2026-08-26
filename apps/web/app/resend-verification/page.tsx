@@ -8,10 +8,10 @@ export default function ResendVerificationPage() {
       kicker="Account verification"
       title={
         <>
-          Send a fresh <GradientText>link</GradientText>.
+          Send a new <GradientText>link</GradientText>.
         </>
       }
-      description="Previous verification links stop working when a new one is issued."
+      description="Requesting a new link disables the previous ones."
     >
       <ResendVerificationForm />
     </AuthShell>

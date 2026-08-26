@@ -11,7 +11,7 @@ export default function ErrorPage({ reset }: { reset: () => void }) {
           Could not load the brain
         </p>
         <p className="mx-auto mt-1.5 max-w-md text-sm text-ink-2">
-          The server returned an error. Your stored knowledge was not changed.
+          The server returned an error. Your stored knowledge is unchanged.
         </p>
         <div className="mt-5 flex justify-center">
           <Button variant="solid" onClick={reset}>

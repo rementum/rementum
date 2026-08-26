@@ -10,10 +10,10 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       kicker="Shared brain invitation"
       title={
         <>
-          Join the <GradientText>knowledge</GradientText> loop.
+          Join a shared <GradientText>brain</GradientText>.
         </>
       }
-      description="Create your local account. The invitation grants access only to the brain and role selected by its owner."
+      description="Create your local account. The invitation grants only the brain and role its owner selected."
     >
       <InviteForm token={token} signedIn={await hasSession()} />
     </AuthShell>

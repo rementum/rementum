@@ -118,7 +118,7 @@ export async function Dashboard() {
             </EyebrowPill>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Overview</h1>
             <p className="mt-1.5 max-w-xl text-sm text-ink-2">
-              What changed across your brains, and what waits for your review.
+              Recent changes across your brains and the writes that need your review.
             </p>
           </div>
           <dl className="flex items-stretch divide-x divide-dashed divide-line">
@@ -168,7 +168,7 @@ export async function Dashboard() {
             ) : (
               <p className="flex items-center gap-2 px-4 py-4 text-sm text-ink-2">
                 <span aria-hidden="true" className="size-1.5 rounded-full bg-green" />
-                Canon is settled. No staged writes wait for review.
+                No staged writes need review.
               </p>
             )}
           </Card>
@@ -370,7 +370,7 @@ function NoWorkspace({ sharedBrains }: { sharedBrains: Brain[] }) {
     <EmptyShell kicker="Workspace">
       <section className="mt-12 rounded-card border border-dashed border-line bg-surface/50 px-6 py-14 text-center backdrop-blur-sm">
         <h2 className="bg-gradient-to-r from-grad-from via-grad-mid to-grad-to bg-clip-text text-2xl font-semibold tracking-tight text-transparent">
-          Nothing remembered yet.
+          No workspace yet.
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-ink-2">
           Create a team and workspace to collect brains and invite members.

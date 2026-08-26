@@ -10,7 +10,7 @@ export default async function TeamInvitePage({ params }: { params: Promise<{ tok
       kicker="Team invitation"
       title={
         <>
-          Build shared <GradientText>memory</GradientText>.
+          Join your <GradientText>team</GradientText>.
         </>
       }
       description="Join the team to access and edit every brain it owns."

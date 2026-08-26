@@ -56,8 +56,8 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.62 }}
           >
-            One versioned knowledge layer for every MCP client. Writes are staged, reviewed, and
-            promoted — never silently overwritten.
+            One versioned knowledge layer for every MCP client. Rementum stages each write for
+            review before it replaces shared memory.
           </motion.p>
           <motion.div
             className="mt-8 flex flex-wrap items-center gap-3"
