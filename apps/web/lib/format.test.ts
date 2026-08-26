@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { formatDate, formatDateTime, relativeTime } from "./format";
 
-// Midday UTC so the calendar day is the same in every timezone the suite might run in.
+// The suite runs in UTC (see `test.env` in vitest.config.ts), so these instants keep the
+// same calendar date wherever the tests run.
 const noon = "2026-01-15T12:00:00.000Z";
 
 function ago(milliseconds: number): string {

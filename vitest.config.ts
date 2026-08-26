@@ -22,6 +22,10 @@ export default defineConfig({
   },
   test: {
     include: ["packages/**/*.test.ts", "apps/**/*.test.ts"],
+    // Intl formats in the runtime time zone, and no instant shares a calendar date across
+    // the whole UTC-12..+14 range. Pinning the zone keeps the date assertions honest on a
+    // contributor's machine as well as on the runner.
+    env: { TZ: "UTC" },
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov", "json-summary"],
