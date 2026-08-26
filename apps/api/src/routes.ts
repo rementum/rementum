@@ -635,16 +635,15 @@ export async function registerApiRoutes(
     const actor = await authorize(request, "brain:read");
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     requireBrainRole(actor, brainId, ["owner"]);
-    const brain = await service.getBrain(brainId, actor, 10_000);
+    const brain = await service.exportBrain(brainId, actor);
     const zip = new JSZip();
     const manifest: Array<{ slug: string; version: number; hash: string }> = [];
-    for (const summary of brain.routingIndex) {
-      const article = await service.readArticle(summary.id, actor);
-      const file = `---\ntitle: ${yamlString(article.title)}\nsummary: ${yamlString(article.summary)}\nkind: ${article.kind}\nversion: ${article.currentVersion}\n---\n\n${article.body}\n`;
+    for (const article of brain.articles) {
+      const file = `---\ntitle: ${yamlString(article.title)}\nsummary: ${yamlString(article.summary)}\nkind: ${article.kind}\nversion: ${article.version}\n---\n\n${article.body}\n`;
       zip.file(`${article.slug}.md`, file);
       manifest.push({
         slug: article.slug,
-        version: article.currentVersion,
+        version: article.version,
         hash: hashContent(article.body),
       });
     }

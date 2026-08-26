@@ -59,6 +59,19 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
       currentVersion: 3,
       body: "# Architecture\n",
     })),
+    exportBrain: vi.fn(async () => ({
+      brain: { id: brainId, slug: "product" },
+      articles: [
+        {
+          slug: "architecture",
+          title: "Architecture",
+          summary: "How the system fits together.",
+          kind: "canonical",
+          version: 3,
+          body: "# Architecture\n",
+        },
+      ],
+    })),
     getWriteStatus: vi.fn(async () => ({
       id: "write-id",
       status: "pending",
@@ -526,6 +539,6 @@ describe("staged writes and export", () => {
       url: `/api/v1/brains/${brainId}/export`,
     });
     expect(response.statusCode).toBe(403);
-    expect(context.service.readArticle).not.toHaveBeenCalled();
+    expect(context.service.exportBrain).not.toHaveBeenCalled();
   });
 });

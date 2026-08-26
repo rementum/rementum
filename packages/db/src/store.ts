@@ -18,6 +18,7 @@ import {
   type CompactionJobRecord,
   ConflictError,
   type DataStore,
+  type ExportedVersion,
   ForbiddenError,
   type GeneratedArticle,
   NotFoundError,
@@ -474,6 +475,42 @@ export class PostgresStore implements DataStore {
         WHERE av.article_id = ${articleId} AND a.archived_at IS NULL
       `;
       return row ? mapVersion(row) : null;
+    });
+  }
+
+  /**
+   * Reads every current article body in one query, for the export.
+   *
+   * The export used to read articles one at a time through the service, which cost seven
+   * transactions each. A brain is a bounded set of current versions, so one join answers
+   * the whole thing.
+   */
+  async listCurrentVersions(
+    brainId: string,
+    actor: Actor,
+    limit: number,
+  ): Promise<ExportedVersion[]> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<any[]>`
+        SELECT a.id, a.slug, a.title, a.summary, a.kind, a.current_version,
+               av.body_ciphertext, av.body_nonce, av.body_tag, av.cipher_version, av.body_aad
+        FROM articles a
+        JOIN article_versions av
+          ON av.article_id = a.id AND av.version = a.current_version
+        WHERE a.brain_id = ${brainId} AND a.archived_at IS NULL
+        ORDER BY a.slug
+        LIMIT ${limit}
+      `;
+      return rows.map((row) => ({
+        articleId: row.id as string,
+        slug: row.slug as string,
+        title: row.title as string,
+        summary: row.summary as string,
+        kind: row.kind as string,
+        version: Number(row.current_version),
+        body: envelopeFromRow(row),
+        bodyAad: row.body_aad as string,
+      }));
     });
   }
 

@@ -99,6 +99,18 @@ export interface VersionRecord {
   createdAt: Date;
 }
 
+/** One current article body, as the export reads them in bulk. */
+export interface ExportedVersion {
+  articleId: string;
+  slug: string;
+  title: string;
+  summary: string;
+  kind: string;
+  version: number;
+  body: CipherEnvelope;
+  bodyAad: string;
+}
+
 export interface StagedWriteRecord {
   id: string;
   brainId: string;
@@ -255,6 +267,7 @@ export interface DataStore {
     actor: Actor,
   ): Promise<Array<SourceInput & { id: string }>>;
   listArticleVersions(articleId: string, actor: Actor): Promise<VersionRecord[]>;
+  listCurrentVersions(brainId: string, actor: Actor, limit: number): Promise<ExportedVersion[]>;
   verifyArticle(articleId: string, reviewAfter: Date | null, actor: Actor): Promise<ArticleRecord>;
   setArticleLinks(
     articleId: string,

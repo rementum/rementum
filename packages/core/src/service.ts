@@ -326,6 +326,33 @@ export class RementumService {
     };
   }
 
+  /**
+   * Reads a whole brain for export in two queries.
+   *
+   * The route used to call readArticle once per article, which is seven transactions and
+   * one audit row each. An export is a single act by one owner, so it records one
+   * brain.exported event carrying the article count rather than an article.read per file.
+   */
+  async exportBrain(brainId: string, actor: Actor, limit = 10_000) {
+    requireBrainRole(actor, brainId, ["owner"]);
+    const brain = await this.store.getBrain(brainId, actor);
+    if (!brain) throw new NotFoundError("Brain");
+    const versions = await this.store.listCurrentVersions(brainId, actor, limit);
+    const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
+    const articles = versions.map((version) => ({
+      slug: version.slug,
+      title: version.title,
+      summary: version.summary,
+      kind: version.kind,
+      version: version.version,
+      body: decrypt(version.body, key, version.bodyAad).toString("utf8"),
+    }));
+    await this.store.audit(actor, "brain.exported", `brain:${brainId}`, {
+      articleCount: articles.length,
+    });
+    return { brain: withoutWrappedKey(brain), articles };
+  }
+
   async queueArticleCompaction(articleId: string, actor: Actor) {
     if (!this.llmAvailable) throw new LlmUnavailableError();
     const article = await this.store.getArticle(articleId, actor);
