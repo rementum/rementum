@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrainNav } from "../../../../components/brain-nav";
+import { StatusPill } from "../../../../components/ui/status-pill";
 import { api } from "../../../../lib/api";
 
 interface Write {
@@ -32,7 +33,7 @@ export default async function WritesPage({ params }: { params: Promise<{ brainId
         {writes.length ? (
           writes.map((write) => (
             <Link className="management-row" href={`/writes/${write.id}`} key={write.id}>
-              <span className={`status ${write.status}`}>{write.status}</span>
+              <StatusPill status={write.status} />
               <div>
                 <strong>{write.title}</strong>
                 <p>{write.changeSummary}</p>

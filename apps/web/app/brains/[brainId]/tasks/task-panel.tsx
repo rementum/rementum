@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { StatusPill } from "../../../../components/ui/status-pill";
 
 interface Task {
   id: string;
@@ -72,7 +73,7 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
           initialTasks.map((task) => (
             <article className="task-item" key={task.id}>
               <div>
-                <span className={`status ${task.status}`}>{task.status}</span>
+                <StatusPill status={task.status} />
                 <h2>
                   <Link href={`/tasks/${task.id}`}>{task.title}</Link>
                 </h2>

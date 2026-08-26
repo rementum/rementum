@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StatusPill } from "../../../components/ui/status-pill";
 import { api } from "../../../lib/api";
 import { TaskCommentForm } from "./task-comment-form";
 
@@ -37,7 +38,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
           <h1>{task.title}</h1>
           <p>{task.brief}</p>
         </div>
-        <span className={`status ${task.status}`}>{task.status}</span>
+        <StatusPill status={task.status} />
       </header>
       <section className="comment-list">
         {comments.map((comment) => (

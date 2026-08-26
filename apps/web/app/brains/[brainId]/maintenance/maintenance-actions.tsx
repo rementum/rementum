@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { StatusPill } from "../../../../components/ui/status-pill";
 
 interface Candidate {
   id: string;
@@ -53,7 +54,7 @@ export function MaintenanceActions({
         {candidates.length ? (
           candidates.map((candidate) => (
             <article key={candidate.id}>
-              <span className="status unknown">{candidate.kind.replaceAll("_", " ")}</span>
+              <StatusPill status="unknown" label={candidate.kind.replaceAll("_", " ")} />
               <h2>
                 {candidate.articleIds.length} article{candidate.articleIds.length === 1 ? "" : "s"}
               </h2>

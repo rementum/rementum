@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { api, workspaceContext } from "../lib/api";
+import { relativeTime } from "../lib/format";
 import { AgentConnect } from "./agent-connect";
+import { StatusPill } from "./ui/status-pill";
 
 interface Brain {
   id: string;
@@ -137,7 +139,7 @@ export async function Dashboard() {
                 href={`/writes/${write.id}`}
                 key={write.id}
               >
-                <span className={`status ${write.status}`}>{write.status}</span>
+                <StatusPill status={write.status} />
                 <div className="dash-review-body">
                   <strong>{write.title}</strong>
                   <p>{write.changeSummary || write.operation}</p>
@@ -303,16 +305,4 @@ function EmptyWorkspace({
       <SharedBrains brains={sharedBrains} />
     </main>
   );
-}
-
-function relativeTime(value: string) {
-  const elapsed = Date.now() - new Date(value).getTime();
-  const minutes = Math.round(elapsed / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 14) return `${days}d ago`;
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
 }

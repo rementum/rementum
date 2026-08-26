@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { StatusPill } from "../../../components/ui/status-pill";
 
 export function WriteActions({ writeId, status }: { writeId: string; status: string }) {
   const router = useRouter();
@@ -28,8 +29,7 @@ export function WriteActions({ writeId, status }: { writeId: string; status: str
     router.refresh();
     setBusy(false);
   }
-  if (!["pending", "conflicted"].includes(status))
-    return <span className={`status ${status}`}>{status}</span>;
+  if (!["pending", "conflicted"].includes(status)) return <StatusPill status={status} />;
   return (
     <div className="action-stack">
       <button

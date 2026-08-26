@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArticleMarkdown } from "../../../components/article-markdown";
+import { StatusPill } from "../../../components/ui/status-pill";
 import { api } from "../../../lib/api";
 import { type ArticleCompaction, ArticleCompactionStatus } from "./article-compaction-status";
 
@@ -48,7 +49,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ articl
             <p>{article.summary}</p>
           </div>
           <div className="article-statuses">
-            <span className={`status ${article.freshness}`}>{article.freshness}</span>
+            <StatusPill status={article.freshness} />
             <ArticleCompactionStatus articleId={articleId} initial={article.compaction} />
           </div>
         </div>

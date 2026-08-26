@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { StatusPill } from "../../../components/ui/status-pill";
 
 export interface ArticleCompaction {
   enabled: boolean;
@@ -69,7 +70,7 @@ export function ArticleCompactionStatus({
 
   return (
     <div className="article-compaction">
-      <span className={`status ${compaction.status}`}>{labels[compaction.status]}</span>
+      <StatusPill status={compaction.status} label={labels[compaction.status]} />
       {compaction.attempts ? <small>{compaction.attempts}/3 attempts</small> : null}
       {compaction.compactedAt ? (
         <small>{new Date(compaction.compactedAt).toLocaleString()}</small>

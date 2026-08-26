@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrainNav } from "../../../components/brain-nav";
 import { InviteMemberForm } from "../../../components/invite-member-form";
+import { StatusPill } from "../../../components/ui/status-pill";
 import { api } from "../../../lib/api";
 
 interface BrainResponse {
@@ -54,9 +55,7 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
                 <p>{article.summary}</p>
               </div>
               <div className="row-state">
-                <span className={`status ${article.freshness}`}>
-                  {article.freshness.replace("_", " ")}
-                </span>
+                <StatusPill status={article.freshness} />
                 <span>v{article.currentVersion}</span>
               </div>
             </Link>

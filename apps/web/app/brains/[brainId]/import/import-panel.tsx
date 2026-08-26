@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { StatusPill } from "../../../../components/ui/status-pill";
 
 interface Preview {
   files: Array<{
@@ -77,7 +78,7 @@ export function ImportPanel({ brainId }: { brainId: string }) {
           <div className="management-list">
             {preview.files.map((item) => (
               <div className="management-row" key={item.path}>
-                <span className="status unknown">{item.suggestedKind}</span>
+                <StatusPill status="unknown" label={item.suggestedKind} />
                 <div>
                   <strong>{item.title}</strong>
                   <p>{item.path}</p>

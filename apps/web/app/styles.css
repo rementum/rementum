@@ -788,52 +788,6 @@
   font: 10px / 1 var(--font-mono);
 }
 
-.status {
-  display: inline-flex;
-  min-height: 24px;
-  align-items: center;
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: var(--surface-raised);
-  color: var(--text-secondary);
-  font: 600 9px / 1 var(--font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.status.current,
-.status.compacted,
-.status.completed,
-.status.approved,
-.status.promoted,
-.status.resolved {
-  background: var(--text);
-  color: var(--accent-ink);
-}
-
-.status.stale,
-.status.review_due,
-.status.conflicted,
-.status.failed {
-  border-color: rgb(226 182 182 / 34%);
-  background: var(--danger-surface);
-  color: var(--danger);
-}
-
-.status.unknown,
-.status.disabled,
-.status.not_compacted,
-.status.queued,
-.status.processing,
-.status.pending,
-.status.review,
-.status.claimed,
-.status.open {
-  color: var(--text-secondary);
-}
-
 .empty-state,
 .empty-inline {
   padding: 34px;
