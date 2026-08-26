@@ -56,6 +56,24 @@ export function registerProblemDetails(app: FastifyInstance, publicUrl: string):
           code: error.code,
         });
     }
+    // Fastify and its plugins raise their own failures through this handler: a malformed
+    // body, an upload past the limit, a tripped rate limit. Reporting those as 500 hides
+    // the caller's mistake behind a server fault, so a status the framework already
+    // decided on is kept. Only client errors are passed through; a 5xx carries an
+    // internal message and stays opaque.
+    const status = error.statusCode;
+    if (typeof status === "number" && status >= 400 && status < 500) {
+      return reply
+        .code(status)
+        .type("application/problem+json")
+        .send({
+          type: "urn:rementum:problem:request",
+          title: error.message,
+          status,
+          instance: request.url,
+          code: error.code ?? "request",
+        });
+    }
     return reply.code(500).type("application/problem+json").send({
       type: "urn:rementum:problem:internal",
       title: "Internal server error",
