@@ -1,0 +1,10 @@
+--- 60 articles, one brain ---
+operation                              stmts    time
+loadActor                                   1 stmts  1.4 ms
+scopeActorToWorkspace                      14 stmts  6.3 ms
+getBrain                                   13 stmts  4.5 ms
+listRoutingIndex                           13 stmts  4.8 ms
+recentActivity                             13 stmts  4.4 ms
+listTasks                                  13 stmts  3.0 ms
+createTask x1 (5 articles, 5 links)        17 stmts  6.3 ms
+60 sequential getBrain calls              780 stmts  124.0 ms
