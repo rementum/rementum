@@ -130,6 +130,10 @@ export async function registerOauthRoutes(
   runtime: OauthRuntime,
   verifyCredentials: VerifyCredentials,
 ): Promise<void> {
+  // The interaction login form checks a password, so it needs the same budget as the
+  // session endpoint rather than the far looser global limit.
+  const loginRateLimit = { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } };
+
   app.get("/oauth/interaction/:uid", async (request, reply) => {
     const details = await runtime.provider.interactionDetails(request.raw, reply.raw);
     const client = await runtime.provider.Client.find(String(details.params.client_id));
@@ -147,7 +151,7 @@ export async function registerOauthRoutes(
       .send(interactionPage(prompt, action, details.uid, body));
   });
 
-  app.post("/oauth/interaction/:uid/login", async (request, reply) => {
+  app.post("/oauth/interaction/:uid/login", loginRateLimit, async (request, reply) => {
     const body = request.body as { email?: string; password?: string };
     const user = await verifyCredentials(body.email ?? "", body.password ?? "");
     if (!user) {

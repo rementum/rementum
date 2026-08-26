@@ -217,7 +217,7 @@ export async function registerApiRoutes(
     };
   });
 
-  app.post("/api/v1/invitations/accept", async (request, reply) => {
+  app.post("/api/v1/invitations/accept", authRateLimit, async (request, reply) => {
     const input = invitationAcceptanceSchema.parse(request.body);
     const tokenHash = hashContent(input.token);
     const invitation = await authRepository.inspectBrainInvitation(tokenHash);
