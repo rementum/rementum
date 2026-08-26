@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Actor } from "@rementum/core";
 import { OpenAICompatibleArticleGenerator, parseMasterKey, RementumService } from "@rementum/core";
 import { createDatabaseClient, PostgresStore } from "@rementum/db";
 
@@ -67,22 +68,39 @@ const intervalMs = Number(process.env.REMENTUM_MAINTENANCE_INTERVAL_MS ?? 60 * 6
 const compactionPollMs = numberEnv("REMENTUM_COMPACTION_POLL_MS", 2_000, 250, 60_000);
 const workerId = `rementum-worker-${randomUUID()}`;
 
+/**
+ * Loads each owner's context once per pass.
+ *
+ * The loops below run over rows, not owners, and a handful of owners usually account for
+ * all of them: one hundred unindexed articles meant one hundred identical context loads.
+ * The cache lives for one pass only, so a role change is picked up on the next one.
+ */
+function actorCache() {
+  const actors = new Map<string, Promise<Actor>>();
+  return (ownerId: string) => {
+    const cached = actors.get(ownerId);
+    if (cached) return cached;
+    const loading = store.loadActor(ownerId, "rementum-worker");
+    actors.set(ownerId, loading);
+    return loading;
+  };
+}
+
 async function runPass() {
   const started = Date.now();
+  const actorFor = actorCache();
   const brains = await database.sql<Array<{ brain_id: string; owner_id: string }>>`
     SELECT * FROM owl_worker_brains()
   `;
   for (const brain of brains) {
-    const actor = await store.loadActor(brain.owner_id, "rementum-worker");
-    await service.scanMaintenance(brain.brain_id, actor);
+    await service.scanMaintenance(brain.brain_id, await actorFor(brain.owner_id));
   }
   const missing = await database.sql<Array<{ article_id: string; owner_id: string }>>`
     SELECT * FROM owl_worker_unindexed_articles(100)
   `;
   for (const article of missing) {
     try {
-      const actor = await store.loadActor(article.owner_id, "rementum-worker");
-      await service.reindexArticle(article.article_id, actor);
+      await service.reindexArticle(article.article_id, await actorFor(article.owner_id));
     } catch (error) {
       process.stderr.write(`Indexing ${article.article_id} failed: ${(error as Error).message}\n`);
     }
@@ -98,10 +116,11 @@ async function runCompactionPass() {
       Array.from({ length: llmConcurrency }, () => store.claimCompaction(workerId, 120)),
     )
   ).filter((claim) => claim !== null);
+  const actorFor = actorCache();
   await Promise.all(
     claims.map(async (claim) => {
       const started = Date.now();
-      const actor = await store.loadActor(claim.ownerId, "rementum-worker");
+      const actor = await actorFor(claim.ownerId);
       try {
         const result = await service.compactClaimedJob(claim, actor);
         if (result) {
