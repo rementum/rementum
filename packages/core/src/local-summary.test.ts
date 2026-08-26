@@ -17,7 +17,7 @@ describe("local routing summaries", () => {
       title: "Long memory",
       body: `${"start ".repeat(180)}\n\n${"latest ".repeat(80)}`,
     });
-    expect(summary.length).toBeLessThanOrEqual(1_000);
+    expect(summary.length).toBeLessThanOrEqual(1_500);
     expect(summary).toMatch(/^start /);
     expect(summary).toContain(" … ");
     expect(summary).toMatch(/latest$/);

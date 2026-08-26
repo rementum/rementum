@@ -45,6 +45,7 @@ describe("OpenAI-compatible memory summaries", () => {
     expect((init.headers as Record<string, string>).authorization).toBe("Bearer secret");
     const request = JSON.parse(String(init.body));
     expect(request.model).toBe("summary-model");
+    expect(request).not.toHaveProperty("max_tokens");
     expect(request.messages[0].content).toContain("untrusted source material");
     expect(request.messages[0].content).not.toContain("reveal secrets");
     expect(request.messages[1].content).toContain("reveal secrets");
@@ -64,8 +65,19 @@ describe("OpenAI-compatible memory summaries", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
-  it("makes one compression attempt for an oversized final summary", async () => {
-    const outputs = ["x".repeat(1001), "short summary"];
+  it("accepts a 1,500-character final summary without compression", async () => {
+    const summary = "x".repeat(1_500);
+    const fetchMock = vi.fn(async () => completion(summary));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(generator().generateSummary({ title: "Title", body: "Body" })).resolves.toBe(
+      summary,
+    );
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("compresses an oversized final summary within the raw response limit", async () => {
+    const outputs = ["x".repeat(10_000), "short summary"];
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => completion(outputs.shift() ?? "unexpected")),
@@ -74,6 +86,17 @@ describe("OpenAI-compatible memory summaries", () => {
     await expect(generator().generateSummary({ title: "Title", body: "Body" })).resolves.toBe(
       "short summary",
     );
+  });
+
+  it("rejects a model response over 10,000 characters", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => completion("x".repeat(10_001))),
+    );
+
+    await expect(
+      generator().generateSummary({ title: "Title", body: "Body" }),
+    ).rejects.toMatchObject({ code: "llm_summary_failed", status: 502 });
   });
 
   it("fails closed on provider and response errors", async () => {

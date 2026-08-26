@@ -1,7 +1,7 @@
 import type { SummaryGenerator } from "./types.js";
 
-const MAX_SUMMARY_CHARS = 1_000;
-const HEAD_CHARS = 700;
+export const ROUTING_SUMMARY_MAX_CHARS = 1_500;
+const HEAD_CHARS = Math.floor(ROUTING_SUMMARY_MAX_CHARS * 0.7);
 const SEPARATOR = " … ";
 
 export class LocalSummaryGenerator implements SummaryGenerator {
@@ -14,10 +14,10 @@ export function createLocalSummary(input: { title: string; body: string }): stri
   const content = stripFrontMatter(input.body);
   const withoutDuplicateTitle = removeLeadingTitle(content, input.title);
   const normalized = markdownToPlainText(withoutDuplicateTitle) || input.title.trim();
-  if (normalized.length <= MAX_SUMMARY_CHARS) return normalized;
+  if (normalized.length <= ROUTING_SUMMARY_MAX_CHARS) return normalized;
 
   const head = clipEnd(normalized, HEAD_CHARS);
-  const tailBudget = MAX_SUMMARY_CHARS - head.length - SEPARATOR.length;
+  const tailBudget = ROUTING_SUMMARY_MAX_CHARS - head.length - SEPARATOR.length;
   const tail = clipStart(normalized, tailBudget);
   return `${head}${SEPARATOR}${tail}`;
 }
