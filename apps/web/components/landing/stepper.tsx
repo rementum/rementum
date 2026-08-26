@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useScroll, useTransform } from "motion/react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Step {
   code: string;
@@ -11,17 +11,34 @@ interface Step {
 
 export function Stepper({ steps }: { steps: Step[] }) {
   const ref = useRef<HTMLDivElement>(null);
+  const lastRef = useRef<HTMLElement>(null);
+  // Rail must end at the last node's center; the last row's text runs taller than
+  // its node tile, so the end offset is only known after layout.
+  const [railHeight, setRailHeight] = useState<number | null>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start 0.8", "end 0.55"],
   });
   const scaleY = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
+  useEffect(() => {
+    const list = ref.current;
+    const last = lastRef.current;
+    if (!list || !last) return;
+    const measure = () => setRailHeight(last.offsetTop);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    observer.observe(last);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="relative flex flex-col gap-10" ref={ref}>
       <div
         aria-hidden="true"
-        className="absolute bottom-5 left-[19.5px] top-5 w-px overflow-hidden bg-line"
+        className="absolute left-[19.5px] top-5 w-px overflow-hidden bg-line"
+        style={railHeight == null ? { bottom: 20 } : { height: railHeight }}
       >
         <motion.div
           className="h-full w-full origin-top bg-gradient-to-b from-grad-from via-grad-mid to-grad-to"
@@ -32,6 +49,7 @@ export function Stepper({ steps }: { steps: Step[] }) {
         <motion.article
           className="relative flex gap-5"
           key={step.code}
+          ref={i === steps.length - 1 ? lastRef : undefined}
           initial={{ opacity: 0, y: 28 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "0px 0px -12% 0px" }}
