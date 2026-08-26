@@ -46,6 +46,6 @@ instance master key wraps those keys. Search metadata and embeddings remain visi
 operator.
 
 By default, Rementum creates routing summaries locally and staged article bodies stay inside the
-instance. If you enable an OpenAI-compatible provider, each complete candidate body goes to that
-provider in plaintext before Rementum encrypts it. Choose a provider whose retention policy fits
-your data.
+instance. If you enable an OpenAI-compatible provider, each complete candidate title and body goes to
+that provider in plaintext. Rementum encrypts and stores only the provider's compact generated body;
+the submitted original is not retained. Choose a provider whose retention policy fits your data.

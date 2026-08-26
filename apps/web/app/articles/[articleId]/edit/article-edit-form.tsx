@@ -63,8 +63,9 @@ export function ArticleEditForm({ article }: { article: Article }) {
         <input name="title" defaultValue={article.title} required maxLength={240} />
       </label>
       <p className="form-note">
-        Rementum generates a routing summary when you stage this edit. Instances with an external
-        LLM enabled send the complete draft to that provider.
+        Rementum generates a routing summary when you stage this edit. With an external LLM enabled,
+        the provider replaces the staged title and body with compact generated versions; the
+        submitted original draft is not retained.
       </p>
       <label>
         Keywords

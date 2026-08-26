@@ -140,7 +140,7 @@ else
   domain=$(prompt "Public domain, without https://" "")
   owner_email=$(prompt "Owner email" "")
   owner_name=$(prompt "Owner display name" "Owner")
-  llm_enabled=$(prompt "Use an external LLM for routing summaries? (yes/no)" "no")
+  llm_enabled=$(prompt "Use an external LLM to compact staged titles and bodies? (yes/no)" "no")
   llm_base_url=""
   llm_model=""
   llm_api_key=""
@@ -152,7 +152,7 @@ else
       llm_api_key=$(prompt_secret "API key (leave empty for a keyless local provider)")
       ;;
     no|n) llm_enabled=false ;;
-    *) fail "Answer yes or no for external LLM summaries" ;;
+    *) fail "Answer yes or no for external LLM article compaction" ;;
   esac
   allow_signup=$(prompt "Allow public account registration? (yes/no)" "no")
   case "$allow_signup" in

@@ -24,7 +24,7 @@ used for the web app; it is exposed only for workspace MCP connections.
 Do not replace `REMENTUM_MASTER_KEY` on an existing instance. Rementum will lose access to every
 wrapped brain key. Keep the original value with your disaster-recovery material.
 
-## Routing summaries
+## Article generation
 
 | Variable | Purpose |
 | --- | --- |
@@ -33,18 +33,21 @@ wrapped brain key. Keep the original value with your disaster-recovery material.
 | `REMENTUM_LLM_MODEL` | Provider model identifier |
 | `REMENTUM_LLM_API_KEY` | Provider credential; keyless local endpoints may leave it empty |
 | `REMENTUM_LLM_REASONING_EFFORT` | Optional `none`, `minimal`, `low`, `medium`, or `high` request value |
-| `REMENTUM_LLM_TIMEOUT_MS` | Summary request timeout |
-| `REMENTUM_LLM_MAX_INPUT_CHARS` | Maximum staged body size sent for analysis |
-| `REMENTUM_LLM_CONCURRENCY` | Maximum concurrent summary requests |
+| `REMENTUM_LLM_TIMEOUT_MS` | Generation request timeout |
+| `REMENTUM_LLM_MAX_INPUT_CHARS` | Maximum source characters per generation chunk |
+| `REMENTUM_LLM_CONCURRENCY` | Maximum concurrent generation requests |
 
-With the default `REMENTUM_LLM_ENABLED=false`, Rementum derives a deterministic routing summary from
-the article text inside the instance. It does not make an external LLM request. Local summaries are
-less semantic than model-generated summaries, but staging, conflict checks, routing, and search all
-remain available.
+With the default `REMENTUM_LLM_ENABLED=false`, Rementum preserves the submitted title and body and
+derives a deterministic one-sentence routing summary inside the instance. It does not make an
+external LLM request, and staging, conflict checks, routing, and search remain available.
 
 Set `REMENTUM_LLM_ENABLED=true` together with a base URL and model to use an external provider. The
-provider then receives the complete candidate article body in plaintext. If an enabled provider is
-unavailable or returns an invalid response, staging fails instead of silently changing to local mode.
+provider receives the complete candidate title and body in plaintext and must support strict JSON
+Schema through the Chat Completions `response_format` field. It returns a title of at most 120
+characters, a one-sentence summary of at most 300 characters, and a compact Markdown body of at most
+1,500 characters. Rementum stores only that generated body; the submitted original is not retained.
+If an enabled provider is unavailable or returns an invalid response, staging fails instead of
+silently changing to local mode.
 
 ## Email
 

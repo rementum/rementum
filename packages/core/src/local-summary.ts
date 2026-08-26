@@ -1,12 +1,10 @@
-import type { SummaryGenerator } from "./types.js";
+import type { ArticleGenerator } from "./types.js";
 
-export const ROUTING_SUMMARY_MAX_CHARS = 1_500;
-const HEAD_CHARS = Math.floor(ROUTING_SUMMARY_MAX_CHARS * 0.7);
-const SEPARATOR = " … ";
+export const ROUTING_SUMMARY_MAX_CHARS = 300;
 
-export class LocalSummaryGenerator implements SummaryGenerator {
-  generateSummary(input: { title: string; body: string }): Promise<string> {
-    return Promise.resolve(createLocalSummary(input));
+export class LocalArticleGenerator implements ArticleGenerator {
+  generateArticle(input: { title: string; body: string }) {
+    return Promise.resolve({ ...input, summary: createLocalSummary(input) });
   }
 }
 
@@ -14,12 +12,10 @@ export function createLocalSummary(input: { title: string; body: string }): stri
   const content = stripFrontMatter(input.body);
   const withoutDuplicateTitle = removeLeadingTitle(content, input.title);
   const normalized = markdownToPlainText(withoutDuplicateTitle) || input.title.trim();
-  if (normalized.length <= ROUTING_SUMMARY_MAX_CHARS) return normalized;
-
-  const head = clipEnd(normalized, HEAD_CHARS);
-  const tailBudget = ROUTING_SUMMARY_MAX_CHARS - head.length - SEPARATOR.length;
-  const tail = clipStart(normalized, tailBudget);
-  return `${head}${SEPARATOR}${tail}`;
+  const [firstSentence] = new Intl.Segmenter(undefined, { granularity: "sentence" }).segment(
+    normalized,
+  );
+  return clipSentence(firstSentence?.segment.trim() || normalized, ROUTING_SUMMARY_MAX_CHARS);
 }
 
 function stripFrontMatter(markdown: string): string {
@@ -54,18 +50,12 @@ function markdownToPlainText(markdown: string): string {
     .trim();
 }
 
-function clipEnd(value: string, maxChars: number): string {
-  const slice = value.slice(0, maxChars + 1);
+function clipSentence(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  const slice = value.slice(0, maxChars);
   const boundary = slice.lastIndexOf(" ");
-  return value.length > maxChars && boundary > Math.floor(maxChars / 2)
-    ? slice.slice(0, boundary).trimEnd()
-    : value.slice(0, maxChars).trimEnd();
-}
-
-function clipStart(value: string, maxChars: number): string {
-  const slice = value.slice(-maxChars - 1);
-  const boundary = slice.indexOf(" ");
-  return value.length > maxChars && boundary >= 0
-    ? slice.slice(boundary + 1).trimStart()
-    : value.slice(-maxChars).trimStart();
+  const clipped = (boundary > Math.floor(maxChars / 2) ? slice.slice(0, boundary) : slice)
+    .trimEnd()
+    .replace(/[.!?…]+$/u, "");
+  return `${clipped.slice(0, maxChars - 1)}…`;
 }

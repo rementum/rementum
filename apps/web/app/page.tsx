@@ -26,7 +26,7 @@ function Landing() {
             "MCP-native",
             "OAuth per agent",
             "pgvector search",
-            "local or AI summaries",
+            "local summaries or AI compaction",
             "versioned canon",
             "audit trail",
             "Markdown export",
@@ -67,7 +67,7 @@ function WorkflowLanding() {
     {
       code: "stage",
       title: "Analyze and stage the memory.",
-      body: "Rementum creates a compact routing summary locally or with your optional AI provider, then checks for conflicts before it touches canon.",
+      body: "Rementum creates a local routing summary or asks your optional AI provider to compact the title, summary, and body, then checks for conflicts before it touches canon.",
     },
     {
       code: "promote",
@@ -147,7 +147,7 @@ function ArchitectureSection() {
   const nodes = [
     ["Clients", "Codex, Claude Code, OpenCode"],
     ["Gateway", "Caddy, OAuth, MCP"],
-    ["Application", "Fastify, Next.js, local or AI summaries"],
+    ["Application", "Fastify, Next.js, local summaries or AI compaction"],
     ["Storage", "PostgreSQL, pgvector, Markdown"],
   ] as const;
 
@@ -157,8 +157,8 @@ function ArchitectureSection() {
         <Reveal>
           <h2>Run it on your own stack.</h2>
           <p>
-            You control OAuth, MCP, search, embeddings, and storage. Routing summaries stay local
-            unless you enable an OpenAI-compatible AI provider.
+            You control OAuth, MCP, search, embeddings, and storage. Article generation stays local
+            unless you enable an OpenAI-compatible AI provider to compact staged knowledge.
           </p>
         </Reveal>
       </div>

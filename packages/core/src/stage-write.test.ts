@@ -1,15 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { generateDataKey, wrapDataKey } from "./crypto.js";
+import { decrypt, generateDataKey, hashContent, unwrapDataKey, wrapDataKey } from "./crypto.js";
 import { RementumService } from "./service.js";
 import type {
   Actor,
+  ArticleGenerator,
   BrainRecord,
   DataStore,
   EmbeddingClient,
   ReadArticleResult,
   StagedWriteRecord,
-  SummaryGenerator,
 } from "./types.js";
 
 const brainId = "00000000-0000-4000-8000-000000000001";
@@ -39,24 +39,31 @@ function brain(): BrainRecord {
   };
 }
 
-function write(summary: string): StagedWriteRecord {
-  return { id: "write-id", summary } as StagedWriteRecord;
+function write(summary: string, title = "Title"): StagedWriteRecord {
+  return { id: "write-id", summary, title } as StagedWriteRecord;
 }
 
-function setup(summary = "Generated summary") {
+function setup(
+  generated = {
+    title: "Generated title",
+    summary: "Generated summary.",
+    body: "# Generated\n\nCompact canonical body.",
+  },
+) {
+  const brainRecord = brain();
   const store = {
-    getBrain: vi.fn(async () => brain()),
+    getBrain: vi.fn(async () => brainRecord),
     getStagedWriteByIdempotencyKey: vi.fn(async () => null),
     findPotentialConflicts: vi.fn(async () => []),
-    createStagedWrite: vi.fn(async (input) => write(input.summary)),
+    createStagedWrite: vi.fn(async (input) => write(input.summary, input.title)),
     audit: vi.fn(async () => undefined),
   } as unknown as DataStore;
-  const summaries = {
-    generateSummary: vi.fn(async () => summary),
-  } satisfies SummaryGenerator;
+  const articleGenerator = {
+    generateArticle: vi.fn(async () => generated),
+  } satisfies ArticleGenerator;
   const embeddings = {} as EmbeddingClient;
-  const service = new RementumService(store, embeddings, masterKey, summaries);
-  return { service, store, summaries };
+  const service = new RementumService(store, embeddings, masterKey, articleGenerator);
+  return { articleGenerator, brainRecord, generated, service, store };
 }
 
 function createInput() {
@@ -74,25 +81,26 @@ function createInput() {
   };
 }
 
-describe("AI-generated staged-write summaries", () => {
-  it("uses the generated summary for conflicts and persistence", async () => {
-    const { service, store, summaries } = setup();
+describe("AI-generated staged writes", () => {
+  it("stores only the generated title, summary, and body", async () => {
+    const { articleGenerator, brainRecord, generated, service, store } = setup();
     await expect(service.stageWrite(createInput(), actor)).resolves.toMatchObject({
-      summary: "Generated summary",
+      title: generated.title,
+      summary: generated.summary,
     });
-    expect(summaries.generateSummary).toHaveBeenCalledWith({
+    expect(articleGenerator.generateArticle).toHaveBeenCalledWith({
       title: "Architecture",
       body: "Canonical body",
     });
     expect(store.findPotentialConflicts).toHaveBeenCalledWith(
       brainId,
       undefined,
-      "Architecture",
-      "Generated summary",
+      generated.title,
+      generated.summary,
       actor,
     );
     expect(store.createStagedWrite).toHaveBeenCalledWith(
-      expect.objectContaining({ summary: "Generated summary" }),
+      expect.objectContaining(generated),
       actor,
       expect.any(String),
       expect.any(String),
@@ -101,10 +109,16 @@ describe("AI-generated staged-write summaries", () => {
       expect.any(String),
       [],
     );
+    const call = vi.mocked(store.createStagedWrite).mock.calls[0];
+    if (!call) throw new Error("Missing staged-write call");
+    const key = unwrapDataKey(brainRecord.wrappedKey, masterKey, brainRecord.id);
+    expect(decrypt(call[4], key, call[5]).toString("utf8")).toBe(generated.body);
+    expect(call[6]).toBe(hashContent(generated.body));
+    expect(decrypt(call[4], key, call[5]).toString("utf8")).not.toContain("Canonical body");
   });
 
-  it("summarizes the complete resulting body for appends", async () => {
-    const { service, summaries } = setup();
+  it("generates from the complete resulting body for appends", async () => {
+    const { articleGenerator, service } = setup();
     vi.spyOn(service, "readArticle").mockResolvedValue({
       body: "Current body",
     } as ReadArticleResult);
@@ -119,25 +133,27 @@ describe("AI-generated staged-write summaries", () => {
       },
       actor,
     );
-    expect(summaries.generateSummary).toHaveBeenCalledWith({
+    expect(articleGenerator.generateArticle).toHaveBeenCalledWith({
       title: "Architecture",
       body: "Current body\n\nNew entry",
     });
   });
 
   it("returns an existing idempotent write without another LLM call", async () => {
-    const { service, store, summaries } = setup();
+    const { articleGenerator, service, store } = setup();
     vi.mocked(store.getStagedWriteByIdempotencyKey).mockResolvedValue(write("Existing summary"));
     await expect(
       service.stageWrite({ ...createInput(), idempotencyKey: "existing-write" }, actor),
     ).resolves.toMatchObject({ summary: "Existing summary" });
-    expect(summaries.generateSummary).not.toHaveBeenCalled();
+    expect(articleGenerator.generateArticle).not.toHaveBeenCalled();
     expect(store.createStagedWrite).not.toHaveBeenCalled();
   });
 
   it("does not persist when summarization fails", async () => {
-    const { service, store, summaries } = setup();
-    vi.mocked(summaries.generateSummary).mockRejectedValue(new Error("provider unavailable"));
+    const { articleGenerator, service, store } = setup();
+    vi.mocked(articleGenerator.generateArticle).mockRejectedValue(
+      new Error("provider unavailable"),
+    );
     await expect(service.stageWrite(createInput(), actor)).rejects.toMatchObject({
       code: "llm_summary_failed",
       status: 502,
@@ -153,13 +169,14 @@ describe("local staged-write summaries", () => {
       getBrain: vi.fn(async () => brain()),
       getStagedWriteByIdempotencyKey: vi.fn(async () => null),
       findPotentialConflicts: vi.fn(async () => []),
-      createStagedWrite: vi.fn(async (input) => write(input.summary)),
+      createStagedWrite: vi.fn(async (input) => write(input.summary, input.title)),
       audit: vi.fn(async () => undefined),
     } as unknown as DataStore;
     const service = new RementumService(store, {} as EmbeddingClient, masterKey);
 
     await expect(service.stageWrite(createInput(), actor)).resolves.toMatchObject({
       summary: "Canonical body",
+      title: "Architecture",
     });
     expect(store.findPotentialConflicts).toHaveBeenCalledWith(
       brainId,
@@ -167,6 +184,16 @@ describe("local staged-write summaries", () => {
       "Architecture",
       "Canonical body",
       actor,
+    );
+    expect(store.createStagedWrite).toHaveBeenCalledWith(
+      expect.objectContaining({ body: "Canonical body", title: "Architecture" }),
+      actor,
+      expect.any(String),
+      expect.any(String),
+      expect.any(Object),
+      expect.any(String),
+      hashContent("Canonical body"),
+      [],
     );
   });
 });

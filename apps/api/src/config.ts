@@ -61,14 +61,14 @@ const configSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["REMENTUM_LLM_BASE_URL"],
-        message: "An OpenAI-compatible API base URL is required when LLM summaries are enabled",
+        message: "An OpenAI-compatible API base URL is required when LLM generation is enabled",
       });
     }
     if (value.REMENTUM_LLM_ENABLED && !value.REMENTUM_LLM_MODEL) {
       ctx.addIssue({
         code: "custom",
         path: ["REMENTUM_LLM_MODEL"],
-        message: "A model name is required when LLM summaries are enabled",
+        message: "A model name is required when LLM generation is enabled",
       });
     }
     if (value.NODE_ENV === "production" && !value.REMENTUM_JWT_JWKS) {

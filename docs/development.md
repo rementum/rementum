@@ -9,8 +9,9 @@
 
 ## Run the container stack
 
-Copy the example environment and fill the required keys. The default configuration uses local
-routing summaries; configure the optional AI provider only when you want model-generated summaries:
+Copy the example environment and fill the required keys. The default configuration preserves staged
+titles and bodies and uses local routing summaries. Configure the optional AI provider only when you
+want it to compact all three fields before staging:
 
 ```bash
 cp .env.example .env

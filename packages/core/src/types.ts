@@ -128,11 +128,17 @@ export interface SearchHit {
   excerpt: string | null;
 }
 
-export interface SummaryGenerator {
-  generateSummary(input: { title: string; body: string }): Promise<string>;
+export interface GeneratedArticle {
+  title: string;
+  summary: string;
+  body: string;
 }
 
-export type ResolvedStageWriteInput = StageWriteInput & { summary: string };
+export interface ArticleGenerator {
+  generateArticle(input: { title: string; body: string }): Promise<GeneratedArticle>;
+}
+
+export type ResolvedStageWriteInput = StageWriteInput & GeneratedArticle;
 
 export interface DataStore {
   createTeam(

@@ -18,7 +18,7 @@ import { ResendMailer, type TransactionalMailer } from "./mailer.js";
 import { registerWorkspaceMcpEndpoint } from "./mcp.js";
 import { buildOauthRuntime, registerOauthRoutes } from "./oauth.js";
 import { registerApiRoutes } from "./routes.js";
-import { OpenAICompatibleSummaryGenerator } from "./summaries.js";
+import { OpenAICompatibleArticleGenerator } from "./summaries.js";
 import { registerWebSessionRoutes } from "./web-session.js";
 
 export async function buildApp(
@@ -39,9 +39,9 @@ export async function buildApp(
   const store = new PostgresStore(database);
   const authRepository = new AuthRepository(database);
   const embeddings = new HttpEmbeddingClient(config.REMENTUM_EMBEDDINGS_URL);
-  const summaries =
+  const articleGenerator =
     config.REMENTUM_LLM_ENABLED && config.REMENTUM_LLM_BASE_URL && config.REMENTUM_LLM_MODEL
-      ? new OpenAICompatibleSummaryGenerator({
+      ? new OpenAICompatibleArticleGenerator({
           baseUrl: config.REMENTUM_LLM_BASE_URL,
           model: config.REMENTUM_LLM_MODEL,
           ...(config.REMENTUM_LLM_API_KEY ? { apiKey: config.REMENTUM_LLM_API_KEY } : {}),
@@ -63,7 +63,7 @@ export async function buildApp(
     store,
     embeddings,
     parseMasterKey(config.REMENTUM_MASTER_KEY),
-    summaries,
+    articleGenerator,
   );
   const oauth = await buildOauthRuntime(config, database);
   const verifyCredentials = await createCredentialVerifier(authRepository);
