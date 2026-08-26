@@ -50,7 +50,7 @@ function markdownToPlainText(markdown: string): string {
     .trim();
 }
 
-function clipSentence(value: string, maxChars: number): string {
+export function clipSentence(value: string, maxChars: number): string {
   if (value.length <= maxChars) return value;
   const slice = value.slice(0, maxChars);
   const boundary = slice.lastIndexOf(" ");

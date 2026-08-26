@@ -111,20 +111,92 @@ describe("OpenAI-compatible article generation", () => {
     );
   });
 
-  it.each([
-    ["long title", { title: "t".repeat(121) }],
-    ["long summary", { summary: "s".repeat(301) }],
-    ["multi-sentence summary", { summary: "First sentence. Second sentence." }],
-    ["long body", { body: "b".repeat(1_501) }],
-  ])("rejects a structured response with %s", async (_label, overrides) => {
+  it("normalizes repairable field noise instead of failing", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => completion(generatedArticle(overrides))),
+      vi.fn(async () =>
+        completion(
+          generatedArticle({
+            title: `${"t".repeat(121)}`,
+            summary: "First sentence. Second sentence.",
+          }),
+        ),
+      ),
+    );
+
+    const article = await generator().generateArticle({ title: "Title", body: "Body" });
+    expect(article.title.length).toBeLessThanOrEqual(120);
+    expect(article.title.endsWith("…")).toBe(true);
+    expect(article.summary).toBe("First sentence.");
+  });
+
+  it("recovers JSON wrapped in code fences and think blocks", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        completion(`<think>planning the answer</think>\n\`\`\`json\n${generatedArticle()}\n\`\`\``),
+      ),
     );
 
     await expect(
       generator().generateArticle({ title: "Title", body: "Body" }),
-    ).rejects.toMatchObject({ code: "llm_summary_failed", status: 502 });
+    ).resolves.toMatchObject({ title: "Portable core" });
+  });
+
+  it("retries once with the validation reasons, then succeeds", async () => {
+    const outputs = [generatedArticle({ body: "b".repeat(1_501) }), generatedArticle()];
+    const requests: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      requests.push(JSON.parse(String(init?.body)));
+      return completion(outputs.shift() ?? "unexpected");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generator().generateArticle({ title: "Title", body: "Body" }),
+    ).resolves.toMatchObject({ title: "Portable core" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const messages = (requests[1]?.messages ?? []) as Array<{ content: string }>;
+    const system = messages[0]?.content ?? "";
+    expect(system).toContain("rejected");
+    expect(system).toContain('"body" exceeds 1500 characters');
+  });
+
+  it("fails with the reason after the corrective retry also misses the limits", async () => {
+    const fetchMock = vi.fn(async () => completion(generatedArticle({ body: "b".repeat(1_501) })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generator().generateArticle({ title: "Title", body: "Body" }),
+    ).rejects.toMatchObject({
+      code: "llm_summary_failed",
+      status: 502,
+      message: expect.stringContaining('"body" exceeds 1500 characters'),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops structured-output extras after a provider rejects them", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      requests.push(request);
+      if ("response_format" in request) return completion("unsupported", 400);
+      return completion(generatedArticle());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const instance = generator();
+    await expect(instance.generateArticle({ title: "Title", body: "Body" })).resolves.toMatchObject(
+      { title: "Portable core" },
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(requests[1]).not.toHaveProperty("response_format");
+    expect(requests[1]).not.toHaveProperty("temperature");
+
+    // The instance remembers the provider's limits for later articles.
+    await instance.generateArticle({ title: "Next", body: "Body" });
+    expect(requests[2]).not.toHaveProperty("response_format");
   });
 
   it("rejects a model response over 10,000 characters", async () => {
