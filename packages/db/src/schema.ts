@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   customType,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -28,6 +29,13 @@ export const writeStatus = pgEnum("write_status", [
   "promoted",
   "conflicted",
   "withdrawn",
+]);
+export const compactionStatus = pgEnum("compaction_status", [
+  "not_requested",
+  "queued",
+  "processing",
+  "compacted",
+  "failed",
 ]);
 export const taskStatus = pgEnum("task_status", [
   "open",
@@ -88,6 +96,7 @@ export const workspaces = pgTable(
       .references(() => teams.id, { onDelete: "cascade" }),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
+    llmCompactionEnabled: boolean("llm_compaction_enabled").notNull().default(false),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id),
@@ -155,6 +164,10 @@ export const articles = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    compactionStatus: compactionStatus("compaction_status").notNull().default("not_requested"),
+    compactionAttempts: integer("compaction_attempts").notNull().default(0),
+    compactionError: text("compaction_error"),
+    compactedAt: timestamp("compacted_at", { withTimezone: true }),
     searchDocument: customType<{ data: string }>({ dataType: () => "tsvector" })("search_document"),
   },
   (table) => [
@@ -190,6 +203,42 @@ export const articleVersions = pgTable(
   },
   (table) => [
     uniqueIndex("article_versions_article_version_uq").on(table.articleId, table.version),
+  ],
+);
+
+export const articleCompactionJobs = pgTable(
+  "article_compaction_jobs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    brainId: uuid("brain_id")
+      .notNull()
+      .references(() => brains.id, { onDelete: "cascade" }),
+    articleId: uuid("article_id").notNull(),
+    articleVersion: integer("article_version").notNull(),
+    sourceTitle: text("source_title").notNull(),
+    status: compactionStatus("status").notNull().default("queued"),
+    attempts: integer("attempts").notNull().default(0),
+    availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+    claimedBy: text("claimed_by"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.articleId, table.articleVersion],
+      foreignColumns: [articleVersions.articleId, articleVersions.version],
+      name: "article_compaction_jobs_article_version_fkey",
+    }).onDelete("cascade"),
+    uniqueIndex("article_compaction_jobs_article_version_uq").on(
+      table.articleId,
+      table.articleVersion,
+    ),
+    index("article_compaction_jobs_claim_idx").on(table.status, table.availableAt, table.createdAt),
   ],
 );
 

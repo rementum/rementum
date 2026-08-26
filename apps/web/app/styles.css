@@ -1541,6 +1541,7 @@ summary:focus-visible {
 }
 
 .status.current,
+.status.compacted,
 .status.completed,
 .status.approved,
 .status.promoted,
@@ -1559,6 +1560,10 @@ summary:focus-visible {
 }
 
 .status.unknown,
+.status.disabled,
+.status.not_compacted,
+.status.queued,
+.status.processing,
 .status.pending,
 .status.review,
 .status.claimed,
@@ -1632,6 +1637,25 @@ summary:focus-visible {
   margin: 18px 0 0;
   color: var(--text-secondary);
   font-size: 16px;
+}
+
+.article-statuses,
+.article-compaction {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.article-compaction small {
+  max-width: 260px;
+  color: var(--text-tertiary);
+  font: 10px / 1.4 var(--font-mono);
+  text-align: right;
+}
+
+.article-compaction .compaction-error {
+  color: var(--danger);
 }
 
 .page-intro > div:first-child > p:last-child {
@@ -2196,6 +2220,15 @@ summary:focus-visible {
     align-items: flex-start;
     flex-direction: column;
     margin-top: 38px;
+  }
+
+  .article-statuses,
+  .article-compaction {
+    align-items: flex-start;
+  }
+
+  .article-compaction small {
+    text-align: left;
   }
 
   .edit-link {

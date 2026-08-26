@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArticleMarkdown } from "../../../components/article-markdown";
 import { api } from "../../../lib/api";
+import { type ArticleCompaction, ArticleCompactionStatus } from "./article-compaction-status";
 
 interface Article {
   id: string;
@@ -11,6 +12,7 @@ interface Article {
   currentVersion: number;
   freshness: string;
   keywords: string[];
+  compaction: ArticleCompaction;
   provenance: { changeSummary: string; createdAt: string; clientId: string | null };
 }
 
@@ -45,7 +47,10 @@ export default async function ArticlePage({ params }: { params: Promise<{ articl
             <h1>{article.title}</h1>
             <p>{article.summary}</p>
           </div>
-          <span className={`status ${article.freshness}`}>{article.freshness}</span>
+          <div className="article-statuses">
+            <span className={`status ${article.freshness}`}>{article.freshness}</span>
+            <ArticleCompactionStatus articleId={articleId} initial={article.compaction} />
+          </div>
         </div>
       </header>
       <div className="article-columns">

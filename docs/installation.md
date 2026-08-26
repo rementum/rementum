@@ -8,9 +8,9 @@ You need:
 - A domain with an A or AAAA record pointing to the host
 - Inbound TCP ports 80 and 443
 
-An OpenAI-compatible API endpoint and model name are optional. Without them, Rementum preserves
-submitted titles and bodies, creates local routing summaries, and sends nothing to an external LLM.
-When enabled, the provider/model must support strict JSON Schema through Chat Completions.
+An OpenAI-compatible API endpoint and model name are optional. Configuring them makes deferred
+compaction available, but every workspace still starts with compaction off. The provider/model must
+support strict JSON Schema through Chat Completions.
 
 Public registration also needs a Resend API key and a verified sender. Invitation-only instances do
 not need an email provider for the first owner.
@@ -50,10 +50,11 @@ REMENTUM_INSTALL_ALLOW_SIGNUP='false' \
 ```
 
 Store an owner password of at least 12 characters in `REMENTUM_INSTALL_OWNER_PASSWORD_FILE`. The
-installer defaults external LLM generation and public signup to `false`. Omit every LLM input to
-preserve submitted titles and bodies and use local summaries. For an external LLM, set
+installer defaults external LLM capability and public signup to `false`. Omit every LLM input to
+preserve submitted titles and bodies and use local summaries. To make compaction available, set
 `REMENTUM_INSTALL_LLM_ENABLED=true`, a base URL, and a structured-output-capable model; omit the API
-key file for a keyless compatible endpoint. If you enable signup, also set
+key file for a keyless compatible endpoint. After installation, enable compaction on each intended
+workspace from its team page. If you enable signup, also set
 `REMENTUM_INSTALL_RESEND_API_KEY_FILE` and `REMENTUM_INSTALL_MAIL_FROM`. Run
 `./scripts/install.sh --help` for the complete input list.
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { OpenAICompatibleArticleGenerator, splitForSummary } from "./summaries.js";
+import { OpenAICompatibleArticleGenerator, splitForSummary } from "./llm-compaction.js";
 
 afterEach(() => vi.unstubAllGlobals());
 

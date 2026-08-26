@@ -20,13 +20,21 @@ import {
   unwrapDataKey,
   wrapDataKey,
 } from "./crypto.js";
-import { ArticleGenerationError, ConflictError, ForbiddenError, NotFoundError } from "./errors.js";
+import {
+  ArticleGenerationError,
+  ConflictError,
+  ForbiddenError,
+  LlmUnavailableError,
+  NotFoundError,
+} from "./errors.js";
 import { LocalArticleGenerator } from "./local-summary.js";
 import { slugify, splitMarkdownByHeading } from "./markdown.js";
 import type {
   Actor,
   ArticleGenerator,
+  ArticleRecord,
   BrainWithIndex,
+  ClaimedCompactionJob,
   DataStore,
   EmbeddingClient,
   ReadArticleResult,
@@ -36,11 +44,14 @@ import type {
 } from "./types.js";
 
 export class RementumService {
+  private readonly localArticleGenerator = new LocalArticleGenerator();
+
   constructor(
     private readonly store: DataStore,
     private readonly embeddings: EmbeddingClient,
     private readonly masterKey: Buffer,
-    private readonly articleGenerator: ArticleGenerator = new LocalArticleGenerator(),
+    private readonly compactionGenerator: ArticleGenerator | null = null,
+    private readonly llmAvailable = false,
   ) {}
 
   async createTeam(input: CreateTeamInput, actor: Actor) {
@@ -98,11 +109,44 @@ export class RementumService {
 
   async updateWorkspace(workspaceId: string, input: UpdateWorkspaceInput, actor: Actor) {
     requireWorkspaceRole(actor, workspaceId, ["owner", "admin"]);
-    const base = slugify(input.name) || "workspace";
-    const slug = `${base.slice(0, 105)}-${randomBytes(6).toString("hex")}`;
-    const workspace = await this.store.updateWorkspace(workspaceId, input.name.trim(), slug, actor);
-    await this.store.audit(actor, "workspace.updated", `workspace:${workspace.id}`);
+    if (input.llmCompactionEnabled === true && !this.llmAvailable) {
+      throw new LlmUnavailableError();
+    }
+    const patch: { name?: string; slug?: string; llmCompactionEnabled?: boolean } = {};
+    if (input.name !== undefined) {
+      const base = slugify(input.name) || "workspace";
+      patch.name = input.name.trim();
+      patch.slug = `${base.slice(0, 105)}-${randomBytes(6).toString("hex")}`;
+    }
+    if (input.llmCompactionEnabled !== undefined) {
+      patch.llmCompactionEnabled = input.llmCompactionEnabled;
+    }
+    const workspace = await this.store.updateWorkspace(workspaceId, patch, actor);
+    if (input.llmCompactionEnabled === false) {
+      const articleIds = await this.store.cancelWorkspaceCompactions(workspaceId, actor);
+      for (const articleId of articleIds) {
+        void this.indexPromotedArticle(articleId, actor).catch(() => undefined);
+      }
+    }
+    await this.store.audit(actor, "workspace.updated", `workspace:${workspace.id}`, {
+      llmCompactionEnabled: workspace.llmCompactionEnabled,
+    });
     return { ...workspace, createdAt: workspace.createdAt.toISOString() };
+  }
+
+  async queueWorkspaceCompactions(workspaceId: string, actor: Actor) {
+    requireWorkspaceRole(actor, workspaceId, ["owner", "admin"]);
+    if (!this.llmAvailable) throw new LlmUnavailableError();
+    const workspace = await this.store.getWorkspace(workspaceId, actor);
+    if (!workspace) throw new NotFoundError("Workspace");
+    if (!workspace.llmCompactionEnabled) {
+      throw new ConflictError("LLM compaction is disabled for this workspace");
+    }
+    const queued = await this.store.queueWorkspaceCurrentCompactions(workspaceId, actor);
+    await this.store.audit(actor, "workspace.compactions_queued", `workspace:${workspaceId}`, {
+      queued,
+    });
+    return { queued };
   }
 
   async deleteWorkspace(workspaceId: string, confirmation: string, actor: Actor) {
@@ -256,7 +300,10 @@ export class RementumService {
       this.store.getArticleLinks(articleId, actor),
     ]);
     if (!brain || !version) throw new NotFoundError("Article version");
-    const sources = await this.store.getArticleSources(articleId, version.version, actor);
+    const [sources, compactionEnabled] = await Promise.all([
+      this.store.getArticleSources(articleId, version.version, actor),
+      this.store.isBrainCompactionEnabled(article.brainId, actor),
+    ]);
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
     const body = decrypt(version.body, key, version.bodyAad).toString("utf8");
     await this.store.audit(actor, "article.read", `article:${articleId}`, {
@@ -269,6 +316,7 @@ export class RementumService {
       sources,
       verifiedAt: article.verifiedAt?.toISOString() ?? null,
       reviewAfter: article.reviewAfter?.toISOString() ?? null,
+      compaction: articleCompactionView(article, compactionEnabled, this.llmAvailable, actor),
       provenance: {
         actorId: version.actorId,
         clientId: version.clientId,
@@ -276,6 +324,39 @@ export class RementumService {
         createdAt: version.createdAt.toISOString(),
       },
     };
+  }
+
+  async queueArticleCompaction(articleId: string, actor: Actor) {
+    if (!this.llmAvailable) throw new LlmUnavailableError();
+    const article = await this.store.getArticle(articleId, actor);
+    if (!article) throw new NotFoundError("Article");
+    requireBrainRole(actor, article.brainId, ["owner", "editor"]);
+    if (["queued", "processing"].includes(article.compactionStatus)) {
+      return {
+        articleId,
+        version: article.currentVersion,
+        status: article.compactionStatus as "queued" | "processing",
+      };
+    }
+    if (!["not_requested", "failed"].includes(article.compactionStatus)) {
+      throw new ConflictError("Only uncompacted or failed articles can be queued");
+    }
+    if (!(await this.store.isBrainCompactionEnabled(article.brainId, actor))) {
+      throw new ConflictError("LLM compaction is disabled for this workspace");
+    }
+    await this.store.queueArticleCompaction(articleId, actor);
+    await this.store.audit(actor, "article.compaction_queued", `article:${articleId}`, {
+      version: article.currentVersion,
+    });
+    return { articleId, version: article.currentVersion, status: "queued" as const };
+  }
+
+  async getArticleCompaction(articleId: string, actor: Actor) {
+    const article = await this.store.getArticle(articleId, actor);
+    if (!article) throw new NotFoundError("Article");
+    requireBrainRole(actor, article.brainId, ["owner", "editor", "commenter", "viewer"]);
+    const enabled = await this.store.isBrainCompactionEnabled(article.brainId, actor);
+    return articleCompactionView(article, enabled, this.llmAvailable, actor);
   }
 
   async stageWrite(input: StageWriteInput, actor: Actor): Promise<StagedWriteRecord> {
@@ -294,16 +375,10 @@ export class RementumService {
       input.operation === "append"
         ? `${(await this.readArticle(articleId, actor)).body.trimEnd()}\n\n${input.body.trimStart()}`
         : input.body;
-    let generated: Awaited<ReturnType<ArticleGenerator["generateArticle"]>>;
-    try {
-      generated = await this.articleGenerator.generateArticle({
-        title: input.title,
-        body: bodyText,
-      });
-    } catch (error) {
-      if (error instanceof ArticleGenerationError) throw error;
-      throw new ArticleGenerationError();
-    }
+    const generated = await this.localArticleGenerator.generateArticle({
+      title: input.title,
+      body: bodyText,
+    });
     const resolvedInput: ResolvedStageWriteInput = { ...input, ...generated };
     const body = encrypt(generated.body, key, bodyAad);
     const potentialConflicts = await this.store.findPotentialConflicts(
@@ -342,12 +417,14 @@ export class RementumService {
     if (input.decision === "override" && write.stagedBy === actor.userId) {
       throw new ForbiddenError("The staging actor cannot approve their own override");
     }
-    const result = await this.store.promoteStagedWrite(input, actor);
+    const result = await this.store.promoteStagedWrite(input, actor, this.llmAvailable);
     await this.store.audit(actor, "write.promoted", `write:${write.id}`, {
       version: result.version.version,
       decision: input.decision,
     });
-    void this.indexPromotedArticle(result.article.id, actor).catch(() => undefined);
+    if (result.article.compactionStatus !== "queued") {
+      void this.indexPromotedArticle(result.article.id, actor).catch(() => undefined);
+    }
     return result;
   }
 
@@ -565,6 +642,83 @@ export class RementumService {
     return { ok: true, articleId, version: article.currentVersion };
   }
 
+  async compactClaimedJob(claim: ClaimedCompactionJob, actor: Actor) {
+    if (!this.compactionGenerator) throw new LlmUnavailableError();
+    const job = await this.store.getCompactionJob(claim.jobId, actor);
+    if (!job || job.claimedBy !== claim.claimId || job.status !== "processing") return null;
+    const workspace = await this.store.getWorkspace(job.workspaceId, actor);
+    if (!workspace?.llmCompactionEnabled) {
+      await this.store.cancelWorkspaceCompactions(job.workspaceId, actor);
+      return null;
+    }
+    const [brain, version] = await Promise.all([
+      this.store.getBrain(job.brainId, actor),
+      this.store.getVersion(job.articleId, job.articleVersion, actor),
+    ]);
+    if (!brain || !version) throw new NotFoundError("Compaction source version");
+    const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
+    const sourceBody = decrypt(version.body, key, version.bodyAad).toString("utf8");
+    let generated: Awaited<ReturnType<ArticleGenerator["generateArticle"]>>;
+    try {
+      generated = await this.compactionGenerator.generateArticle({
+        title: job.sourceTitle,
+        body: sourceBody,
+      });
+    } catch (error) {
+      if (error instanceof ArticleGenerationError) throw error;
+      throw new ArticleGenerationError();
+    }
+    const encrypted = encrypt(generated.body, key, version.bodyAad);
+    const result = await this.store.completeCompaction(
+      job.id,
+      claim.claimId,
+      generated,
+      encrypted,
+      hashContent(generated.body),
+      actor,
+    );
+    if (!result) return null;
+    await this.store.audit(actor, "article.compacted", `article:${result.articleId}`, {
+      version: result.version,
+      attempt: job.attempts,
+      current: result.current,
+    });
+    if (result.current) {
+      await this.store.clearEmbeddings(result.articleId, result.version, actor);
+      await this.indexPromotedArticle(result.articleId, actor).catch(() => undefined);
+    }
+    return result;
+  }
+
+  async failClaimedCompaction(claim: ClaimedCompactionJob, error: unknown, actor: Actor) {
+    const message = compactErrorMessage(error);
+    const retryAt =
+      claim.attempts === 1
+        ? new Date(Date.now() + 60_000)
+        : claim.attempts === 2
+          ? new Date(Date.now() + 5 * 60_000)
+          : null;
+    const result = await this.store.failCompaction(
+      claim.jobId,
+      claim.claimId,
+      message,
+      retryAt,
+      actor,
+    );
+    if (!result) return null;
+    await this.store.audit(
+      actor,
+      result.terminal ? "article.compaction_failed" : "article.compaction_retry_scheduled",
+      `article:${result.articleId}`,
+      { version: result.version, attempt: claim.attempts },
+    );
+    if (result.terminal && result.current) {
+      await this.store.clearEmbeddings(result.articleId, result.version, actor);
+      await this.indexPromotedArticle(result.articleId, actor).catch(() => undefined);
+    }
+    return result;
+  }
+
   async proposeInvite(
     brainId: string,
     email: string,
@@ -675,6 +829,37 @@ function toSummary(record: {
     currentVersion: record.currentVersion,
     updatedAt:
       typeof record.updatedAt === "string" ? record.updatedAt : record.updatedAt.toISOString(),
+  };
+}
+
+function compactErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : "LLM compaction failed";
+  return message.replace(/\s+/g, " ").trim().slice(0, 500) || "LLM compaction failed";
+}
+
+function articleCompactionView(
+  article: ArticleRecord,
+  enabled: boolean,
+  available: boolean,
+  actor: Actor,
+) {
+  return {
+    enabled,
+    available,
+    status:
+      article.compactionStatus === "not_requested"
+        ? enabled
+          ? ("not_compacted" as const)
+          : ("disabled" as const)
+        : article.compactionStatus,
+    attempts: article.compactionAttempts,
+    error: article.compactionError,
+    compactedAt: article.compactedAt?.toISOString() ?? null,
+    canRetry:
+      enabled &&
+      available &&
+      ["owner", "editor"].includes(actor.brainRoles.get(article.brainId) ?? "") &&
+      ["not_requested", "failed"].includes(article.compactionStatus),
   };
 }
 

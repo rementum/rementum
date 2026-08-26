@@ -67,7 +67,7 @@ function WorkflowLanding() {
     {
       code: "stage",
       title: "Analyze and stage the memory.",
-      body: "Rementum creates a local routing summary or asks your optional AI provider to compact the title, summary, and body, then checks for conflicts before it touches canon.",
+      body: "Rementum stages the submitted knowledge immediately, then an opted-in workspace can compact the promoted title, summary, and body in the background.",
     },
     {
       code: "promote",

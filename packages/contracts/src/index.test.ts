@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stageWriteSchema } from "./index.js";
+import { stageWriteSchema, updateWorkspaceSchema } from "./index.js";
 
 describe("stageWriteSchema", () => {
   it("does not publish or retain a caller-authored summary", () => {
@@ -13,5 +13,17 @@ describe("stageWriteSchema", () => {
       changeSummary: "Create architecture memory",
     });
     expect(parsed).not.toHaveProperty("summary");
+  });
+});
+
+describe("updateWorkspaceSchema", () => {
+  it("accepts a compaction-only workspace update", () => {
+    expect(updateWorkspaceSchema.parse({ llmCompactionEnabled: true })).toEqual({
+      llmCompactionEnabled: true,
+    });
+  });
+
+  it("rejects an empty workspace update", () => {
+    expect(() => updateWorkspaceSchema.parse({})).toThrow(/workspace field/i);
   });
 });

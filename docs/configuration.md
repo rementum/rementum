@@ -36,18 +36,28 @@ wrapped brain key. Keep the original value with your disaster-recovery material.
 | `REMENTUM_LLM_TIMEOUT_MS` | Generation request timeout |
 | `REMENTUM_LLM_MAX_INPUT_CHARS` | Maximum source characters per generation chunk |
 | `REMENTUM_LLM_CONCURRENCY` | Maximum concurrent generation requests |
+| `REMENTUM_COMPACTION_POLL_MS` | Worker delay between queue polls; defaults to 2 seconds |
 
 With the default `REMENTUM_LLM_ENABLED=false`, Rementum preserves the submitted title and body and
 derives a deterministic one-sentence routing summary inside the instance. It does not make an
 external LLM request, and staging, conflict checks, routing, and search remain available.
 
-Set `REMENTUM_LLM_ENABLED=true` together with a base URL and model to use an external provider. The
-provider receives the complete candidate title and body in plaintext and must support strict JSON
-Schema through the Chat Completions `response_format` field. It returns a title of at most 120
-characters, a one-sentence summary of at most 300 characters, and a compact Markdown body of at most
-1,500 characters. Rementum stores only that generated body; the submitted original is not retained.
-If an enabled provider is unavailable or returns an invalid response, staging fails instead of
-silently changing to local mode.
+Set `REMENTUM_LLM_ENABLED=true` together with a base URL and model to make deferred compaction
+available. This does not send content by itself: every existing and new workspace starts with
+compaction off, and an owner or admin must enable it from the team page.
+
+Staging never calls the provider. Promotion stores the submitted version encrypted and queues it for
+the worker. The provider receives the title and body in plaintext and must support strict JSON Schema
+through the Chat Completions `response_format` field. It returns a title of at most 120 characters, a
+one-sentence summary of at most 300 characters, and a Markdown body of at most 1,500 characters. A
+successful job overwrites the same encrypted version, removing the submitted body. Jobs retry after
+1 and 5 minutes; after the third failure the submitted body remains canonical and the article can be
+retried manually.
+
+Enabling a workspace affects future promoted versions. Use **Compact existing** to queue only the
+current version of existing articles; historical versions are not changed. Turning compaction off
+cancels queued jobs. A request already sent to the provider cannot be recalled, but its result is
+discarded when the worker sees that the workspace is off.
 
 ## Email
 

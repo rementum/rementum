@@ -1,4 +1,5 @@
-import { parseMasterKey, RementumService } from "@rementum/core";
+import { randomUUID } from "node:crypto";
+import { OpenAICompatibleArticleGenerator, parseMasterKey, RementumService } from "@rementum/core";
 import { createDatabaseClient, PostgresStore } from "@rementum/db";
 
 class WorkerEmbeddingClient {
@@ -37,12 +38,34 @@ const embeddingsUrl = process.env.REMENTUM_EMBEDDINGS_URL ?? "http://localhost:8
 const database = createDatabaseClient(databaseUrl, 4);
 const store = new PostgresStore(database);
 const embeddings = new WorkerEmbeddingClient(embeddingsUrl);
+const llmEnabled = process.env.REMENTUM_LLM_ENABLED === "true";
+const llmBaseUrl = llmEnabled ? required("REMENTUM_LLM_BASE_URL") : null;
+const llmModel = llmEnabled ? required("REMENTUM_LLM_MODEL") : null;
+const llmConcurrency = numberEnv("REMENTUM_LLM_CONCURRENCY", 4, 1, 16);
+const articleGenerator =
+  llmEnabled && llmBaseUrl && llmModel
+    ? new OpenAICompatibleArticleGenerator({
+        baseUrl: llmBaseUrl,
+        model: llmModel,
+        ...(process.env.REMENTUM_LLM_API_KEY ? { apiKey: process.env.REMENTUM_LLM_API_KEY } : {}),
+        ...(process.env.REMENTUM_LLM_REASONING_EFFORT
+          ? { reasoningEffort: process.env.REMENTUM_LLM_REASONING_EFFORT }
+          : {}),
+        timeoutMs: numberEnv("REMENTUM_LLM_TIMEOUT_MS", 45_000, 1_000, 300_000),
+        maxInputChars: numberEnv("REMENTUM_LLM_MAX_INPUT_CHARS", 24_000, 8_000, 200_000),
+        concurrency: llmConcurrency,
+      })
+    : null;
 const service = new RementumService(
   store,
   embeddings,
   parseMasterKey(required("REMENTUM_MASTER_KEY")),
+  articleGenerator,
+  llmEnabled,
 );
 const intervalMs = Number(process.env.REMENTUM_MAINTENANCE_INTERVAL_MS ?? 60 * 60 * 1000);
+const compactionPollMs = numberEnv("REMENTUM_COMPACTION_POLL_MS", 2_000, 250, 60_000);
+const workerId = `rementum-worker-${randomUUID()}`;
 
 async function runPass() {
   const started = Date.now();
@@ -69,6 +92,34 @@ async function runPass() {
   );
 }
 
+async function runCompactionPass() {
+  const claims = (
+    await Promise.all(
+      Array.from({ length: llmConcurrency }, () => store.claimCompaction(workerId, 120)),
+    )
+  ).filter((claim) => claim !== null);
+  await Promise.all(
+    claims.map(async (claim) => {
+      const started = Date.now();
+      const actor = await store.loadActor(claim.ownerId, "rementum-worker");
+      try {
+        const result = await service.compactClaimedJob(claim, actor);
+        if (result) {
+          process.stdout.write(
+            `${new Date().toISOString()} compacted article ${result.articleId} v${result.version} attempt ${claim.attempts} in ${Date.now() - started}ms\n`,
+          );
+        }
+      } catch (error) {
+        await service.failClaimedCompaction(claim, error, actor);
+        process.stderr.write(
+          `${new Date().toISOString()} compaction ${claim.jobId} attempt ${claim.attempts} failed: ${(error as Error).message}\n`,
+        );
+      }
+    }),
+  );
+  return claims.length;
+}
+
 let stopping = false;
 const stop = async () => {
   stopping = true;
@@ -77,17 +128,32 @@ const stop = async () => {
 process.on("SIGINT", () => void stop());
 process.on("SIGTERM", () => void stop());
 
+let nextMaintenanceAt = 0;
 while (!stopping) {
   try {
-    await runPass();
+    if (Date.now() >= nextMaintenanceAt) {
+      await runPass();
+      nextMaintenanceAt = Date.now() + intervalMs;
+    }
+    if (articleGenerator) await runCompactionPass();
   } catch (error) {
-    process.stderr.write(`Maintenance pass failed: ${(error as Error).stack ?? error}\n`);
+    process.stderr.write(`Worker pass failed: ${(error as Error).stack ?? error}\n`);
   }
-  await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  await new Promise((resolve) =>
+    setTimeout(resolve, articleGenerator ? compactionPollMs : intervalMs),
+  );
 }
 
 function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+function numberEnv(name: string, fallback: number, minimum: number, maximum: number): number {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`);
+  }
   return value;
 }

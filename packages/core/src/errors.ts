@@ -33,3 +33,9 @@ export class ArticleGenerationError extends DomainError {
     super("llm_summary_failed", message, 502);
   }
 }
+
+export class LlmUnavailableError extends DomainError {
+  constructor() {
+    super("llm_unavailable", "The external LLM provider is not configured", 409);
+  }
+}

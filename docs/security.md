@@ -25,13 +25,17 @@ summaries, titles, links, audit metadata, and embeddings. Use encrypted disks an
 ## Article generation mode
 
 The default local mode preserves submitted titles and bodies, derives routing summaries inside the
-API process, and does not send staged candidates to an external LLM. The derived summary remains
-searchable metadata and is not covered by article-body encryption.
+API process, and does not send staged candidates to an external LLM. External provider configuration
+does not send data by itself: compaction must also be enabled on a workspace. The derived summary
+remains searchable metadata and is not covered by article-body encryption.
 
-When `REMENTUM_LLM_ENABLED=true`, the API sends each complete staged candidate title and body to the
-configured OpenAI-compatible provider. Rementum stores only the provider's generated compact title,
-one-sentence summary, and Markdown body; it does not retain the submitted original. Review that
-provider's retention, training, regional processing, and access policies before you connect it.
+When both settings are enabled, promotion temporarily keeps the submitted version encrypted while a
+background job is queued. The worker sends its title and body to the configured OpenAI-compatible
+provider. A successful result overwrites that exact version, removing the submitted body. After
+three failures the submitted body remains canonical and the article exposes a failed status. Turning
+workspace compaction off cancels queued jobs, but cannot recall a provider request already in flight.
+Review the provider's retention, training, regional processing, and access policies before enabling
+it.
 
 ## Accounts
 

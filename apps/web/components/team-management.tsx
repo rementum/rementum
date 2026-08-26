@@ -139,6 +139,8 @@ export function WorkspaceManagement({
   name,
   slug,
   mcpUrl,
+  llmCompactionEnabled,
+  llmCompactionAvailable,
   canRename,
   canDelete,
 }: {
@@ -146,6 +148,8 @@ export function WorkspaceManagement({
   name: string;
   slug: string;
   mcpUrl: string;
+  llmCompactionEnabled: boolean;
+  llmCompactionAvailable: boolean;
   canRename: boolean;
   canDelete: boolean;
 }) {
@@ -153,6 +157,7 @@ export function WorkspaceManagement({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   async function rename(formData: FormData) {
     setBusy(true);
@@ -177,6 +182,43 @@ export function WorkspaceManagement({
     setError("");
     try {
       await bridge(`/workspaces/${workspaceId}`, "DELETE", { confirmation });
+      router.refresh();
+    } catch (value) {
+      setError((value as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleCompaction() {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await bridge(`/workspaces/${workspaceId}`, "PATCH", {
+        llmCompactionEnabled: !llmCompactionEnabled,
+      });
+      router.refresh();
+    } catch (value) {
+      setError((value as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function compactExisting() {
+    if (
+      !window.confirm(
+        "Queue the current version of every uncompacted article in this workspace? Each body will be sent to the configured LLM provider.",
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await bridge(`/workspaces/${workspaceId}/compactions`, "POST");
+      setNotice(`${result.queued} article${result.queued === 1 ? "" : "s"} queued.`);
       router.refresh();
     } catch (value) {
       setError((value as Error).message);
@@ -218,7 +260,43 @@ export function WorkspaceManagement({
           </button>
         </form>
       ) : null}
+      <div className="workspace-compaction-setting">
+        <div>
+          <strong>LLM compaction</strong>
+          <p>
+            {llmCompactionEnabled
+              ? "New article versions are compacted in the background. Turning this off cancels queued work; a provider request already in flight cannot be recalled."
+              : "Off. Titles and bodies stay as submitted and never go to the external LLM."}
+          </p>
+          {!llmCompactionAvailable ? (
+            <small>Configure the instance LLM provider before enabling compaction.</small>
+          ) : null}
+        </div>
+        {canRename ? (
+          <div className="workspace-compaction-actions">
+            <button
+              className="text-button"
+              type="button"
+              disabled={busy || (!llmCompactionAvailable && !llmCompactionEnabled)}
+              onClick={toggleCompaction}
+            >
+              {llmCompactionEnabled ? "Turn off" : "Turn on"}
+            </button>
+            {llmCompactionEnabled ? (
+              <button
+                className="text-button"
+                type="button"
+                disabled={busy}
+                onClick={compactExisting}
+              >
+                Compact existing
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
       <WorkspaceMcpLink url={mcpUrl} />
+      {notice ? <p className="form-note">{notice}</p> : null}
       {error ? <p className="form-error">{error}</p> : null}
     </article>
   );

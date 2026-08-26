@@ -1,10 +1,7 @@
-import {
-  type ArticleGenerator,
-  DomainError,
-  type GeneratedArticle,
-  ROUTING_SUMMARY_MAX_CHARS,
-} from "@rementum/core";
 import { z } from "zod";
+import { ArticleGenerationError } from "./errors.js";
+import { ROUTING_SUMMARY_MAX_CHARS } from "./local-summary.js";
+import type { ArticleGenerator, GeneratedArticle } from "./types.js";
 
 const GENERATED_TITLE_MAX_CHARS = 120;
 const GENERATED_BODY_MAX_CHARS = 1_500;
@@ -261,8 +258,8 @@ function readCompletionContent(value: unknown): string {
 
 function generationError(
   message = "The configured LLM could not generate this article",
-): DomainError {
-  return new DomainError("llm_summary_failed", message, 502);
+): ArticleGenerationError {
+  return new ArticleGenerationError(message);
 }
 
 class Semaphore {

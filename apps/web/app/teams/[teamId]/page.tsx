@@ -54,6 +54,8 @@ export default async function TeamPage({ params }: { params: Promise<{ teamId: s
                 name={workspace.name}
                 slug={workspace.slug}
                 mcpUrl={workspace.mcpUrl}
+                llmCompactionEnabled={workspace.llmCompactionEnabled}
+                llmCompactionAvailable={workspace.llmCompactionAvailable}
                 canRename={team.role === "owner" || team.role === "admin"}
                 canDelete={team.role === "owner"}
               />

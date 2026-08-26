@@ -140,7 +140,7 @@ else
   domain=$(prompt "Public domain, without https://" "")
   owner_email=$(prompt "Owner email" "")
   owner_name=$(prompt "Owner display name" "Owner")
-  llm_enabled=$(prompt "Use an external LLM to compact staged titles and bodies? (yes/no)" "no")
+  llm_enabled=$(prompt "Configure an external LLM for optional workspace compaction? (yes/no)" "no")
   llm_base_url=""
   llm_model=""
   llm_api_key=""
@@ -264,6 +264,7 @@ REMENTUM_LLM_REASONING_EFFORT=''
 REMENTUM_LLM_TIMEOUT_MS='45000'
 REMENTUM_LLM_MAX_INPUT_CHARS='24000'
 REMENTUM_LLM_CONCURRENCY='4'
+REMENTUM_COMPACTION_POLL_MS='2000'
 
 REMENTUM_RESEND_API_KEY='$resend_api_key'
 REMENTUM_MAIL_FROM='$mail_from'

@@ -10,8 +10,8 @@
 ## Run the container stack
 
 Copy the example environment and fill the required keys. The default configuration preserves staged
-titles and bodies and uses local routing summaries. Configure the optional AI provider only when you
-want it to compact all three fields before staging:
+titles and bodies and uses local routing summaries. Configuring the optional AI provider only makes
+deferred compaction available; an owner/admin must still enable it on each workspace:
 
 ```bash
 cp .env.example .env

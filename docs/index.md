@@ -45,7 +45,8 @@ Rementum encrypts article bodies, version bodies, and staged bodies with per-bra
 instance master key wraps those keys. Search metadata and embeddings remain visible to the database
 operator.
 
-By default, Rementum creates routing summaries locally and staged article bodies stay inside the
-instance. If you enable an OpenAI-compatible provider, each complete candidate title and body goes to
-that provider in plaintext. Rementum encrypts and stores only the provider's compact generated body;
-the submitted original is not retained. Choose a provider whose retention policy fits your data.
+By default, Rementum creates routing summaries locally and workspace compaction is off. When the
+instance provider and a workspace setting are both enabled, promoted versions are queued for the
+worker. The worker sends the title and body to that provider in plaintext and overwrites the same
+encrypted version with the compact result. Failed compactions keep the submitted body canonical.
+Choose a provider whose retention policy fits your data.

@@ -85,6 +85,69 @@ integration("account and team authorization", () => {
         { name: "Second workspace" },
         ownerActor,
       );
+      expect(secondWorkspace.llmCompactionEnabled).toBe(false);
+      await expect(
+        service.updateWorkspace(secondWorkspace.id, { llmCompactionEnabled: true }, ownerActor),
+      ).rejects.toMatchObject({ code: "llm_unavailable", status: 409 });
+      const llmService = new RementumService(
+        store,
+        {
+          embedQuery: async () => [],
+          embedPassages: async () => [],
+          healthy: async () => true,
+        },
+        Buffer.alloc(32, 7),
+        {
+          generateArticle: async () => ({
+            title: "Compacted title",
+            summary: "The article was compacted in the background.",
+            body: "# Compacted title\n\nGenerated compact body.",
+          }),
+        },
+        true,
+      );
+      const enabledWorkspace = await llmService.updateWorkspace(
+        secondWorkspace.id,
+        { llmCompactionEnabled: true },
+        ownerActor,
+      );
+      expect(enabledWorkspace.llmCompactionEnabled).toBe(true);
+      const existingWrite = await llmService.stageWrite(
+        {
+          brainId: brain.brain.id,
+          operation: "create",
+          slug: `existing-${suffix}`,
+          title: "Existing article",
+          keywords: [],
+          kind: "canonical",
+          body: "Existing article body.",
+          changeSummary: "Create existing article",
+          sources: [],
+          acknowledgePotentialConflicts: false,
+        },
+        ownerActor,
+      );
+      const existingArticle = await llmService.promoteWrite(
+        {
+          writeId: existingWrite.id,
+          decision: "promote",
+          decisionSummary: "Approve existing article",
+        },
+        ownerActor,
+      );
+      expect(existingArticle.article.compactionStatus).toBe("not_requested");
+      await llmService.updateWorkspace(
+        owner.workspaceId,
+        { llmCompactionEnabled: true },
+        ownerActor,
+      );
+      await expect(
+        llmService.queueWorkspaceCompactions(owner.workspaceId, ownerActor),
+      ).resolves.toEqual({ queued: 1 });
+      const existingClaim = await store.claimCompaction(`existing-worker-${suffix}`, 120);
+      expect(existingClaim?.articleId).toBe(existingArticle.article.id);
+      if (!existingClaim) throw new Error("Existing article was not queued");
+      await llmService.compactClaimedJob(existingClaim, ownerActor);
       const secondBrain = await service.createBrain(
         {
           workspaceId: secondWorkspace.id,
@@ -95,6 +158,87 @@ integration("account and team authorization", () => {
         },
         ownerActor,
       );
+      const staged = await llmService.stageWrite(
+        {
+          brainId: secondBrain.brain.id,
+          operation: "create",
+          slug: `deferred-${suffix}`,
+          title: "Deferred compaction",
+          keywords: [],
+          kind: "canonical",
+          body: "The original body remains readable while compaction is queued.",
+          changeSummary: "Create deferred compaction article",
+          sources: [],
+          acknowledgePotentialConflicts: false,
+        },
+        ownerActor,
+      );
+      const promoted = await llmService.promoteWrite(
+        {
+          writeId: staged.id,
+          decision: "promote",
+          decisionSummary: "Approve deferred compaction article",
+        },
+        ownerActor,
+      );
+      expect(promoted.article.compactionStatus).toBe("queued");
+      const claim = await store.claimCompaction(`integration-worker-${suffix}`, 120);
+      expect(claim).toMatchObject({
+        articleId: promoted.article.id,
+        articleVersion: 1,
+        sourceTitle: "Deferred compaction",
+        attempts: 1,
+      });
+      if (!claim) throw new Error("Compaction claim was not created");
+      await expect(
+        llmService.getArticleCompaction(promoted.article.id, ownerActor),
+      ).resolves.toMatchObject({ status: "processing", attempts: 1 });
+      await llmService.compactClaimedJob(claim, ownerActor);
+      const compacted = await llmService.readArticle(promoted.article.id, ownerActor);
+      expect(compacted).toMatchObject({
+        title: "Compacted title",
+        summary: "The article was compacted in the background.",
+        body: "# Compacted title\n\nGenerated compact body.",
+        compaction: { status: "compacted", attempts: 1 },
+      });
+      const cancelledWrite = await llmService.stageWrite(
+        {
+          brainId: secondBrain.brain.id,
+          operation: "create",
+          slug: `cancelled-${suffix}`,
+          title: "Cancelled compaction",
+          keywords: [],
+          kind: "canonical",
+          body: "This body must remain unchanged after queued compaction is cancelled.",
+          changeSummary: "Create cancellation article",
+          sources: [],
+          acknowledgePotentialConflicts: false,
+        },
+        ownerActor,
+      );
+      const cancelledArticle = await llmService.promoteWrite(
+        {
+          writeId: cancelledWrite.id,
+          decision: "promote",
+          decisionSummary: "Approve cancellation article",
+        },
+        ownerActor,
+      );
+      const cancelledClaim = await store.claimCompaction(`cancel-worker-${suffix}`, 120);
+      expect(cancelledClaim?.articleId).toBe(cancelledArticle.article.id);
+      if (!cancelledClaim) throw new Error("Cancellation article was not claimed");
+      await llmService.updateWorkspace(
+        secondWorkspace.id,
+        { llmCompactionEnabled: false },
+        ownerActor,
+      );
+      await expect(llmService.compactClaimedJob(cancelledClaim, ownerActor)).resolves.toBeNull();
+      await expect(
+        llmService.readArticle(cancelledArticle.article.id, ownerActor),
+      ).resolves.toMatchObject({
+        body: "This body must remain unchanged after queued compaction is cancelled.",
+        compaction: { status: "disabled" },
+      });
 
       const member = await auth.registerAccount(
         `member-${suffix}@example.test`,
