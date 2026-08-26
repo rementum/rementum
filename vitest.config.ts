@@ -25,13 +25,17 @@ export default defineConfig({
         "apps/web/lib/**/*.ts",
         "packages/*/src/**/*.ts",
       ],
+      // Process entrypoints connect, listen, or start their loop while being imported, so a
+      // test cannot load them. Their logic has to be extracted before it can be covered.
       exclude: [
         "**/*.d.ts",
         "**/*.test.ts",
         "apps/api/src/admin.ts",
         "apps/api/src/generate-jwks.ts",
         "apps/api/src/server.ts",
+        "apps/embeddings/src/server.ts",
         "apps/web/lib/site.ts",
+        "apps/worker/src/worker.ts",
         "packages/*/src/index.ts",
         "packages/core/src/types.ts",
         "packages/db/src/migrate.ts",
