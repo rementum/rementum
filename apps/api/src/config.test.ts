@@ -81,3 +81,18 @@ describe("account email configuration", () => {
     expect(config.REMENTUM_RESEND_API_KEY).toBe("re_test");
   });
 });
+
+describe("reverse proxy configuration", () => {
+  it("trusts only private proxies by default so public clients cannot forge an address", () => {
+    expect(loadConfig(baseEnv).REMENTUM_TRUSTED_PROXIES).toBe("loopback,uniquelocal");
+  });
+
+  it("accepts an explicit proxy list and an empty value for direct exposure", () => {
+    expect(
+      loadConfig({ ...baseEnv, REMENTUM_TRUSTED_PROXIES: "10.4.0.7" }).REMENTUM_TRUSTED_PROXIES,
+    ).toBe("10.4.0.7");
+    expect(loadConfig({ ...baseEnv, REMENTUM_TRUSTED_PROXIES: "" }).REMENTUM_TRUSTED_PROXIES).toBe(
+      "",
+    );
+  });
+});

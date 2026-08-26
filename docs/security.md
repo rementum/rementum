@@ -8,6 +8,10 @@ Complete these checks before you store private knowledge.
 - Keep the Docker daemon, database administration port, and SSH access behind a firewall.
 - Confirm `REMENTUM_PUBLIC_URL` uses the same HTTPS origin as `REMENTUM_DOMAIN`.
 - Keep `REMENTUM_DEV_AUTH=false` in production.
+- Keep `REMENTUM_TRUSTED_PROXIES` limited to the reverse proxies you actually run. Every address
+  in that list can spoof its client address and reset its rate-limit bucket. Pin the proxy's
+  address when clients reach Rementum from a private network, because the default
+  `loopback,uniquelocal` preset trusts any private address.
 
 The reference Compose file binds PostgreSQL to `127.0.0.1` for administration. It does not expose
 PostgreSQL or the embedding service to the public network.
