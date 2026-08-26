@@ -334,35 +334,6 @@
   }
 }
 
-/*
- * TRANSITIONAL legacy aliases — keep unmigrated CSS rendering until every screen is on
- * Tailwind utilities. Deleted in the final cleanup phase.
- */
-:root {
-  --canvas-raised: var(--canvas);
-  --surface-raised: var(--hover);
-  --surface-hover: var(--hover-2);
-  --text: var(--ink);
-  --text-secondary: var(--ink-2);
-  --text-tertiary: var(--ink-3);
-  --brand: #2f6f5e;
-  --brand-light: #79aa98;
-  --brand-mark: var(--accent);
-  --danger: var(--red);
-  --danger-surface: #261c1e;
-  --success: var(--green);
-  --warning: var(--orange);
-  --radius-lg: var(--radius-card);
-  --radius-md: var(--radius-control);
-  --radius-sm: var(--radius-chip);
-  --accent-1: var(--grad-mid);
-  --accent-2: #79aa98;
-  --accent-3: #dce6e0;
-  --glass: rgb(255 255 255 / 4%);
-  --glass-strong: rgb(255 255 255 / 7%);
-  --glass-border: rgb(255 255 255 / 10%);
-}
-
 /* Article prose — react-markdown output can't take utilities; tuned to the dense ramp. */
 @layer components {
   .markdown {
