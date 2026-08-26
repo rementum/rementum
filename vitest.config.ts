@@ -15,7 +15,27 @@ export default defineConfig({
   test: {
     include: ["packages/**/*.test.ts", "apps/**/*.test.ts"],
     coverage: {
-      reporter: ["text", "json", "html"],
+      provider: "v8",
+      reporter: ["text", "html", "lcov", "json-summary"],
+      // React components are left out: the suite has no DOM environment, so the ones worth
+      // asserting on are covered through renderToStaticMarkup instead of a coverage floor.
+      include: [
+        "apps/*/src/**/*.ts",
+        "apps/web/app/**/*.ts",
+        "apps/web/lib/**/*.ts",
+        "packages/*/src/**/*.ts",
+      ],
+      exclude: [
+        "**/*.d.ts",
+        "**/*.test.ts",
+        "apps/api/src/admin.ts",
+        "apps/api/src/generate-jwks.ts",
+        "apps/api/src/server.ts",
+        "apps/web/lib/site.ts",
+        "packages/*/src/index.ts",
+        "packages/core/src/types.ts",
+        "packages/db/src/migrate.ts",
+      ],
     },
   },
 });
