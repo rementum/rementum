@@ -9,12 +9,12 @@ export function AgentConnect({ workspaceName, mcpUrl }: { workspaceName: string;
     {
       id: "claude",
       label: "Claude Code",
-      value: `claude mcp add --scope user --transport http rementum ${mcpUrl}\nclaude mcp login rementum`,
+      value: `npx -y skills add yibudak/rementum --global --agent claude-code --skill '*' --yes\nclaude mcp add --scope user --transport http rementum ${mcpUrl}\nclaude mcp login rementum`,
     },
     {
       id: "codex",
       label: "Codex",
-      value: `codex mcp add rementum --url ${mcpUrl}\ncodex mcp login rementum`,
+      value: `npx -y skills add yibudak/rementum --global --agent codex --skill '*' --yes\ncodex mcp add rementum --url ${mcpUrl}\ncodex mcp login rementum`,
     },
   ] as const;
   const [copied, setCopied] = useState<string | null>(null);
@@ -36,7 +36,10 @@ export function AgentConnect({ workspaceName, mcpUrl }: { workspaceName: string;
       <div className="dash-connect-copy">
         <p className="kicker">Workspace MCP</p>
         <h2 id="dash-connect-title">Connect {workspaceName} to an agent.</h2>
-        <p>Run one command pair. Your browser will ask you to approve access to this workspace.</p>
+        <p>
+          Install the Rementum skills, then connect MCP. Your browser will ask you to approve this
+          workspace. Restart the agent when setup completes.
+        </p>
         <a href={INTEGRATION_DOCS_URL} target="_blank" rel="noreferrer">
           Other clients and setup details <span aria-hidden="true">↗</span>
         </a>
@@ -47,7 +50,7 @@ export function AgentConnect({ workspaceName, mcpUrl }: { workspaceName: string;
             <header>
               <span>{command.label}</span>
               <button type="button" onClick={() => copy(command.id, command.value)}>
-                {copied === command.id ? "Copied" : "Copy commands"}
+                {copied === command.id ? "Copied" : "Copy setup"}
               </button>
             </header>
             <pre>
