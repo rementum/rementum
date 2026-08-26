@@ -16,7 +16,6 @@ export {
   MockIDE,
   NodeGraphBackground,
   Sparkle,
-  StatCounter,
   StickyBanner,
   WibblingSpinner,
   WordRoll,

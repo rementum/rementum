@@ -2,7 +2,7 @@ import Link from "next/link";
 import { api, workspaceContext } from "../lib/api";
 import { relativeTime } from "../lib/format";
 import { AgentConnect } from "./agent-connect";
-import { EyebrowPill, StatCounter } from "./pui";
+import { EyebrowPill } from "./pui";
 import { AURORA_SOFT, AuroraBackdrop } from "./ui/backdrop";
 import { ButtonLink } from "./ui/button-link";
 import { Card, CardHeader } from "./ui/card";
@@ -278,7 +278,7 @@ function StatTile({
               : "bg-gradient-to-r from-grad-from via-grad-mid to-grad-to bg-clip-text text-transparent"
         }`}
       >
-        <StatCounter target={value} durationMs={1400} />
+        {value}
       </dd>
     </div>
   );
