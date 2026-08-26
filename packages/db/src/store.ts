@@ -424,7 +424,7 @@ export class PostgresStore implements DataStore {
   async listRoutingIndex(brainId: string, actor: Actor, limit: number): Promise<ArticleRecord[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
-        SELECT * FROM articles
+        SELECT ${tx.unsafe(ARTICLE_COLUMNS)} FROM articles
         WHERE brain_id = ${brainId} AND archived_at IS NULL
         ORDER BY updated_at DESC, slug ASC LIMIT ${limit}
       `;
@@ -1138,7 +1138,8 @@ export class PostgresStore implements DataStore {
   ): Promise<SearchHit[]> {
     return this.withActor(actor, async (tx) => {
       const fts = await tx<any[]>`
-        SELECT a.*, ts_rank_cd(a.search_document, websearch_to_tsquery('simple', ${input.query})) AS rank
+        SELECT ${tx.unsafe(ARTICLE_COLUMNS_A)},
+               ts_rank_cd(a.search_document, websearch_to_tsquery('simple', ${input.query})) AS rank
         FROM articles a
         WHERE a.brain_id = ${input.brainId} AND a.archived_at IS NULL
           AND a.search_document @@ websearch_to_tsquery('simple', ${input.query})
@@ -1147,7 +1148,8 @@ export class PostgresStore implements DataStore {
       `;
       const vectorRows = embedding
         ? await tx<any[]>`
-            SELECT DISTINCT ON (a.id) a.*, (1 - (ae.embedding <=> ${vectorLiteral(embedding)}::vector))::float8 AS rank
+            SELECT DISTINCT ON (a.id) ${tx.unsafe(ARTICLE_COLUMNS_A)},
+                   (1 - (ae.embedding <=> ${vectorLiteral(embedding)}::vector))::float8 AS rank
             FROM article_embeddings ae
             JOIN articles a ON a.id = ae.article_id AND a.current_version = ae.version
             WHERE a.brain_id = ${input.brainId} AND a.archived_at IS NULL
@@ -1629,6 +1631,18 @@ export class PostgresStore implements DataStore {
     })) as T;
   }
 }
+
+// Every articles column except search_document. That column is a tsvector maintained by a
+// trigger for the full-text index; nothing maps it, but SELECT * shipped it on every row.
+// A routing index or a search result set carries hundreds of rows, so it was the largest
+// part of those payloads. The list is a constant, never built from input.
+const ARTICLE_COLUMNS =
+  "id, brain_id, slug, title, summary, keywords, kind, freshness, current_version, " +
+  "verified_at, review_after, created_by, created_at, updated_at, archived_at, " +
+  "compaction_status, compaction_attempts, compaction_error, compacted_at";
+const ARTICLE_COLUMNS_A = ARTICLE_COLUMNS.split(", ")
+  .map((column) => `a.${column}`)
+  .join(", ");
 
 export async function setActorConfig(
   tx: Tx,
