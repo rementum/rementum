@@ -69,20 +69,30 @@ const compactionPollMs = numberEnv("REMENTUM_COMPACTION_POLL_MS", 2_000, 250, 60
 const workerId = `rementum-worker-${randomUUID()}`;
 
 /**
- * Loads each owner's context once per pass.
+ * Loads each owner's context at most once every {@link ACTOR_CACHE_MS}.
  *
  * The loops below run over rows, not owners, and a handful of owners usually account for
  * all of them: one hundred unindexed articles meant one hundred identical context loads.
- * The cache lives for one pass only, so a role change is picked up on the next one.
+ *
+ * A cached context is also a cached authorization: setActorConfig copies its role maps
+ * into the session settings row-level security reads, so a role revoked mid-pass stays
+ * effective until the entry expires. The window is bounded here rather than left to run
+ * for a whole maintenance pass, which is an hour apart by default and has no upper bound
+ * on how long it takes. A failed load is never cached, so the next row retries it.
  */
+const ACTOR_CACHE_MS = 30_000;
+
 function actorCache() {
-  const actors = new Map<string, Promise<Actor>>();
+  const actors = new Map<string, { loadedAt: number; actor: Promise<Actor> }>();
   return (ownerId: string) => {
     const cached = actors.get(ownerId);
-    if (cached) return cached;
-    const loading = store.loadActor(ownerId, "rementum-worker");
-    actors.set(ownerId, loading);
-    return loading;
+    if (cached && Date.now() - cached.loadedAt < ACTOR_CACHE_MS) return cached.actor;
+    const actor = store.loadActor(ownerId, "rementum-worker").catch((error) => {
+      actors.delete(ownerId);
+      throw error;
+    });
+    actors.set(ownerId, { loadedAt: Date.now(), actor });
+    return actor;
   };
 }
 
