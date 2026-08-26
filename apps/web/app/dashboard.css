@@ -66,6 +66,117 @@
   font-size: 12px;
 }
 
+.dash-connect {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.72fr) minmax(0, 1.6fr);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.dash-connect-copy {
+  padding: 22px 24px;
+  border-right: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgb(121 170 152 / 9%), transparent 58%), var(--surface-raised);
+}
+
+.dash-connect-copy .kicker {
+  margin: 0 0 10px;
+}
+
+.dash-connect-copy h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 620;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+}
+
+.dash-connect-copy > p:not(.kicker) {
+  margin: 12px 0 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.dash-connect-copy a {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.dash-connect-copy a:hover {
+  color: var(--brand-light);
+}
+
+.dash-connect-commands {
+  display: grid;
+  align-content: center;
+  padding: 14px;
+  background: var(--canvas-raised);
+}
+
+.dash-command {
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.dash-command:last-child {
+  border-bottom: 0;
+}
+
+.dash-command header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px 0;
+}
+
+.dash-command header span {
+  color: var(--text-tertiary);
+  font: 500 10px / 1.4 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dash-command button {
+  padding: 4px 7px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: 500 11px / 1.4 var(--font-mono);
+}
+
+.dash-command button:hover {
+  color: var(--text);
+}
+
+.dash-command pre {
+  position: relative;
+  margin: 0;
+  padding: 8px 10px 12px 28px;
+  overflow-x: auto;
+  color: var(--text);
+  font: 11px / 1.75 var(--font-mono);
+}
+
+.dash-command pre::before {
+  position: absolute;
+  margin-left: -18px;
+  color: var(--brand-light);
+  content: "$";
+}
+
+.dash-command small {
+  display: block;
+  padding: 0 10px 10px;
+  color: var(--danger);
+  font-size: 11px;
+}
+
 .dash-review-list {
   display: flex;
   flex-direction: column;
@@ -284,6 +395,17 @@
 @media (width <= 1100px) {
   .dash-columns {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width <= 900px) {
+  .dash-connect {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dash-connect-copy {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
   }
 }
 

@@ -22,6 +22,13 @@ claude mcp login rementum
 
 Complete OAuth in the browser, then ask Claude to call `list_brains` and `get_brain`.
 
+## Codex
+
+```bash
+codex mcp add rementum --url https://memory.example.com/mcp/workspace/WORKSPACE_UUID
+codex mcp login rementum
+```
+
 ## Cursor
 
 Add this server to the MCP configuration:
@@ -36,13 +43,6 @@ Add this server to the MCP configuration:
 }
 ```
 
-## Codex
-
-```bash
-codex mcp add rementum --url https://memory.example.com/mcp/workspace/WORKSPACE_UUID
-codex mcp login rementum
-```
-
 ## OpenCode
 
 ```bash
@@ -50,11 +50,23 @@ opencode mcp add rementum --url https://memory.example.com/mcp/workspace/WORKSPA
 opencode mcp auth rementum
 ```
 
-## Other clients
+## Claude and Claude Desktop
 
-Create a remote Streamable HTTP MCP server in the client and use the Rementum MCP URL. Keep write
-tool approval enabled. Rementum marks read tools with `readOnlyHint`, while writes use the staged
-write and promotion protocol.
+On supported Claude plans, open **Settings → Connectors**, choose **Add custom connector**, and use
+the workspace MCP URL. Remote connectors work in Claude and Claude Desktop; do not put this remote
+URL in `claude_desktop_config.json`. See [Anthropic's remote connector guide](https://support.anthropic.com/en/articles/11503834-building-custom-integrations-via-remote-mcp-servers).
+
+## ChatGPT
+
+Where custom MCP apps are available for your plan and workspace, enable developer mode, create a
+custom app under **Settings → Apps**, and use the workspace MCP URL. Select OAuth when prompted,
+scan the tools, and approve the connection. See [OpenAI's MCP app guide](https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt).
+
+## Other MCP clients
+
+Any client that supports remote Streamable HTTP MCP and OAuth can use the same workspace URL. Keep
+write-tool approval enabled. Rementum marks read tools with `readOnlyHint`, while writes use the
+staged write and promotion protocol.
 
 ## First request
 

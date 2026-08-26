@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { api, workspaceContext } from "../lib/api";
+import { AgentConnect } from "./agent-connect";
 
 interface Brain {
   id: string;
@@ -53,6 +54,7 @@ export async function Dashboard() {
       <EmptyWorkspace
         teamName={activeTeam.name}
         workspaceName={activeWorkspace.name}
+        mcpUrl={activeWorkspace.mcpUrl}
         sharedBrains={sharedBrains}
       />
     );
@@ -119,6 +121,8 @@ export async function Dashboard() {
           </div>
         </dl>
       </header>
+
+      <AgentConnect workspaceName={activeWorkspace.name} mcpUrl={activeWorkspace.mcpUrl} />
 
       <section className="dash-review" aria-labelledby="dash-review-title">
         <div className="dash-section-head">
@@ -265,10 +269,12 @@ function NoWorkspace({ sharedBrains }: { sharedBrains: Brain[] }) {
 function EmptyWorkspace({
   teamName,
   workspaceName,
+  mcpUrl,
   sharedBrains,
 }: {
   teamName: string;
   workspaceName: string;
+  mcpUrl: string;
   sharedBrains: Brain[];
 }) {
   return (
@@ -281,6 +287,7 @@ function EmptyWorkspace({
           <h1>Overview</h1>
         </div>
       </header>
+      <AgentConnect workspaceName={workspaceName} mcpUrl={mcpUrl} />
       <section className="empty-state">
         <h2>No brains yet</h2>
         <p>
