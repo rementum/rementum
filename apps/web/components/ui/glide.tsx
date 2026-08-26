@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { type ComponentType, type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ComponentType,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 export interface GlideItem {
   href: string;
@@ -30,13 +37,25 @@ export function GlideNav({
   ariaLabel?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
-  const [, setMeasured] = useState(false);
+  // Keeps the highlight on the clicked item while the route is still loading,
+  // instead of sliding back to the outgoing page's active item on mouse-leave.
+  // A click is only honored while activeIndex still matches the page it was
+  // made on; once navigation commits, activeIndex takes over again.
+  const [clicked, setClicked] = useState<{ index: number; from: number } | null>(null);
+  const [measured, setMeasured] = useState(false);
+  const [animate, setAnimate] = useState(false);
   const refs = useRef<(HTMLAnchorElement | null)[]>([]);
-  // Re-render once after mount so the highlight can read element geometry.
+  // Re-render once after mount so the highlight can read element geometry;
+  // enable transitions only after that first paint so the highlight doesn't
+  // slide in from the origin.
   useLayoutEffect(() => setMeasured(true), []);
+  useEffect(() => {
+    if (measured) setAnimate(true);
+  }, [measured]);
 
   const vertical = orientation === "vertical";
-  const target = hover ?? activeIndex;
+  const pending = clicked?.from === activeIndex ? clicked.index : null;
+  const target = hover ?? pending ?? activeIndex;
   const el = target >= 0 ? refs.current[target] : null;
 
   const highlight = el
@@ -58,7 +77,11 @@ export function GlideNav({
     >
       <span
         aria-hidden="true"
-        className={`absolute rounded-control bg-hover-2 transition-[transform,width,height,opacity] duration-[280ms] ease-out-expo ${vertical ? "inset-x-0" : "top-0"}`}
+        className={`absolute rounded-control bg-hover-2 ${
+          animate
+            ? "transition-[transform,width,height,opacity] duration-[280ms] ease-out-expo"
+            : ""
+        } ${vertical ? "inset-x-0" : "top-0"}`}
         style={highlight}
       />
       {items.map((item, i) => {
@@ -72,6 +95,7 @@ export function GlideNav({
               refs.current[i] = node;
             }}
             onMouseEnter={() => setHover(i)}
+            onClick={() => setClicked({ index: i, from: activeIndex })}
             aria-current={active ? "page" : undefined}
             title={collapsed ? item.label : undefined}
             className={`relative z-10 flex h-9 items-center rounded-control text-sm transition-colors ${
