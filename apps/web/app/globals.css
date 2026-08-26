@@ -237,6 +237,45 @@
   --pui-wave-border-hover: rgb(47 111 94 / 45%);
 }
 
+/* PUI internals that hardcode the violet ramp — re-tint to Mineral (both themes) */
+.pui-sticky-banner {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--grad-from) 11%, transparent),
+    color-mix(in srgb, var(--grad-mid) 9%, transparent),
+    color-mix(in srgb, var(--grad-to) 11%, transparent)
+  );
+}
+
+.pui-glass-card__icon {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--grad-from) 26%, transparent),
+    color-mix(in srgb, var(--grad-mid) 16%, transparent)
+  );
+}
+
+.pui-community:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.pui-popover {
+  box-shadow:
+    var(--pui-shadow-deep),
+    0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 0 60px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+@keyframes pui-breathe {
+  0%,
+  to {
+    box-shadow: 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 40px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+}
+
 .dark {
   /* Green-ink glass and fills (PUI defaults are blue-violet-black) */
   --pui-glass: rgb(15 23 20 / 85%);

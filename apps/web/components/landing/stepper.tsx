@@ -18,26 +18,36 @@ export function Stepper({ steps }: { steps: Step[] }) {
   const scaleY = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   return (
-    <div className="stepper" ref={ref}>
-      <div className="stepper-rail" aria-hidden="true">
-        <motion.div className="stepper-rail-fill" style={{ scaleY }} />
+    <div className="relative flex flex-col gap-10 pl-2" ref={ref}>
+      <div
+        aria-hidden="true"
+        className="absolute bottom-4 left-[21px] top-4 w-px overflow-hidden bg-line"
+      >
+        <motion.div
+          className="h-full w-full origin-top bg-gradient-to-b from-grad-from via-grad-mid to-grad-to"
+          style={{ scaleY }}
+        />
       </div>
       {steps.map((step, i) => (
         <motion.article
-          className="step"
+          className="relative flex gap-5"
           key={step.code}
           initial={{ opacity: 0, y: 28 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "0px 0px -12% 0px" }}
           transition={{ duration: 0.6, delay: i * 0.06, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="step-node">
-            <span className="step-index">{String(i + 1).padStart(2, "0")}</span>
+          <div className="relative z-10 flex size-10 shrink-0 items-center justify-center rounded-control border border-line-strong/60 bg-surface/80 shadow-glow backdrop-blur-md">
+            <span className="font-mono text-2xs font-semibold tabular-nums text-ink-2">
+              {String(i + 1).padStart(2, "0")}
+            </span>
           </div>
-          <div className="step-body">
-            <span className="flow-code">{step.code}</span>
-            <h3>{step.title}</h3>
-            <p>{step.body}</p>
+          <div className="max-w-xl pt-1">
+            <span className="font-mono text-2xs uppercase tracking-[0.14em] text-accent">
+              {step.code}
+            </span>
+            <h3 className="mt-1 text-lg font-semibold tracking-tight text-ink">{step.title}</h3>
+            <p className="mt-1.5 text-sm text-ink-2">{step.body}</p>
           </div>
         </motion.article>
       ))}

@@ -22,6 +22,13 @@ const SCRIPT: Line[] = [
   { text: "promoted → canon v3 · audit recorded", kind: "mut" },
 ];
 
+const KIND_CLASSES: Record<Kind, string> = {
+  cmd: "text-ink",
+  out: "text-ink-3",
+  ok: "text-green",
+  mut: "text-accent",
+};
+
 export function TerminalDemo() {
   const reduce = useReducedMotion();
   const [line, setLine] = useState(0);
@@ -51,11 +58,11 @@ export function TerminalDemo() {
   const visible = reduce ? SCRIPT.length : line;
 
   return (
-    <div className="terminal" aria-hidden="true">
-      <div className="terminal-bar">
-        <span className="terminal-title">rementum / mcp</span>
+    <div aria-hidden="true">
+      <div className="flex items-center border-b border-line px-4 py-2.5">
+        <span className="font-mono text-2xs tracking-[0.08em] text-ink-3">rementum / mcp</span>
       </div>
-      <pre className="terminal-body">
+      <pre className="min-h-[264px] overflow-x-auto px-4 py-3 font-mono text-xs leading-7">
         {SCRIPT.slice(0, visible).map((l) => (
           <TerminalLine key={l.text} line={l} text={l.text} />
         ))}
@@ -69,10 +76,12 @@ export function TerminalDemo() {
 
 function TerminalLine({ line, text, caret }: { line: Line; text: string; caret?: boolean }) {
   return (
-    <code className={`terminal-line kind-${line.kind}`}>
-      {line.prompt ? <span className="terminal-prompt">{line.prompt} ❯</span> : null}
-      <span className="terminal-text">{text}</span>
-      {caret ? <span className="terminal-caret" /> : null}
+    <code className={`block ${KIND_CLASSES[line.kind]}`}>
+      {line.prompt ? <span className="mr-2 text-accent">{line.prompt} ❯</span> : null}
+      <span>{text}</span>
+      {caret ? (
+        <span className="ml-0.5 inline-block h-[1.1em] w-[7px] translate-y-[0.2em] animate-caret bg-ink" />
+      ) : null}
     </code>
   );
 }

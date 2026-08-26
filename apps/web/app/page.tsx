@@ -1,14 +1,19 @@
-import Link from "next/link";
-import { BrandMark } from "../components/brand";
 import { Dashboard } from "../components/dashboard";
-import { BentoCard } from "../components/landing/bento-card";
+import { Architecture } from "../components/landing/architecture";
+import { CapabilityMarquee } from "../components/landing/capability-marquee";
+import { ConnectTeaser } from "../components/landing/connect-teaser";
+import { CTASection } from "../components/landing/cta";
+import { FeatureGrid } from "../components/landing/feature-grid";
+import { LandingFooter } from "../components/landing/footer";
 import { Hero } from "../components/landing/hero";
-import { Marquee } from "../components/landing/marquee";
 import { MotionProvider } from "../components/landing/motion-provider";
-import { Reveal, RevealGroup, RevealItem } from "../components/landing/reveal";
 import { ScrollProgress } from "../components/landing/scroll-progress";
+import { SectionHead } from "../components/landing/section-head";
+import { StatsBand } from "../components/landing/stats";
 import { Stepper } from "../components/landing/stepper";
+import { GradientText } from "../components/pui";
 import { hasSession } from "../lib/api";
+import { GITHUB_URL } from "../lib/site";
 
 export default async function Home() {
   if (!(await hasSession())) return <Landing />;
@@ -17,36 +22,18 @@ export default async function Home() {
 
 function Landing() {
   return (
-    <main className="landing-page">
+    <main className="relative">
       <MotionProvider>
         <ScrollProgress />
-        <Hero />
-        <Marquee
-          items={[
-            "MCP-native",
-            "OAuth per agent",
-            "pgvector search",
-            "local summaries or AI compaction",
-            "versioned canon",
-            "audit trail",
-            "Markdown export",
-            "conflict-safe writes",
-            "self-hosted",
-            "AGPL-3.0",
-          ]}
-        />
+        <Hero githubUrl={GITHUB_URL} />
+        <CapabilityMarquee />
+        <StatsBand />
         <WorkflowLanding />
-        <ControlBento />
-        <ArchitectureSection />
-        <CTASection />
-        <footer className="landing-foot">
-          <BrandMark className="brand-mark foot-mark" />
-          <span>Rementum</span>
-          <span className="foot-sep" aria-hidden="true">
-            ·
-          </span>
-          <span>Open source under AGPL-3.0</span>
-        </footer>
+        <FeatureGrid />
+        <Architecture />
+        <ConnectTeaser />
+        <CTASection githubUrl={GITHUB_URL} />
+        <LandingFooter githubUrl={GITHUB_URL} />
       </MotionProvider>
     </main>
   );
@@ -77,119 +64,23 @@ function WorkflowLanding() {
   ];
 
   return (
-    <section className="landing-section workflow-landing" id="workflow" tabIndex={-1}>
-      <div className="section-head">
-        <Reveal>
-          <h2>Load the right context.</h2>
-          <p>
-            Agents read a compact index, open the relevant article, and leave the rest of the brain
-            untouched. Every change is staged before it lands.
-          </p>
-        </Reveal>
-      </div>
+    <section
+      className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 py-20"
+      id="workflow"
+      tabIndex={-1}
+    >
+      <SectionHead
+        kicker="The write path"
+        title={
+          <>
+            Load the right <GradientText>context</GradientText>.
+          </>
+        }
+      >
+        Agents read a compact index, open the relevant article, and leave the rest of the brain
+        untouched. Every change is staged before it lands.
+      </SectionHead>
       <Stepper steps={steps} />
-    </section>
-  );
-}
-
-function ControlBento() {
-  return (
-    <section className="landing-section control-bento">
-      <div className="section-head">
-        <Reveal>
-          <span className="kicker">Change safely</span>
-          <h2>Change knowledge without silent overwrites.</h2>
-          <p>
-            Rementum separates proposals from canon. You review conflicts before a write replaces
-            the current version.
-          </p>
-        </Reveal>
-      </div>
-      <RevealGroup className="bento-grid">
-        <BentoCard
-          title="Versioned canon"
-          body="Readers see one current article. Older versions remain available for recovery."
-          visual={
-            <div className="visual-versions" aria-hidden="true">
-              <span className="vv-row vv-old">v2</span>
-              <span className="vv-row vv-cur">v3 · current</span>
-            </div>
-          }
-        />
-        <BentoCard
-          title="Conflict checks"
-          body="A proposal is parked when its base version no longer matches the live canon."
-          visual={
-            <div className="visual-conflict" aria-hidden="true">
-              <span className="vc-line vc-base">base v2</span>
-              <span className="vc-line vc-live">live v3</span>
-              <span className="vc-badge">parked</span>
-            </div>
-          }
-        />
-        <BentoCard
-          title="Portable source"
-          body="Export brains as Markdown and keep storage under your control."
-          visual={
-            <div className="visual-export" aria-hidden="true">
-              <span className="ve-file">brain.md</span>
-              <span className="ve-arrow">→</span>
-              <span className="ve-target">yours</span>
-            </div>
-          }
-        />
-      </RevealGroup>
-    </section>
-  );
-}
-
-function ArchitectureSection() {
-  const nodes = [
-    ["Clients", "Codex, Claude Code, OpenCode"],
-    ["Gateway", "Caddy, OAuth, MCP"],
-    ["Application", "Fastify, Next.js, local summaries or AI compaction"],
-    ["Storage", "PostgreSQL, pgvector, Markdown"],
-  ] as const;
-
-  return (
-    <section className="landing-section arch-landing">
-      <div className="section-head">
-        <Reveal>
-          <h2>Run it on your own stack.</h2>
-          <p>
-            You control OAuth, MCP, search, embeddings, and storage. Article generation stays local
-            unless you enable an OpenAI-compatible AI provider to compact staged knowledge.
-          </p>
-        </Reveal>
-      </div>
-      <RevealGroup className="arch-path" role="list">
-        {nodes.map(([title, body]) => (
-          <RevealItem key={title} className="arch-node" role="listitem">
-            <span className="arch-label">{title}</span>
-            <strong>{body}</strong>
-          </RevealItem>
-        ))}
-      </RevealGroup>
-    </section>
-  );
-}
-
-function CTASection() {
-  return (
-    <section className="landing-section cta-landing">
-      <Reveal>
-        <div className="cta-card">
-          <div>
-            <h2>Connect an agent.</h2>
-            <p>Use OAuth to grant each client its own revocable access to a shared brain.</p>
-          </div>
-          <div className="cta-actions">
-            <Link className="button" href="/auth/login">
-              Sign in
-            </Link>
-          </div>
-        </div>
-      </Reveal>
     </section>
   );
 }

@@ -1,104 +1,104 @@
 "use client";
 
-import { motion, useMotionValue, useSpring } from "motion/react";
-import type { ReactNode } from "react";
-import { useRef } from "react";
+import { motion } from "motion/react";
+import Link from "next/link";
+import { AsciiHero, Button, EyebrowPill, GradientText, WordRoll } from "../pui";
+import { AURORA_HERO, AuroraBackdrop, LazyCanvas } from "../ui/backdrop";
+import { GREEN_PALETTE } from "./palette";
 import { TerminalDemo } from "./terminal-demo";
 
 const HEADLINE = ["Your", "agents", "should", "remember."];
 
-export function Hero() {
+export function Hero({ githubUrl }: { githubUrl: string }) {
   return (
-    <section className="hero">
-      <div className="hero-glow" aria-hidden="true" />
-      <div className="hero-inner">
-        <motion.span
-          className="hero-badge"
-          initial={{ opacity: 0, y: 10, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.05 }}
-        >
-          Open source memory infrastructure
-        </motion.span>
-        <h1 className="hero-title">
-          {HEADLINE.map((word, i) => (
-            <span className="hero-word-wrap" key={word}>
-              <motion.span
-                className={word === "remember." ? "hero-word hero-word-accent" : "hero-word"}
-                initial={{ opacity: 0, y: "0.5em", filter: "blur(8px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                transition={{ duration: 0.7, delay: 0.15 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
-              >
-                {word}
-              </motion.span>
-            </span>
-          ))}
-        </h1>
-        <motion.p
-          className="hero-sub"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.62 }}
-        >
-          One versioned knowledge layer for every MCP client, with staged writes that never silently
-          overwrite shared memory.
-        </motion.p>
+    <section className="relative overflow-hidden">
+      <AuroraBackdrop blobs={AURORA_HERO} blur={100} />
+      <LazyCanvas className="absolute inset-0">
+        <AsciiHero
+          variant="bare"
+          palette={GREEN_PALETTE}
+          baseOpacity={0.1}
+          spotlightOpacity={0.5}
+          spotlightRadius={9}
+          fontSize={11}
+          style={{ position: "absolute", inset: 0 }}
+        />
+      </LazyCanvas>
+      <div className="relative mx-auto grid w-full max-w-6xl items-center gap-14 px-6 pb-24 pt-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,500px)] lg:pb-32 lg:pt-28">
+        <div>
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.05 }}
+          >
+            <EyebrowPill statusColor="#34d399">Open source memory infrastructure</EyebrowPill>
+          </motion.div>
+          <h1 className="mt-5 text-display font-medium tracking-tighter text-ink">
+            {HEADLINE.map((word, i) => (
+              <span className="inline-block overflow-hidden pb-1 align-bottom" key={word}>
+                <motion.span
+                  className="mr-[0.24em] inline-block"
+                  initial={{ opacity: 0, y: "0.5em", filter: "blur(8px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.7, delay: 0.15 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  {word === "remember." ? <GradientText>remember.</GradientText> : word}
+                </motion.span>
+              </span>
+            ))}
+          </h1>
+          <motion.p
+            className="mt-5 max-w-xl text-lg text-ink-2 text-pretty"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.62 }}
+          >
+            One versioned knowledge layer for every MCP client. Writes are staged, reviewed, and
+            promoted — never silently overwritten.
+          </motion.p>
+          <motion.div
+            className="mt-8 flex flex-wrap items-center gap-3"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.74 }}
+          >
+            <Button as={Link} href="/auth/login" variant="glow" size="lg" sparkle>
+              Get started
+            </Button>
+            <Button as="a" href={githubUrl} variant="wave" size="lg">
+              Star on GitHub
+            </Button>
+          </motion.div>
+          <motion.p
+            className="mt-8 flex items-center gap-2 font-mono text-2xs text-ink-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.7, delay: 0.9 }}
+          >
+            Works with
+            <WordRoll
+              words={["Claude Code", "Codex", "OpenCode"]}
+              intervalMs={2400}
+              gradient
+              className="font-semibold"
+            />
+          </motion.p>
+        </div>
         <motion.div
-          className="hero-actions"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.74 }}
+          className="relative"
+          initial={{ opacity: 0, y: 28, rotateX: 8 }}
+          animate={{ opacity: 1, y: 0, rotateX: 0 }}
+          transition={{ duration: 0.9, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
         >
-          <MagneticButton href="/auth/login">Sign in</MagneticButton>
-          <a className="text-link" href="#workflow">
-            See how it works
-          </a>
+          <div
+            aria-hidden="true"
+            className="absolute -inset-[12%] bg-[radial-gradient(closest-side,rgb(47_138_112/30%),transparent)] blur-2xl"
+          />
+          <div className="relative overflow-hidden rounded-window border border-line-strong/60 bg-surface/70 shadow-raised backdrop-blur-xl">
+            <TerminalDemo />
+          </div>
         </motion.div>
       </div>
-      <motion.div
-        className="hero-panel"
-        initial={{ opacity: 0, y: 28, rotateX: 8 }}
-        animate={{ opacity: 1, y: 0, rotateX: 0 }}
-        transition={{ duration: 0.9, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <div className="hero-panel-glow" aria-hidden="true" />
-        <TerminalDemo />
-      </motion.div>
     </section>
-  );
-}
-
-function MagneticButton({ href, children }: { href: string; children: ReactNode }) {
-  const ref = useRef<HTMLAnchorElement>(null);
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const sx = useSpring(x, { stiffness: 250, damping: 18 });
-  const sy = useSpring(y, { stiffness: 250, damping: 18 });
-
-  function onMove(event: React.MouseEvent<HTMLAnchorElement>) {
-    const el = ref.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    x.set((event.clientX - (rect.left + rect.width / 2)) * 0.3);
-    y.set((event.clientY - (rect.top + rect.height / 2)) * 0.3);
-  }
-
-  function onLeave() {
-    x.set(0);
-    y.set(0);
-  }
-
-  return (
-    <motion.a
-      ref={ref}
-      href={href}
-      className="button magnetic"
-      style={{ x: sx, y: sy }}
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
-    >
-      <span className="magnetic-shine" aria-hidden="true" />
-      <span className="magnetic-label">{children}</span>
-    </motion.a>
   );
 }

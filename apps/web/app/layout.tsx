@@ -2,11 +2,11 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import Link from "next/link";
 import { AppNavigation } from "../components/app-navigation";
-import { BrandMark } from "../components/brand";
-import { ThemeToggle } from "../components/ui/theme-toggle";
+import { PublicNav } from "../components/public-nav";
+import { StickyBanner } from "../components/pui";
 import { hasSession, publicAuthConfig, workspaceContext } from "../lib/api";
+import { GITHUB_URL } from "../lib/site";
 import "./globals.css";
 import "./styles.css";
 import "./invite.css";
@@ -45,22 +45,17 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <div className="workspace-main">{children}</div>
           </div>
         ) : (
-          <div className="public-site">
-            <header className="public-nav">
-              <Link className="brand" href="/">
-                <BrandMark className="brand-mark" />
-                <span>Rementum</span>
-              </Link>
-              <ThemeToggle />
-              <Link className="nav-action" href="/auth/login">
-                Sign in
-              </Link>
-              {authConfig?.signupEnabled ? (
-                <Link className="nav-action" href="/register">
-                  Create account
-                </Link>
-              ) : null}
-            </header>
+          <div className="flex min-h-dvh flex-col">
+            <StickyBanner
+              trailing={
+                <span aria-hidden="true" className="ml-1">
+                  →
+                </span>
+              }
+            >
+              <a href={GITHUB_URL}>Open source under AGPL-3.0 — star Rementum on GitHub</a>
+            </StickyBanner>
+            <PublicNav signupEnabled={authConfig?.signupEnabled ?? false} />
             {children}
           </div>
         )}
