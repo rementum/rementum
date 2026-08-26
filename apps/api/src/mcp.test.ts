@@ -18,10 +18,12 @@ async function connectedClient(scopes: string, service: RementumService) {
     {
       userId: "00000000-0000-4000-8000-000000000001",
       clientId: "test-client",
+      teamRoles: new Map(),
       workspaceRoles: new Map(),
       brainRoles: new Map(),
     },
     scopes,
+    "00000000-0000-4000-8000-000000000002",
   );
   const server = createMcpServer(service, actor);
   const client = new Client({ name: "scope-test", version: "1.0.0" });
@@ -57,5 +59,14 @@ describe("MCP OAuth scopes", () => {
     });
     expect(response).toMatchObject({ isError: true });
     expect(service.stageWrite).not.toHaveBeenCalled();
+  });
+
+  it("does not expose team management on a workspace-scoped connection", async () => {
+    const service = {} as RementumService;
+    const client = await connectedClient("team:read team:write", service);
+    const tools = await client.listTools();
+    expect(tools.tools.map((tool) => tool.name)).not.toContain("list_teams");
+    expect(tools.tools.map((tool) => tool.name)).not.toContain("create_team");
+    expect(tools.tools.map((tool) => tool.name)).not.toContain("propose_team_invite");
   });
 });

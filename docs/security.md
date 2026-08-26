@@ -36,7 +36,11 @@ regional processing, and access policies before you connect it.
 
 Keep public registration disabled unless you need it. Public registration requires verified email
 delivery and applies request rate limits. Use team invitations for controlled access and remove
-members who no longer need the workspace.
+members who no longer need access to the team's workspaces.
+
+Team owners and admins can create or rename workspaces. Only the team owner can delete one, the
+last workspace is protected, and deletion requires the exact workspace name because it permanently
+removes every brain and note inside that workspace.
 
 ## Backups
 

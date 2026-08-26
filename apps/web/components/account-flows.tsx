@@ -228,9 +228,9 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.title ?? "Invitation could not be accepted.");
       if (signedIn && body.workspaceId) {
-        await fetch("/teams/select", {
+        await fetch("/workspaces/select", {
           method: "POST",
-          body: new URLSearchParams({ teamId: body.workspaceId }),
+          body: new URLSearchParams({ workspaceId: body.workspaceId }),
         });
       }
       setState("done");

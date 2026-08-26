@@ -30,10 +30,40 @@ export interface Team {
   createdAt: string;
 }
 
-export async function teamContext(): Promise<{ teams: Team[]; activeTeam: Team | null }> {
+export interface Workspace {
+  id: string;
+  teamId: string;
+  slug: string;
+  name: string;
+  role: "owner" | "admin" | "member";
+  mcpUrl: string;
+  createdAt: string;
+}
+
+export async function teamContext(): Promise<{ teams: Team[] }> {
   const teams = await api<Team[]>("/api/v1/teams");
-  const selected = (await cookies()).get("rementum_team")?.value;
-  return { teams, activeTeam: teams.find((team) => team.id === selected) ?? teams[0] ?? null };
+  return { teams };
+}
+
+export async function workspaceContext(): Promise<{
+  teams: Team[];
+  workspaces: Workspace[];
+  activeTeam: Team | null;
+  activeWorkspace: Workspace | null;
+}> {
+  const [{ teams }, workspaces] = await Promise.all([
+    teamContext(),
+    api<Workspace[]>("/api/v1/workspaces"),
+  ]);
+  const selected = (await cookies()).get("rementum_workspace")?.value;
+  const activeWorkspace =
+    workspaces.find((workspace) => workspace.id === selected) ?? workspaces[0] ?? null;
+  return {
+    teams,
+    workspaces,
+    activeWorkspace,
+    activeTeam: teams.find((team) => team.id === activeWorkspace?.teamId) ?? null,
+  };
 }
 
 export async function publicAuthConfig(): Promise<{ signupEnabled: boolean }> {

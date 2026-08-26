@@ -5,7 +5,7 @@
 		format json
 	}
 
-	@backend path /api/* /mcp /.well-known/* /oauth/* /docs* /healthz /readyz /metrics /openapi.json
+	@backend path /api/* /mcp/* /.well-known/* /oauth/* /docs* /healthz /readyz /metrics /openapi.json
 	handle @backend {
 		reverse_proxy api:8787
 	}

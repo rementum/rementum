@@ -12,21 +12,28 @@ export const accessScopeDescriptions = {
 } as const;
 
 export type AccessScope = keyof typeof accessScopeDescriptions;
-export type ScopedActor = Actor & { scopes: ReadonlySet<AccessScope> };
+export type ScopedActor = Actor & {
+  scopes: ReadonlySet<AccessScope>;
+  workspaceId: string | null;
+};
 
 export const allAccessScopes = Object.freeze(Object.keys(accessScopeDescriptions) as AccessScope[]);
 
-export function withAccessScopes(actor: Actor, value: unknown): ScopedActor {
+export function withAccessScopes(
+  actor: Actor,
+  value: unknown,
+  workspaceId: string | null = null,
+): ScopedActor {
   const granted = new Set<AccessScope>();
   const values = typeof value === "string" ? value.split(/\s+/) : [];
   for (const scope of values) {
     if (Object.hasOwn(accessScopeDescriptions, scope)) granted.add(scope as AccessScope);
   }
-  return { ...actor, scopes: granted };
+  return { ...actor, scopes: granted, workspaceId };
 }
 
-export function withAllAccessScopes(actor: Actor): ScopedActor {
-  return { ...actor, scopes: new Set(allAccessScopes) };
+export function withAllAccessScopes(actor: Actor, workspaceId: string | null = null): ScopedActor {
+  return { ...actor, scopes: new Set(allAccessScopes), workspaceId };
 }
 
 export function requireAccessScope(actor: ScopedActor, scope: AccessScope): ScopedActor {

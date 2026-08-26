@@ -1,18 +1,21 @@
 # Connect an agent
 
-Every remote client uses the same Streamable HTTP MCP endpoint:
+Open **Teams** in Rementum and copy the MCP URL shown for the workspace you want to connect. It
+looks like this:
 
 ```text
-https://memory.example.com/mcp
+https://memory.example.com/mcp/workspace/WORKSPACE_UUID
 ```
 
-Rementum advertises OAuth metadata from the same origin. Your client opens a browser for sign-in
-and requests the selected brain and task scopes.
+The URL identifies the workspace; it is not a credential. Rementum opens OAuth in your browser,
+checks your team membership, and limits that connection to the selected workspace's brains and tasks.
 
 ## Claude Code
 
 ```bash
-claude mcp add --transport http rementum https://memory.example.com/mcp
+claude mcp add --scope user --transport http \
+  rementum https://memory.example.com/mcp/workspace/WORKSPACE_UUID
+claude mcp login rementum
 ```
 
 Complete OAuth in the browser, then ask Claude to call `list_brains` and `get_brain`.
@@ -25,13 +28,27 @@ Add this server to the MCP configuration:
 {
   "mcpServers": {
     "rementum": {
-      "url": "https://memory.example.com/mcp"
+      "url": "https://memory.example.com/mcp/workspace/WORKSPACE_UUID"
     }
   }
 }
 ```
 
-## Codex and other clients
+## Codex
+
+```bash
+codex mcp add rementum --url https://memory.example.com/mcp/workspace/WORKSPACE_UUID
+codex mcp login rementum
+```
+
+## OpenCode
+
+```bash
+opencode mcp add rementum --url https://memory.example.com/mcp/workspace/WORKSPACE_UUID
+opencode mcp auth rementum
+```
+
+## Other clients
 
 Create a remote Streamable HTTP MCP server in the client and use the Rementum MCP URL. Keep write
 tool approval enabled. Rementum marks read tools with `readOnlyHint`, while writes use the staged
@@ -41,7 +58,7 @@ write and promotion protocol.
 
 Start with these calls:
 
-1. `list_brains` finds the brains available to the signed-in account.
+1. `list_brains` finds the brains available to the connected workspace.
 2. `get_brain` returns one brain's instructions and routing index.
 3. `read_article` loads the current version of an article selected from that index.
 

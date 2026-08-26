@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { api, teamContext } from "../lib/api";
+import { api, workspaceContext } from "../lib/api";
 
 interface Brain {
   id: string;
@@ -42,14 +42,20 @@ interface BrainOverview {
 const OVERVIEW_LIMIT = 12;
 
 export async function Dashboard() {
-  const { teams, activeTeam } = await teamContext();
+  const { workspaces, activeTeam, activeWorkspace } = await workspaceContext();
   const allBrains = await api<Brain[]>("/api/v1/brains");
-  const teamIds = new Set(teams.map((team) => team.id));
-  const sharedBrains = allBrains.filter((brain) => !teamIds.has(brain.workspaceId));
-  if (!activeTeam) return <NoTeam sharedBrains={sharedBrains} />;
-  const brains = allBrains.filter((brain) => brain.workspaceId === activeTeam.id);
+  const workspaceIds = new Set(workspaces.map((workspace) => workspace.id));
+  const sharedBrains = allBrains.filter((brain) => !workspaceIds.has(brain.workspaceId));
+  if (!activeWorkspace || !activeTeam) return <NoWorkspace sharedBrains={sharedBrains} />;
+  const brains = allBrains.filter((brain) => brain.workspaceId === activeWorkspace.id);
   if (!brains.length)
-    return <EmptyWorkspace teamName={activeTeam.name} sharedBrains={sharedBrains} />;
+    return (
+      <EmptyWorkspace
+        teamName={activeTeam.name}
+        workspaceName={activeWorkspace.name}
+        sharedBrains={sharedBrains}
+      />
+    );
 
   const recentFirst = [...brains].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
@@ -92,7 +98,9 @@ export async function Dashboard() {
     <main className="shell dash">
       <header className="page-intro dash-intro">
         <div>
-          <p className="kicker">{activeTeam.name}</p>
+          <p className="kicker">
+            {activeTeam.name} · {activeWorkspace.name}
+          </p>
           <h1>Overview</h1>
           <p>What changed across your brains, and what waits for your review.</p>
         </div>
@@ -231,7 +239,7 @@ function SharedBrains({ brains }: { brains: Brain[] }) {
   );
 }
 
-function NoTeam({ sharedBrains }: { sharedBrains: Brain[] }) {
+function NoWorkspace({ sharedBrains }: { sharedBrains: Brain[] }) {
   return (
     <main className="shell dash">
       <header className="page-intro dash-intro">
@@ -241,8 +249,8 @@ function NoTeam({ sharedBrains }: { sharedBrains: Brain[] }) {
         </div>
       </header>
       <section className="empty-state">
-        <h2>No team yet</h2>
-        <p>Create a team to collect brains and invite members.</p>
+        <h2>No workspace yet</h2>
+        <p>Create a team and workspace to collect brains and invite members.</p>
         <div className="dash-empty-actions">
           <Link className="button" href="/teams">
             Set up your team
@@ -254,12 +262,22 @@ function NoTeam({ sharedBrains }: { sharedBrains: Brain[] }) {
   );
 }
 
-function EmptyWorkspace({ teamName, sharedBrains }: { teamName: string; sharedBrains: Brain[] }) {
+function EmptyWorkspace({
+  teamName,
+  workspaceName,
+  sharedBrains,
+}: {
+  teamName: string;
+  workspaceName: string;
+  sharedBrains: Brain[];
+}) {
   return (
     <main className="shell dash">
       <header className="page-intro dash-intro">
         <div>
-          <p className="kicker">{teamName}</p>
+          <p className="kicker">
+            {teamName} · {workspaceName}
+          </p>
           <h1>Overview</h1>
         </div>
       </header>

@@ -114,6 +114,48 @@ integration("account and team HTTP flows", () => {
       });
       expect(teams.statusCode).toBe(200);
       expect(teams.json()).toHaveLength(1);
+      const firstTeamId = teams.json()[0].id as string;
+      const workspaces = await app.inject({
+        method: "GET",
+        url: "/api/v1/workspaces",
+        headers: { "x-rementum-user-id": user.id },
+      });
+      expect(workspaces.statusCode).toBe(200);
+      expect(workspaces.json()).toHaveLength(1);
+      const firstWorkspaceId = workspaces.json()[0].id as string;
+      expect(firstWorkspaceId).not.toBe(firstTeamId);
+      expect(workspaces.json()[0]).toMatchObject({
+        teamId: firstTeamId,
+        mcpUrl: `http://rementum.example.test/mcp/workspace/${firstWorkspaceId}`,
+      });
+
+      const metadata = await app.inject({
+        method: "GET",
+        url: `/.well-known/oauth-protected-resource/mcp/workspace/${firstWorkspaceId}`,
+      });
+      expect(metadata.statusCode).toBe(200);
+      expect(metadata.json()).toMatchObject({
+        resource: `http://rementum.example.test/mcp/workspace/${firstWorkspaceId}`,
+        authorization_servers: ["http://rementum.example.test/oauth"],
+      });
+      expect(metadata.json().scopes_supported).toEqual([
+        "brain:read",
+        "brain:write",
+        "task:read",
+        "task:write",
+      ]);
+      expect((await app.inject({ method: "GET", url: "/mcp" })).statusCode).toBe(404);
+      expect(
+        (await app.inject({ method: "GET", url: `/mcp/teams/${firstTeamId}` })).statusCode,
+      ).toBe(404);
+      expect(
+        (
+          await app.inject({
+            method: "GET",
+            url: "/.well-known/oauth-protected-resource/mcp",
+          })
+        ).statusCode,
+      ).toBe(404);
 
       const secondTeam = await app.inject({
         method: "POST",
@@ -122,6 +164,57 @@ integration("account and team HTTP flows", () => {
         payload: { name: "Another team" },
       });
       expect(secondTeam.statusCode).toBe(201);
+      expect(secondTeam.json().defaultWorkspaceId).not.toBe(secondTeam.json().id);
+
+      const secondWorkspace = await app.inject({
+        method: "POST",
+        url: `/api/v1/teams/${secondTeam.json().id}/workspaces`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { name: "Another workspace" },
+      });
+      expect(secondWorkspace.statusCode).toBe(201);
+      expect(secondWorkspace.json()).toMatchObject({ teamId: secondTeam.json().id });
+
+      const secondTeamWorkspaces = await app.inject({
+        method: "GET",
+        url: `/api/v1/teams/${secondTeam.json().id}/workspaces`,
+        headers: { "x-rementum-user-id": user.id },
+      });
+      expect(secondTeamWorkspaces.statusCode).toBe(200);
+      expect(secondTeamWorkspaces.json()).toHaveLength(2);
+
+      const renamedWorkspace = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/workspaces/${secondWorkspace.json().id}`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { name: "Renamed workspace" },
+      });
+      expect(renamedWorkspace.statusCode).toBe(200);
+      expect(renamedWorkspace.json().name).toBe("Renamed workspace");
+
+      const wrongConfirmation = await app.inject({
+        method: "DELETE",
+        url: `/api/v1/workspaces/${secondWorkspace.json().id}`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { confirmation: "Wrong name" },
+      });
+      expect(wrongConfirmation.statusCode).toBe(409);
+
+      const deletedWorkspace = await app.inject({
+        method: "DELETE",
+        url: `/api/v1/workspaces/${secondWorkspace.json().id}`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { confirmation: "Renamed workspace" },
+      });
+      expect(deletedWorkspace.statusCode).toBe(204);
+
+      const lastWorkspace = await app.inject({
+        method: "DELETE",
+        url: `/api/v1/workspaces/${secondTeam.json().defaultWorkspaceId}`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { confirmation: "Default workspace" },
+      });
+      expect(lastWorkspace.statusCode).toBe(409);
 
       const invitation = await app.inject({
         method: "POST",

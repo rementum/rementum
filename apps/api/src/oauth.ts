@@ -4,16 +4,21 @@ import { hash, verify } from "argon2";
 import type { FastifyInstance } from "fastify";
 import { exportJWK, generateKeyPair, type JWK } from "jose";
 import Provider, { type Configuration } from "oidc-provider";
+import { z } from "zod";
 import { allAccessScopes } from "./access.js";
 import type { AppConfig } from "./config.js";
+
+const workspaceMcpScopes = allAccessScopes.filter(
+  (scope) => !scope.startsWith("team:") && !scope.startsWith("connection:"),
+);
 
 export interface OauthRuntime {
   provider: Provider;
   publicJwks: { keys: JWK[] };
   issuer: string;
-  resource: string;
   apiResource: string;
   publicUrl: string;
+  workspaceResource: (workspaceId: string) => string;
   allowSignup: boolean;
 }
 
@@ -22,8 +27,9 @@ export async function buildOauthRuntime(
   database: DatabaseClient,
 ): Promise<OauthRuntime> {
   const issuer = `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/oauth`;
-  const resource = `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/mcp`;
   const apiResource = `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/api`;
+  const publicUrl = config.REMENTUM_PUBLIC_URL.replace(/\/$/, "");
+  const workspaceResource = (workspaceId: string) => `${publicUrl}/mcp/workspace/${workspaceId}`;
   const { privateJwks, publicJwks } = await resolveJwks(config.REMENTUM_JWT_JWKS);
   const auth = new AuthRepository(database);
 
@@ -69,15 +75,11 @@ export async function buildOauthRuntime(
         defaultResource: () => apiResource,
         useGrantedResource: () => true,
         getResourceServerInfo: (_ctx, indicator) => {
-          if (indicator !== resource && indicator !== apiResource) {
+          const workspaceId = workspaceIdFromResource(indicator, publicUrl);
+          if (indicator !== apiResource && !workspaceId) {
             throw new Error("invalid_target");
           }
-          const scopes =
-            indicator === resource
-              ? allAccessScopes.filter(
-                  (scope) => scope !== "connection:read" && scope !== "connection:write",
-                )
-              : allAccessScopes;
+          const scopes = workspaceId ? workspaceMcpScopes : allAccessScopes;
           return {
             scope: ["openid", "profile", "email", "offline_access", ...scopes].join(" "),
             audience: indicator,
@@ -131,9 +133,9 @@ export async function buildOauthRuntime(
     provider,
     publicJwks,
     issuer,
-    resource,
     apiResource,
-    publicUrl: config.REMENTUM_PUBLIC_URL.replace(/\/$/, ""),
+    publicUrl,
+    workspaceResource,
     allowSignup: config.REMENTUM_ALLOW_SIGNUP,
   };
 }
@@ -255,15 +257,23 @@ export async function registerOauthRoutes(
     scopes_supported: allAccessScopes,
     bearer_methods_supported: ["header"],
   }));
-  app.get("/.well-known/oauth-protected-resource/mcp", async () => ({
-    resource: runtime.resource,
-    authorization_servers: [runtime.issuer],
-    scopes_supported: allAccessScopes.filter(
-      (scope) => scope !== "connection:read" && scope !== "connection:write",
-    ),
-    bearer_methods_supported: ["header"],
-  }));
+  app.get("/.well-known/oauth-protected-resource/mcp/workspace/:workspaceId", async (request) => {
+    const { workspaceId } = z.object({ workspaceId: z.uuid() }).parse(request.params);
+    return {
+      resource: runtime.workspaceResource(workspaceId),
+      authorization_servers: [runtime.issuer],
+      scopes_supported: workspaceMcpScopes,
+      bearer_methods_supported: ["header"],
+    };
+  });
   app.get("/.well-known/jwks.json", async () => runtime.publicJwks);
+}
+
+export function workspaceIdFromResource(resource: string, publicUrl: string): string | null {
+  const prefix = `${publicUrl.replace(/\/$/, "")}/mcp/workspace/`;
+  if (!resource.startsWith(prefix)) return null;
+  const candidate = resource.slice(prefix.length);
+  return z.uuid().safeParse(candidate).success ? candidate : null;
 }
 
 export async function verifyLoginPassword(

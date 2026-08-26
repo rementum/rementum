@@ -39,7 +39,7 @@ try {
     await hash(password, { type: 2, memoryCost: 65_536, timeCost: 3, parallelism: 1 }),
   );
   process.stdout.write(
-    `Created owner ${created.user.email} and workspace ${created.workspaceId}\n`,
+    `Created owner ${created.user.email}, team ${created.teamId}, and workspace ${created.workspaceId}\n`,
   );
 } finally {
   await database.close();

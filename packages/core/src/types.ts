@@ -10,14 +10,15 @@ import type {
   SourceInput,
   StageWriteInput,
   Task,
-  WorkspaceRole,
+  TeamRole,
 } from "@rementum/contracts";
 import type { CipherEnvelope, WrappedKey } from "./crypto.js";
 
 export interface Actor {
   userId: string;
   clientId: string | null;
-  workspaceRoles: Map<string, WorkspaceRole>;
+  teamRoles: Map<string, TeamRole>;
+  workspaceRoles: Map<string, TeamRole>;
   brainRoles: Map<string, BrainRole>;
 }
 
@@ -38,7 +39,16 @@ export interface TeamRecord {
   id: string;
   slug: string;
   name: string;
-  role: WorkspaceRole;
+  role: TeamRole;
+  createdAt: Date;
+}
+
+export interface WorkspaceRecord {
+  id: string;
+  teamId: string;
+  slug: string;
+  name: string;
+  role: TeamRole;
   createdAt: Date;
 }
 
@@ -46,13 +56,13 @@ export interface TeamMemberRecord {
   userId: string;
   email: string;
   displayName: string;
-  role: WorkspaceRole;
+  role: TeamRole;
   createdAt: Date;
 }
 
 export interface TeamInvitationRecord {
   id: string;
-  workspaceId: string;
+  teamId: string;
   email: string;
   role: "admin" | "member";
   expiresAt: Date;
@@ -125,8 +135,33 @@ export interface SummaryGenerator {
 export type ResolvedStageWriteInput = StageWriteInput & { summary: string };
 
 export interface DataStore {
-  createTeam(name: string, slug: string, actor: Actor, id: string): Promise<TeamRecord>;
+  createTeam(
+    name: string,
+    slug: string,
+    actor: Actor,
+    teamId: string,
+    workspaceId: string,
+  ): Promise<{ team: TeamRecord; workspace: WorkspaceRecord }>;
   listTeams(actor: Actor): Promise<TeamRecord[]>;
+  createWorkspace(
+    teamId: string,
+    name: string,
+    slug: string,
+    actor: Actor,
+    workspaceId: string,
+  ): Promise<WorkspaceRecord>;
+  listWorkspaces(actor: Actor, teamId?: string): Promise<WorkspaceRecord[]>;
+  updateWorkspace(
+    workspaceId: string,
+    name: string,
+    slug: string,
+    actor: Actor,
+  ): Promise<WorkspaceRecord>;
+  deleteWorkspace(
+    workspaceId: string,
+    confirmation: string,
+    actor: Actor,
+  ): Promise<WorkspaceRecord>;
   listTeamMembers(teamId: string, actor: Actor): Promise<TeamMemberRecord[]>;
   updateTeamMemberRole(
     teamId: string,

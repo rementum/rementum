@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { Team } from "../lib/api";
+import type { Team, Workspace } from "../lib/api";
 import { BrandMark } from "./brand";
 
 const items = [
@@ -52,21 +52,35 @@ function NavigationLinks({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function TeamPicker({ teams, activeTeamId }: { teams: Team[]; activeTeamId: string | null }) {
-  if (!teams.length) return null;
+function WorkspacePicker({
+  teams,
+  workspaces,
+  activeWorkspaceId,
+}: {
+  teams: Team[];
+  workspaces: Workspace[];
+  activeWorkspaceId: string | null;
+}) {
+  if (!workspaces.length) return null;
   return (
-    <form className="team-picker" action="/teams/select" method="post">
-      <label htmlFor="team-picker">Active team</label>
+    <form className="team-picker" action="/workspaces/select" method="post">
+      <label htmlFor="workspace-picker">Active workspace</label>
       <select
-        id="team-picker"
-        name="teamId"
-        defaultValue={activeTeamId ?? teams[0]?.id}
+        id="workspace-picker"
+        name="workspaceId"
+        defaultValue={activeWorkspaceId ?? workspaces[0]?.id}
         onChange={(event) => event.currentTarget.form?.requestSubmit()}
       >
         {teams.map((team) => (
-          <option value={team.id} key={team.id}>
-            {team.name}
-          </option>
+          <optgroup label={team.name} key={team.id}>
+            {workspaces
+              .filter((workspace) => workspace.teamId === team.id)
+              .map((workspace) => (
+                <option value={workspace.id} key={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+          </optgroup>
         ))}
       </select>
     </form>
@@ -75,10 +89,12 @@ function TeamPicker({ teams, activeTeamId }: { teams: Team[]; activeTeamId: stri
 
 export function AppNavigation({
   teams,
-  activeTeamId,
+  workspaces,
+  activeWorkspaceId,
 }: {
   teams: Team[];
-  activeTeamId: string | null;
+  workspaces: Workspace[];
+  activeWorkspaceId: string | null;
 }) {
   return (
     <>
@@ -87,7 +103,11 @@ export function AppNavigation({
           <BrandMark className="brand-mark" />
           <span>Rementum</span>
         </Link>
-        <TeamPicker teams={teams} activeTeamId={activeTeamId} />
+        <WorkspacePicker
+          teams={teams}
+          workspaces={workspaces}
+          activeWorkspaceId={activeWorkspaceId}
+        />
         <NavigationLinks />
         <div className="sidebar-footer">
           <p>
@@ -109,7 +129,11 @@ export function AppNavigation({
         <details className="mobile-menu">
           <summary>Menu</summary>
           <div className="mobile-menu-panel">
-            <TeamPicker teams={teams} activeTeamId={activeTeamId} />
+            <WorkspacePicker
+              teams={teams}
+              workspaces={workspaces}
+              activeWorkspaceId={activeWorkspaceId}
+            />
             <NavigationLinks compact />
             <form action="/auth/logout" method="post">
               <button className="signout-button" type="submit">

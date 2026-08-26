@@ -4,8 +4,6 @@ import {
   claimTaskSchema,
   createBrainSchema,
   createTaskSchema,
-  createTeamInvitationSchema,
-  createTeamSchema,
   promoteWriteSchema,
   searchArticlesSchema,
   stageWriteSchema,
@@ -18,20 +16,34 @@ import { type AccessScope, requireAccessScope, type ScopedActor } from "./access
 
 type Authenticate = (request: any) => Promise<ScopedActor>;
 
-export async function registerMcpEndpoint(
+export async function registerWorkspaceMcpEndpoint(
   app: FastifyInstance,
   service: RementumService,
   authenticate: Authenticate,
-  resourceMetadataUrl: string,
+  publicUrl: string,
 ): Promise<void> {
-  app.post("/mcp", async (request, reply) => {
+  registerMcpRoute(app, "/mcp/workspace/:workspaceId", service, authenticate, (request) => {
+    const { workspaceId } = z.object({ workspaceId: z.uuid() }).parse(request.params);
+    return `${publicUrl}/.well-known/oauth-protected-resource/mcp/workspace/${workspaceId}`;
+  });
+}
+
+function registerMcpRoute(
+  app: FastifyInstance,
+  path: string,
+  service: RementumService,
+  authenticate: Authenticate,
+  resourceMetadataUrl: (request: any) => string,
+): void {
+  app.post(path, async (request, reply) => {
+    const metadataUrl = resourceMetadataUrl(request);
     let actor: ScopedActor;
     try {
       actor = await authenticate(request);
     } catch (error) {
       const domain =
         error instanceof DomainError ? error : new DomainError("unauthorized", "Unauthorized", 401);
-      reply.header("WWW-Authenticate", `Bearer resource_metadata="${resourceMetadataUrl}"`);
+      reply.header("WWW-Authenticate", `Bearer resource_metadata="${metadataUrl}"`);
       return reply.code(domain.status).send({
         jsonrpc: "2.0",
         error: { code: -32001, message: domain.message },
@@ -67,8 +79,8 @@ export async function registerMcpEndpoint(
       error: { code: -32000, message: "Method not allowed" },
       id: null,
     });
-  app.get("/mcp", methodNotAllowed);
-  app.delete("/mcp", methodNotAllowed);
+  app.get(path, methodNotAllowed);
+  app.delete(path, methodNotAllowed);
 }
 
 export function createMcpServer(service: RementumService, actor: ScopedActor): McpServer {
@@ -85,31 +97,6 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
     idempotentHint: false,
     openWorldHint: false,
   };
-
-  server.registerTool(
-    "list_teams",
-    {
-      title: "List accessible teams",
-      description: "Lists every team visible to this connection and the actor's role in each.",
-      inputSchema: {},
-      annotations: read,
-    },
-    () => scoped(actor, "team:read", () => result(service.listTeams(actor))),
-  );
-
-  server.registerTool(
-    "create_team",
-    {
-      title: "Create a team",
-      description: "Creates a team owned by the current account.",
-      inputSchema: createTeamSchema.shape,
-      annotations: write,
-    },
-    (input) =>
-      scoped(actor, "team:write", () =>
-        result(service.createTeam(createTeamSchema.parse(input), actor)),
-      ),
-  );
 
   server.registerTool(
     "list_brains",
@@ -579,24 +566,6 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
     },
     ({ brainId }) =>
       scoped(actor, "brain:read", () => result(service.listMaintenance(brainId, actor))),
-  );
-
-  server.registerTool(
-    "propose_team_invite",
-    {
-      title: "Create a team invitation",
-      description:
-        "Owner/admin action. Creates a seven-day invitation token for email delivery or manual sharing.",
-      inputSchema: {
-        teamId: z.uuid(),
-        ...createTeamInvitationSchema.shape,
-      },
-      annotations: write,
-    },
-    ({ teamId, email, role }) =>
-      scoped(actor, "team:write", () =>
-        result(service.proposeTeamInvite(teamId, email, role, actor)),
-      ),
   );
 
   server.registerTool(

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { BrainRole, WorkspaceRole } from "@rementum/contracts";
+import type { BrainRole } from "@rementum/contracts";
 import type postgres from "postgres";
 import type { DatabaseClient } from "./client.js";
 
@@ -34,7 +34,7 @@ export class AuthRepository {
     email: string,
     displayName: string,
     passwordHash: string,
-  ): Promise<{ user: UserRecord; workspaceId: string }> {
+  ): Promise<{ user: UserRecord; teamId: string; workspaceId: string }> {
     return (await this.client.sql.begin(async (tx) => {
       const countRows = await tx<
         Array<{ count: number }>
@@ -45,16 +45,31 @@ export class AuthRepository {
         INSERT INTO users (email, display_name, password_hash, system_owner, email_verified_at)
         VALUES (${email}, ${displayName}, ${passwordHash}, true, now()) RETURNING *
       `;
-      const [workspace] = await tx<any[]>`
-        INSERT INTO workspaces (slug, name, created_by)
-        VALUES ('default', 'Default workspace', ${userRow.id}) RETURNING id
+      const teamId = randomUUID();
+      const workspaceId = randomUUID();
+      await tx`SELECT set_config('app.user_id', ${userRow.id}, true)`;
+      await tx`SELECT set_config('app.team_ids', ${teamId}, true)`;
+      await tx`SELECT set_config('app.manage_team_ids', ${teamId}, true)`;
+      await tx`SELECT set_config('app.owner_team_ids', ${teamId}, true)`;
+      await tx`SELECT set_config('app.workspace_ids', ${workspaceId}, true)`;
+      const [team] = await tx<any[]>`
+        INSERT INTO teams (id, slug, name, created_by)
+        VALUES (${teamId}, 'default', 'Default team', ${userRow.id}) RETURNING id
       `;
       await tx`
-        INSERT INTO workspace_members (workspace_id, user_id, role)
-        VALUES (${workspace.id}, ${userRow.id}, 'owner')
+        INSERT INTO team_members (team_id, user_id, role)
+        VALUES (${teamId}, ${userRow.id}, 'owner')
       `;
-      return { user: mapUser(userRow), workspaceId: workspace.id as string };
-    })) as { user: UserRecord; workspaceId: string };
+      const [workspace] = await tx<any[]>`
+        INSERT INTO workspaces (id, team_id, slug, name, created_by)
+        VALUES (${workspaceId}, ${teamId}, 'default', 'Default workspace', ${userRow.id}) RETURNING id
+      `;
+      return {
+        user: mapUser(userRow),
+        teamId: team.id as string,
+        workspaceId: workspace.id as string,
+      };
+    })) as { user: UserRecord; teamId: string; workspaceId: string };
   }
 
   async registerAccount(
@@ -63,7 +78,7 @@ export class AuthRepository {
     passwordHash: string,
     teamName: string,
     teamSlug: string,
-  ): Promise<{ user: UserRecord; workspaceId: string } | null> {
+  ): Promise<{ user: UserRecord; teamId: string; workspaceId: string } | null> {
     return (await this.client.sql.begin(async (tx) => {
       const [userRow] = await tx<any[]>`
         INSERT INTO users (email, display_name, password_hash)
@@ -72,21 +87,29 @@ export class AuthRepository {
         RETURNING *
       `;
       if (!userRow) return null;
+      const teamId = randomUUID();
       const workspaceId = randomUUID();
       await tx`SELECT set_config('app.user_id', ${userRow.id}, true)`;
+      await tx`SELECT set_config('app.team_ids', ${teamId}, true)`;
+      await tx`SELECT set_config('app.manage_team_ids', ${teamId}, true)`;
+      await tx`SELECT set_config('app.owner_team_ids', ${teamId}, true)`;
       await tx`SELECT set_config('app.workspace_ids', ${workspaceId}, true)`;
       await tx`SELECT set_config('app.manage_workspace_ids', ${workspaceId}, true)`;
       await tx`SELECT set_config('app.owner_workspace_ids', ${workspaceId}, true)`;
       await tx<any[]>`
-        INSERT INTO workspaces (id, slug, name, created_by)
-        VALUES (${workspaceId}, ${teamSlug}, ${teamName}, ${userRow.id})
+        INSERT INTO teams (id, slug, name, created_by)
+        VALUES (${teamId}, ${teamSlug}, ${teamName}, ${userRow.id})
       `;
       await tx`
-        INSERT INTO workspace_members (workspace_id, user_id, role)
-        VALUES (${workspaceId}, ${userRow.id}, 'owner')
+        INSERT INTO team_members (team_id, user_id, role)
+        VALUES (${teamId}, ${userRow.id}, 'owner')
       `;
-      return { user: mapUser(userRow), workspaceId };
-    })) as { user: UserRecord; workspaceId: string } | null;
+      await tx`
+        INSERT INTO workspaces (id, team_id, slug, name, created_by)
+        VALUES (${workspaceId}, ${teamId}, 'default', 'Default workspace', ${userRow.id})
+      `;
+      return { user: mapUser(userRow), teamId, workspaceId };
+    })) as { user: UserRecord; teamId: string; workspaceId: string } | null;
   }
 
   async createAuthToken(
@@ -158,7 +181,7 @@ export class AuthRepository {
     >`SELECT * FROM owl_inspect_team_invitation(${tokenHash})`;
     return row
       ? {
-          workspaceId: row.workspace_id as string,
+          teamId: row.team_id as string,
           name: row.team_name as string,
           email: row.invite_email as string,
           role: row.invite_role as "admin" | "member",
@@ -187,10 +210,15 @@ export class AuthRepository {
     passwordHash: string | null,
   ) {
     const [row] = await this.client.sql<
-      Array<{ user_id: string; user_email: string; workspace_id: string }>
+      Array<{ user_id: string; user_email: string; team_id: string; workspace_id: string }>
     >`SELECT * FROM owl_accept_team_invitation(${tokenHash}, ${userId}, ${displayName}, ${passwordHash})`;
     if (!row) throw new Error("Team invitation acceptance did not return a user");
-    return { userId: row.user_id, email: row.user_email, workspaceId: row.workspace_id };
+    return {
+      userId: row.user_id,
+      email: row.user_email,
+      teamId: row.team_id,
+      workspaceId: row.workspace_id,
+    };
   }
 
   async acceptBrainInvitation(
@@ -206,43 +234,12 @@ export class AuthRepository {
     return { userId: row.user_id, email: row.user_email, brainId: row.brain_id };
   }
 
-  async inviteUser(
-    email: string,
-    displayName: string,
-    passwordHash: string,
-    workspaceId: string,
-    workspaceRole: WorkspaceRole,
-  ): Promise<UserRecord> {
-    return (await this.client.sql.begin(async (tx) => {
-      const [row] = await tx<any[]>`
-        INSERT INTO users (email, display_name, password_hash, email_verified_at)
-        VALUES (${email}, ${displayName}, ${passwordHash}, now())
-        ON CONFLICT ((lower(email))) DO UPDATE SET display_name = excluded.display_name
-        RETURNING *
-      `;
-      await tx`
-        INSERT INTO workspace_members (workspace_id, user_id, role)
-        VALUES (${workspaceId}, ${row.id}, ${workspaceRole})
-        ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = excluded.role
-      `;
-      return mapUser(row);
-    })) as UserRecord;
-  }
-
   async grantBrainRole(brainId: string, userId: string, role: BrainRole): Promise<void> {
     await this.client.sql`
       INSERT INTO brain_members (brain_id, user_id, role)
       VALUES (${brainId}, ${userId}, ${role})
       ON CONFLICT (brain_id, user_id) DO UPDATE SET role = excluded.role
     `;
-  }
-
-  async acceptInvitation(tokenHash: string, displayName: string, passwordHash: string) {
-    const [row] = await this.client.sql<Array<{ user_id: string; user_email: string }>>`
-      SELECT * FROM owl_accept_invitation(${tokenHash}, ${displayName}, ${passwordHash})
-    `;
-    if (!row) throw new Error("Invitation acceptance did not return a user");
-    return { userId: row.user_id, email: row.user_email };
   }
 
   async listConnections(userId: string) {

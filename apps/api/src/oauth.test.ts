@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { verifyLoginPassword } from "./oauth.js";
+import { verifyLoginPassword, workspaceIdFromResource } from "./oauth.js";
+
+const workspaceId = "00000000-0000-4000-8000-000000000002";
 
 describe("OAuth login verification", () => {
   it("performs one password verification for an unknown account", async () => {
@@ -34,5 +36,28 @@ describe("OAuth login verification", () => {
       false,
     );
     expect(verifier).toHaveBeenCalledOnce();
+  });
+});
+
+describe("workspace MCP resource parsing", () => {
+  it("accepts only an exact workspace MCP resource on the public origin", () => {
+    expect(
+      workspaceIdFromResource(
+        `https://rementum.example.test/mcp/workspace/${workspaceId}`,
+        "https://rementum.example.test",
+      ),
+    ).toBe(workspaceId);
+    expect(
+      workspaceIdFromResource(
+        `https://other.example.test/mcp/workspace/${workspaceId}`,
+        "https://rementum.example.test",
+      ),
+    ).toBeNull();
+    expect(
+      workspaceIdFromResource(
+        `https://rementum.example.test/mcp/workspace/${workspaceId}/extra`,
+        "https://rementum.example.test",
+      ),
+    ).toBeNull();
   });
 });

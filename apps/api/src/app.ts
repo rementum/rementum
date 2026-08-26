@@ -16,7 +16,7 @@ import { createAuthenticator } from "./auth.js";
 import type { AppConfig } from "./config.js";
 import { HttpEmbeddingClient } from "./embeddings.js";
 import { ResendMailer, type TransactionalMailer } from "./mailer.js";
-import { registerMcpEndpoint } from "./mcp.js";
+import { registerWorkspaceMcpEndpoint } from "./mcp.js";
 import { buildOauthRuntime, registerOauthRoutes } from "./oauth.js";
 import { registerApiRoutes } from "./routes.js";
 import { OpenAICompatibleSummaryGenerator } from "./summaries.js";
@@ -150,11 +150,11 @@ export async function buildApp(
   app.get("/openapi.json", async () => app.swagger());
 
   await registerApiRoutes(app, service, authenticate, authRepository, config, mailer);
-  await registerMcpEndpoint(
+  await registerWorkspaceMcpEndpoint(
     app,
     service,
     authenticate,
-    `${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource/mcp`,
+    config.REMENTUM_PUBLIC_URL.replace(/\/$/, ""),
   );
 
   app.setErrorHandler((error, request, reply) => {

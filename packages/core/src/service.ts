@@ -3,10 +3,12 @@ import type {
   CreateBrainInput,
   CreateTaskInput,
   CreateTeamInput,
+  CreateWorkspaceInput,
   PromoteWriteInput,
   SearchArticlesInput,
   StageWriteInput,
   Task,
+  UpdateWorkspaceInput,
 } from "@rementum/contracts";
 import {
   type CipherEnvelope,
@@ -43,11 +45,24 @@ export class RementumService {
 
   async createTeam(input: CreateTeamInput, actor: Actor) {
     const teamId = randomUUID();
+    const workspaceId = randomUUID();
     const base = slugify(input.name) || "team";
     const slug = `${base.slice(0, 105)}-${randomBytes(6).toString("hex")}`;
-    const team = await this.store.createTeam(input.name.trim(), slug, actor, teamId);
-    await this.store.audit(actor, "team.created", `team:${team.id}`);
-    return { ...team, createdAt: team.createdAt.toISOString() };
+    const { team, workspace } = await this.store.createTeam(
+      input.name.trim(),
+      slug,
+      actor,
+      teamId,
+      workspaceId,
+    );
+    await this.store.audit(actor, "team.created", `team:${team.id}`, {
+      defaultWorkspaceId: workspace.id,
+    });
+    return {
+      ...team,
+      defaultWorkspaceId: workspace.id,
+      createdAt: team.createdAt.toISOString(),
+    };
   }
 
   async listTeams(actor: Actor) {
@@ -57,8 +72,50 @@ export class RementumService {
     }));
   }
 
+  async createWorkspace(teamId: string, input: CreateWorkspaceInput, actor: Actor) {
+    requireTeamRole(actor, teamId, ["owner", "admin"]);
+    const workspaceId = randomUUID();
+    const base = slugify(input.name) || "workspace";
+    const slug = `${base.slice(0, 105)}-${randomBytes(6).toString("hex")}`;
+    const workspace = await this.store.createWorkspace(
+      teamId,
+      input.name.trim(),
+      slug,
+      actor,
+      workspaceId,
+    );
+    await this.store.audit(actor, "workspace.created", `workspace:${workspace.id}`);
+    return { ...workspace, createdAt: workspace.createdAt.toISOString() };
+  }
+
+  async listWorkspaces(actor: Actor, teamId?: string) {
+    if (teamId) requireTeamRole(actor, teamId, ["owner", "admin", "member"]);
+    return (await this.store.listWorkspaces(actor, teamId)).map((workspace) => ({
+      ...workspace,
+      createdAt: workspace.createdAt.toISOString(),
+    }));
+  }
+
+  async updateWorkspace(workspaceId: string, input: UpdateWorkspaceInput, actor: Actor) {
+    requireWorkspaceRole(actor, workspaceId, ["owner", "admin"]);
+    const base = slugify(input.name) || "workspace";
+    const slug = `${base.slice(0, 105)}-${randomBytes(6).toString("hex")}`;
+    const workspace = await this.store.updateWorkspace(workspaceId, input.name.trim(), slug, actor);
+    await this.store.audit(actor, "workspace.updated", `workspace:${workspace.id}`);
+    return { ...workspace, createdAt: workspace.createdAt.toISOString() };
+  }
+
+  async deleteWorkspace(workspaceId: string, confirmation: string, actor: Actor) {
+    requireWorkspaceRole(actor, workspaceId, ["owner"]);
+    const workspace = await this.store.deleteWorkspace(workspaceId, confirmation, actor);
+    await this.store.audit(actor, "workspace.deleted", `team:${workspace.teamId}`, {
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+    });
+  }
+
   async listTeamMembers(teamId: string, actor: Actor) {
-    requireWorkspaceRole(actor, teamId, ["owner", "admin", "member"]);
+    requireTeamRole(actor, teamId, ["owner", "admin", "member"]);
     return (await this.store.listTeamMembers(teamId, actor)).map((member) => ({
       ...member,
       createdAt: member.createdAt.toISOString(),
@@ -66,13 +123,13 @@ export class RementumService {
   }
 
   async listTeamInvitations(teamId: string, actor: Actor) {
-    requireWorkspaceRole(actor, teamId, ["owner", "admin"]);
+    requireTeamRole(actor, teamId, ["owner", "admin"]);
     return (await this.store.listTeamInvitations(teamId, actor)).map(serializeTeamInvitation);
   }
 
   async proposeTeamInvite(teamId: string, email: string, role: "admin" | "member", actor: Actor) {
-    const actorRole = actor.workspaceRoles.get(teamId);
-    requireWorkspaceRole(actor, teamId, ["owner", "admin"]);
+    const actorRole = actor.teamRoles.get(teamId);
+    requireTeamRole(actor, teamId, ["owner", "admin"]);
     if (role === "admin" && actorRole !== "owner") {
       throw new ForbiddenError("Only the team owner can invite an admin");
     }
@@ -100,12 +157,12 @@ export class RementumService {
     ).flat();
     const previous = pending.find((invitation) => invitation.id === invitationId);
     if (!previous) throw new NotFoundError("Pending team invitation");
-    const actorRole = actor.workspaceRoles.get(previous.workspaceId);
+    const actorRole = actor.teamRoles.get(previous.teamId);
     if (previous.role === "admin" && actorRole !== "owner") {
       throw new ForbiddenError("Only the team owner can resend an admin invitation");
     }
     await this.store.revokeTeamInvitation(invitationId, actor);
-    return this.proposeTeamInvite(previous.workspaceId, previous.email, previous.role, actor);
+    return this.proposeTeamInvite(previous.teamId, previous.email, previous.role, actor);
   }
 
   async revokeTeamInvite(invitationId: string, actor: Actor) {
@@ -115,12 +172,12 @@ export class RementumService {
     ).flat();
     const invitation = pending.find((candidate) => candidate.id === invitationId);
     if (!invitation) throw new NotFoundError("Pending team invitation");
-    const actorRole = actor.workspaceRoles.get(invitation.workspaceId);
+    const actorRole = actor.teamRoles.get(invitation.teamId);
     if (invitation.role === "admin" && actorRole !== "owner") {
       throw new ForbiddenError("Only the team owner can revoke an admin invitation");
     }
     await this.store.revokeTeamInvitation(invitationId, actor);
-    await this.store.audit(actor, "team_invitation.revoked", `team:${invitation.workspaceId}`, {
+    await this.store.audit(actor, "team_invitation.revoked", `team:${invitation.teamId}`, {
       invitationId,
     });
   }
@@ -131,7 +188,7 @@ export class RementumService {
     role: "admin" | "member",
     actor: Actor,
   ) {
-    requireWorkspaceRole(actor, teamId, ["owner"]);
+    requireTeamRole(actor, teamId, ["owner"]);
     const member = await this.store.updateTeamMemberRole(teamId, userId, role, actor);
     await this.store.audit(actor, "team_member.role_changed", `team:${teamId}`, {
       userId,
@@ -141,8 +198,8 @@ export class RementumService {
   }
 
   async removeTeamMember(teamId: string, userId: string, actor: Actor) {
-    const actorRole = actor.workspaceRoles.get(teamId);
-    requireWorkspaceRole(actor, teamId, ["owner", "admin"]);
+    const actorRole = actor.teamRoles.get(teamId);
+    requireTeamRole(actor, teamId, ["owner", "admin"]);
     const members = await this.store.listTeamMembers(teamId, actor);
     const target = members.find((member) => member.userId === userId);
     if (!target) throw new NotFoundError("Team member");
@@ -554,6 +611,11 @@ export function requireWorkspaceRole(actor: Actor, workspaceId: string, allowed:
   if (!role || !allowed.includes(role)) throw new ForbiddenError();
 }
 
+export function requireTeamRole(actor: Actor, teamId: string, allowed: string[]): void {
+  const role = actor.teamRoles.get(teamId);
+  if (!role || !allowed.includes(role)) throw new ForbiddenError();
+}
+
 export function resolveWorkspaceId(workspaceId: string | undefined, actor: Actor): string {
   if (workspaceId) return workspaceId;
   const workspaceIds = [...actor.workspaceRoles.keys()];
@@ -573,7 +635,7 @@ function withoutWrappedKey<T extends { wrappedKey: unknown }>(record: T): Omit<T
 
 function serializeTeamInvitation(invitation: {
   id: string;
-  workspaceId: string;
+  teamId: string;
   email: string;
   role: "admin" | "member";
   expiresAt: Date;
