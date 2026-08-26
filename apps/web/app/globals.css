@@ -1,0 +1,325 @@
+/*
+ * Rementum design system — Tailwind v4 entry.
+ *
+ * Token architecture:
+ *   1. Raw theme-flipping vars live on :root (light) and .dark (default theme, set in layout.tsx).
+ *   2. `@theme inline` bridges them into Tailwind utilities (bg-surface, text-ink, shadow-card…).
+ *   3. performative-ui is imported into the `components` layer so our utilities can override it;
+ *      the unlayered --pui-* remap below re-themes it to the Mineral palette in both themes.
+ *      PUI's own light block keys off `data-theme="light"`, which layout.tsx sets alongside
+ *      the `dark` class — both always come from the `rementum_theme` cookie.
+ */
+
+@import "tailwindcss" source("../");
+@import "performative-ui/styles.css" layer(components);
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+
+  /* Semantic radius scale: chip < control < card < window */
+  --radius-chip: 6px;
+  --radius-control: 9px;
+  --radius-card: 14px;
+  --radius-window: 22px;
+
+  /* Dense type ramp (Beautiful UI lineage) */
+  --text-2xs: 11px;
+  --text-2xs--line-height: 1.35;
+  --text-xs: 12px;
+  --text-xs--line-height: 1.4;
+  --text-sm: 13px;
+  --text-sm--line-height: 1.5;
+  --text-base: 15px;
+  --text-base--line-height: 1.5;
+  --text-lg: 17px;
+  --text-lg--line-height: 1.45;
+  --text-xl: 19px;
+  --text-xl--line-height: 1.35;
+  --text-2xl: 21px;
+  --text-2xl--line-height: 1.3;
+  --text-title: clamp(34px, 4vw, 52px);
+  --text-title--line-height: 1.05;
+  --text-display: clamp(44px, 6vw, 84px);
+  --text-display--line-height: 0.98;
+
+  --tracking-tight: -0.02em;
+  --tracking-tighter: -0.045em;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-swift: cubic-bezier(0.23, 1, 0.32, 1);
+
+  --animate-skeleton: skeleton-shift 1.4s ease-in-out infinite;
+  --animate-caret: caret-blink 1s steps(2) infinite;
+  --animate-grad-shift: grad-shift 8s ease infinite;
+  --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
+
+  @keyframes skeleton-shift {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes caret-blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes grad-shift {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.55;
+      transform: scale(0.85);
+    }
+  }
+}
+
+/* ── Light palette (authored from brand: Ink / Mineral / Mist / Cloud) ── */
+:root {
+  color-scheme: light;
+
+  --page: #f3f5f1;
+  --canvas: #edf1ec;
+  --surface: #ffffff;
+  --inset: #e7eee9;
+  --field: #ffffff;
+  --hover: #e9efe9;
+  --hover-2: #dce6e0;
+  --line: rgb(23 33 30 / 10%);
+  --line-strong: rgb(23 33 30 / 18%);
+  --ink: #17211e;
+  --ink-2: #43544d;
+  --ink-3: #64756d;
+  --accent: #2f6f5e;
+  --accent-ink: #f3f5f1;
+  --accent-tint: rgb(47 111 94 / 10%);
+  --green: #2b7a5c;
+  --green-tint: rgb(43 122 92 / 12%);
+  --red: #a03d3d;
+  --red-tint: rgb(160 61 61 / 10%);
+  --orange: #8a6b2f;
+  --orange-tint: rgb(138 107 47 / 12%);
+
+  --grad-from: #255849;
+  --grad-mid: #2f6f5e;
+  --grad-to: #79aa98;
+
+  --elev-hairline: inset 0 0 0 1px rgb(23 33 30 / 8%);
+  --elev-btn: 0 1px 2px rgb(23 33 30 / 8%);
+  --elev-card: 0 10px 30px rgb(23 33 30 / 8%);
+  --elev-raised: 0 20px 50px rgb(23 33 30 / 10%);
+  --elev-overlay: 0 28px 80px rgb(23 33 30 / 16%);
+  --elev-glow: 0 0 24px rgb(47 111 94 / 16%);
+  --elev-glow-strong: 0 0 48px rgb(47 111 94 / 22%), 0 0 96px rgb(121 170 152 / 12%);
+}
+
+/* ── Dark palette (default theme; .dark set server-side from the cookie) ── */
+.dark {
+  color-scheme: dark;
+
+  --page: #0f1714;
+  --canvas: #131d19;
+  --surface: #17211e;
+  --inset: #0d1411;
+  --field: #111a16;
+  --hover: #1c2924;
+  --hover-2: #22312b;
+  --line: rgb(255 255 255 / 8%);
+  --line-strong: rgb(255 255 255 / 14%);
+  --ink: #f3f5f1;
+  --ink-2: #bdcbc5;
+  --ink-3: #8fa099;
+  --accent: #2f8a70;
+  --accent-ink: #f3f5f1;
+  --accent-tint: rgb(47 138 112 / 16%);
+  --green: #8fc4a9;
+  --green-tint: rgb(143 196 169 / 12%);
+  --red: #e2b6b6;
+  --red-tint: rgb(226 182 182 / 10%);
+  --orange: #d9ccb5;
+  --orange-tint: rgb(217 204 181 / 12%);
+
+  --grad-from: #2f6f5e;
+  --grad-mid: #34d399;
+  --grad-to: #79aa98;
+
+  --elev-hairline: inset 0 0 0 1px rgb(255 255 255 / 6%);
+  --elev-btn: 0 1px 2px rgb(0 0 0 / 30%);
+  --elev-card: 0 10px 40px rgb(0 0 0 / 35%);
+  --elev-raised: 0 20px 60px rgb(0 0 0 / 45%);
+  --elev-overlay: 0 28px 90px rgb(0 0 0 / 55%);
+  --elev-glow: 0 0 24px rgb(47 138 112 / 30%);
+  --elev-glow-strong: 0 0 48px rgb(47 138 112 / 40%), 0 0 96px rgb(121 170 152 / 18%);
+}
+
+/* ── Bridge flipping vars into Tailwind utilities ── */
+@theme inline {
+  --color-page: var(--page);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-inset: var(--inset);
+  --color-field: var(--field);
+  --color-hover: var(--hover);
+  --color-hover-2: var(--hover-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-tint: var(--accent-tint);
+  --color-green: var(--green);
+  --color-green-tint: var(--green-tint);
+  --color-red: var(--red);
+  --color-red-tint: var(--red-tint);
+  --color-orange: var(--orange);
+  --color-orange-tint: var(--orange-tint);
+  --color-grad-from: var(--grad-from);
+  --color-grad-mid: var(--grad-mid);
+  --color-grad-to: var(--grad-to);
+
+  --shadow-hairline: var(--elev-hairline);
+  --shadow-btn: var(--elev-btn);
+  --shadow-card: var(--elev-card);
+  --shadow-raised: var(--elev-raised);
+  --shadow-overlay: var(--elev-overlay);
+  --shadow-glow: var(--elev-glow);
+  --shadow-glow-strong: var(--elev-glow-strong);
+}
+
+/* ── performative-ui re-theme (unlayered: wins over the layered import in both themes) ── */
+:root {
+  --pui-bg: var(--page);
+  --pui-bg-elev: var(--canvas);
+  --pui-bg-soft: var(--surface);
+  --pui-border: var(--line);
+  --pui-border-bright: var(--line-strong);
+  --pui-fg: var(--ink);
+  --pui-fg-dim: var(--ink-2);
+  --pui-fg-mute: var(--ink-3);
+  --pui-grad-from: var(--grad-from);
+  --pui-grad-mid: var(--grad-mid);
+  --pui-grad-to: var(--grad-to);
+  --pui-glow: var(--elev-glow);
+  --pui-glow-strong: var(--elev-glow-strong);
+  --pui-success: var(--green);
+  --pui-danger: var(--red);
+  --pui-warn: var(--orange);
+  --pui-font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --pui-font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --pui-radius-sm: var(--radius-chip);
+  --pui-radius: var(--radius-control);
+  --pui-radius-lg: var(--radius-card);
+  --pui-radius-xl: var(--radius-window);
+
+  /* PUI internals that default to violet/blue tints — Mineral light values */
+  --pui-wave-text: rgb(47 111 94);
+  --pui-wave-text-hover: rgb(37 88 73);
+  --pui-wave-border: rgb(47 111 94 / 30%);
+  --pui-wave-border-hover: rgb(47 111 94 / 45%);
+}
+
+.dark {
+  /* Green-ink glass and fills (PUI defaults are blue-violet-black) */
+  --pui-glass: rgb(15 23 20 / 85%);
+  --pui-glass-deep: rgb(15 23 20 / 78%);
+  --pui-glass-soft: rgb(15 23 20 / 55%);
+  --pui-button-dark-fill: linear-gradient(180deg, #1a2620, #0e1613);
+  --pui-button-dark-popover-fill: linear-gradient(180deg, #131d18, #0a120e);
+  --pui-bubble-user-fill: linear-gradient(135deg, #1a2620, #131d18);
+  --pui-ascii-panel-fill: linear-gradient(180deg, rgb(20 28 24 / 60%), rgb(8 11 10 / 60%));
+  --pui-wave-text: rgb(180 224 205);
+  --pui-wave-text-hover: rgb(214 240 228);
+  --pui-wave-border: rgb(121 170 152 / 26%);
+  --pui-wave-border-hover: rgb(121 170 152 / 42%);
+}
+
+@layer base {
+  html {
+    min-width: 320px;
+    background: var(--color-page);
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--color-page);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+    text-rendering: optimizeLegibility;
+  }
+
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :is(button, a, input, textarea, select, summary):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+  }
+}
+
+/* PUI ships CSS-keyframe animation with no reduced-motion handling of its own. */
+@media (prefers-reduced-motion: reduce) {
+  [class*="pui-"],
+  [class*="pui-"]::before,
+  [class*="pui-"]::after {
+    animation-play-state: paused !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/*
+ * TRANSITIONAL legacy aliases — keep unmigrated CSS rendering until every screen is on
+ * Tailwind utilities. Deleted in the final cleanup phase.
+ */
+:root {
+  --canvas-raised: var(--canvas);
+  --surface-raised: var(--hover);
+  --surface-hover: var(--hover-2);
+  --text: var(--ink);
+  --text-secondary: var(--ink-2);
+  --text-tertiary: var(--ink-3);
+  --brand: #2f6f5e;
+  --brand-light: #79aa98;
+  --brand-mark: var(--accent);
+  --danger: var(--red);
+  --danger-surface: #261c1e;
+  --success: var(--green);
+  --warning: var(--orange);
+  --radius-lg: var(--radius-card);
+  --radius-md: var(--radius-control);
+  --radius-sm: var(--radius-chip);
+  --accent-1: var(--grad-mid);
+  --accent-2: #79aa98;
+  --accent-3: #dce6e0;
+  --glass: rgb(255 255 255 / 4%);
+  --glass-strong: rgb(255 255 255 / 7%);
+  --glass-border: rgb(255 255 255 / 10%);
+}
