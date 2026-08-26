@@ -260,6 +260,7 @@ integration("knowledge lifecycle", () => {
         headers,
         payload: { workspaceId: owner.workspaceId, slug: `tasks-${suffix}`, name: "Task brain" },
       });
+      expect(brain.statusCode, brain.body).toBe(201);
       const brainId = brain.json().brain.id;
 
       const created = await app.inject({

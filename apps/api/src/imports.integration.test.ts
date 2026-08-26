@@ -73,6 +73,7 @@ integration("Markdown archive import", () => {
         headers,
         payload: { workspaceId: owner.workspaceId, slug: `import-${suffix}`, name: "Import brain" },
       });
+      expect(brain.statusCode, brain.body).toBe(201);
       const brainId = brain.json().brain.id;
 
       const zip = await archive({
