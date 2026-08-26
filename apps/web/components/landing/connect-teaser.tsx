@@ -5,14 +5,12 @@ import { Reveal } from "./reveal";
 import { SectionHead } from "./section-head";
 
 const TOKENS = [
-  { c: "you@localhost", cls: "str" as const },
-  { c: " ❯ " },
+  { c: "❯ ", cls: "str" as const },
   { c: "claude ", cls: "fn" as const },
-  { c: "mcp add --scope user --transport http rementum \\\n  " },
+  { c: "mcp add --transport http rementum \\\n  " },
   { c: "https://your-host/mcp", cls: "str" as const },
   { c: "\n" },
-  { c: "you@localhost", cls: "str" as const },
-  { c: " ❯ " },
+  { c: "❯ ", cls: "str" as const },
   { c: "claude ", cls: "fn" as const },
   { c: "mcp login rementum\n" },
   { c: "# approved · brain attached", cls: "com" as const },
