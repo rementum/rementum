@@ -1519,16 +1519,23 @@ export async function setActorConfig(
     editBrainIds.push(extra.ownerBrainId);
     ownerBrainIds.push(extra.ownerBrainId);
   }
-  await tx`SELECT set_config('app.user_id', ${actor.userId}, true)`;
-  await tx`SELECT set_config('app.team_ids', ${teamIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.manage_team_ids', ${manageTeamIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.owner_team_ids', ${ownerTeamIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.workspace_ids', ${workspaceIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.manage_workspace_ids', ${manageWorkspaceIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.owner_workspace_ids', ${ownerWorkspaceIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.brain_ids', ${brainIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.edit_brain_ids', ${editBrainIds.join(",")}, true)`;
-  await tx`SELECT set_config('app.owner_brain_ids', ${ownerBrainIds.join(",")}, true)`;
+  // One statement rather than ten. Every RLS-scoped call in this store opens a
+  // transaction and sets these first, so the round trips were paid on every read: a
+  // single-row lookup spent twelve of its thirteen statements getting ready. They are
+  // independent settings, so evaluating them in one target list is equivalent.
+  await tx`
+    SELECT
+      set_config('app.user_id', ${actor.userId}, true),
+      set_config('app.team_ids', ${teamIds.join(",")}, true),
+      set_config('app.manage_team_ids', ${manageTeamIds.join(",")}, true),
+      set_config('app.owner_team_ids', ${ownerTeamIds.join(",")}, true),
+      set_config('app.workspace_ids', ${workspaceIds.join(",")}, true),
+      set_config('app.manage_workspace_ids', ${manageWorkspaceIds.join(",")}, true),
+      set_config('app.owner_workspace_ids', ${ownerWorkspaceIds.join(",")}, true),
+      set_config('app.brain_ids', ${brainIds.join(",")}, true),
+      set_config('app.edit_brain_ids', ${editBrainIds.join(",")}, true),
+      set_config('app.owner_brain_ids', ${ownerBrainIds.join(",")}, true)
+  `;
 }
 
 function mapBrain(row: any): BrainRecord {
