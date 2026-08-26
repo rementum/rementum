@@ -24,6 +24,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies();
   const theme = cookieStore.get("rementum_theme")?.value === "light" ? "light" : "dark";
+  const sidebarCollapsed = cookieStore.get("rementum_sidebar")?.value === "collapsed";
   const signedIn = await hasSession();
   const context = signedIn ? await workspaceContext() : null;
   const authConfig = signedIn ? null : await publicAuthConfig();
@@ -36,13 +37,14 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     >
       <body>
         {signedIn ? (
-          <div className="workspace">
+          <div className="min-h-dvh md:flex">
             <AppNavigation
               teams={context?.teams ?? []}
               workspaces={context?.workspaces ?? []}
               activeWorkspaceId={context?.activeWorkspace?.id ?? null}
+              initialCollapsed={sidebarCollapsed}
             />
-            <div className="workspace-main">{children}</div>
+            <main className="min-w-0 flex-1">{children}</main>
           </div>
         ) : (
           <div className="flex min-h-dvh flex-col">

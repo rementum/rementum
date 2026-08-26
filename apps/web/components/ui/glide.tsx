@@ -72,7 +72,7 @@ export function GlideNav({
             aria-current={active ? "page" : undefined}
             title={collapsed ? item.label : undefined}
             className={`relative z-10 flex h-9 items-center rounded-control text-sm transition-colors ${
-              vertical ? "gap-2.5 px-2.5" : "gap-2 px-3"
+              collapsed ? "justify-center px-0" : vertical ? "gap-2.5 px-2.5" : "gap-2 px-3"
             } ${active ? "font-medium text-ink" : "text-ink-2 hover:text-ink"} ${
               active && vertical
                 ? "before:absolute before:inset-y-2 before:-left-2 before:w-0.5 before:rounded-full before:bg-accent"
