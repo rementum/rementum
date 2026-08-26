@@ -33,7 +33,7 @@ Install dependencies and start PostgreSQL:
 
 ```bash
 pnpm install --frozen-lockfile
-docker compose up -d postgres
+docker compose up -d --wait postgres
 REMENTUM_DATABASE_ADMIN_URL=postgres://postgres:YOUR_ADMIN_PASSWORD@127.0.0.1:55432/owl pnpm db:migrate
 pnpm dev
 ```

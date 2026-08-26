@@ -40,7 +40,7 @@ docker compose up -d --build --wait
 Or run the Node services on the host against a containerised database:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d --wait postgres
 REMENTUM_DATABASE_ADMIN_URL=postgres://postgres:YOUR_ADMIN_PASSWORD@127.0.0.1:55432/owl pnpm db:migrate
 pnpm dev
 ```
@@ -91,7 +91,7 @@ Files named `*.integration.test.ts` need a PostgreSQL database with pgvector and
 when `REMENTUM_TEST_DATABASE_URL` is unset. To run them locally:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d --wait postgres
 REMENTUM_DATABASE_ADMIN_URL=postgres://postgres:YOUR_ADMIN_PASSWORD@127.0.0.1:55432/owl pnpm db:migrate
 REMENTUM_TEST_DATABASE_URL=postgres://owl_app:YOUR_APP_PASSWORD@127.0.0.1:55432/owl pnpm test
 ```
