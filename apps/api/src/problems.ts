@@ -1,5 +1,5 @@
 import { DomainError } from "@rementum/core";
-import type { FastifyInstance } from "fastify";
+import type { FastifyError, FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 import { workspaceIdFromMcpPath } from "./auth.js";
 
@@ -11,7 +11,7 @@ import { workspaceIdFromMcpPath } from "./auth.js";
  */
 export function registerProblemDetails(app: FastifyInstance, publicUrl: string): void {
   const origin = publicUrl.replace(/\/$/, "");
-  app.setErrorHandler((error, request, reply) => {
+  app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
     if (error instanceof ZodError) {
       return reply
@@ -71,7 +71,7 @@ export function registerProblemDetails(app: FastifyInstance, publicUrl: string):
           title: error.message,
           status,
           instance: request.url,
-          code: error.code ?? "request",
+          code: typeof error.code === "string" ? error.code : "request",
         });
     }
     return reply.code(500).type("application/problem+json").send({
