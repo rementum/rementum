@@ -155,13 +155,26 @@ async function main() {
   await measure(`export the old way: readArticle x${index.length}`, async () => {
     for (const article of index) await service.readArticle(article.id, actor);
   });
-  await measure("export the new way: exportBrain", async () => {
-    const exported = await service.exportBrain(brainId, actor);
-    if (exported.articles.length !== index.length) throw new Error("export lost articles");
-  });
+  const exported = await measure("export the new way: exportBrain", () =>
+    service.exportBrain(brainId, actor),
+  );
+  if (exported.articles.length !== index.length) throw new Error("export lost articles");
 
-  // The bulk read decrypts with the brain key directly, so check it against the plaintext
-  // the per-article path produces.
+  // The export decrypts with the brain key directly rather than through readArticle, so
+  // check every body it produced against the one the per-article path returns. A count
+  // on its own would not notice the wrong plaintext under the right slug.
+  const bySlug = new Map(exported.articles.map((article) => [article.slug, article]));
+  for (const summary of index) {
+    const read = await service.readArticle(summary.id, actor);
+    const fromExport = bySlug.get(read.slug);
+    if (!fromExport) throw new Error(`export omitted ${read.slug}`);
+    if (fromExport.body !== read.body) throw new Error(`export body differs for ${read.slug}`);
+    if (fromExport.version !== read.currentVersion) {
+      throw new Error(`export version differs for ${read.slug}`);
+    }
+  }
+
+  // And the store read underneath it agrees with the brain key applied by hand.
   const [sample] = await store.listCurrentVersions(brainId, actor, 1);
   if (!sample) throw new Error("no sample version");
   const direct = decrypt(
@@ -169,9 +182,10 @@ async function main() {
     unwrapDataKey(wrapped, masterKey, brainId),
     sample.bodyAad,
   ).toString("utf8");
-  const viaService = (await service.readArticle(sample.articleId, actor)).body;
-  if (direct !== viaService) throw new Error("bulk read disagrees with readArticle");
-  console.log("\nbulk read matches readArticle for the sampled article");
+  if (direct !== bySlug.get(sample.slug)?.body) {
+    throw new Error("bulk read disagrees with the export");
+  }
+  console.log(`\nexport matches readArticle for all ${index.length} articles`);
 
   await client.close();
 }
