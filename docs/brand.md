@@ -10,9 +10,11 @@ wordmark when space allows and the mark alone for favicons, avatars, and compact
 
 ![Rementum wordmark and memory layers](assets/rementum-banner.png){ .rementum-banner }
 
-Keep clear space around the logo equal to the width of the `R` stem. Do not add gradients, glows,
-outlines, shadows, or additional symbols. The mark must remain upright and retain its original
-proportions.
+Keep clear space around the logo equal to the width of the `R` stem. The mark itself must stay
+flat: do not add gradients, glows, outlines, shadows, or additional symbols to the logo, and keep
+it upright at its original proportions. Elsewhere in the product UI, the Mineral gradient ramp
+(`#2F6F5E → #34D399 → #79AA98`) and soft Mineral glows are part of the design language — they are
+reserved for backdrops, emphasized words, and primary actions, never for the mark.
 
 ## Color
 
