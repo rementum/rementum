@@ -6,17 +6,17 @@ import helmet from "@fastify/helmet";
 import middie from "@fastify/middie";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
-import { DomainError, parseMasterKey, RementumService } from "@rementum/core";
+import { parseMasterKey, RementumService } from "@rementum/core";
 import { AuthRepository, createDatabaseClient, PostgresStore } from "@rementum/db";
 import Fastify from "fastify";
-import { ZodError } from "zod";
-import { createAuthenticator, workspaceIdFromMcpPath } from "./auth.js";
+import { createAuthenticator } from "./auth.js";
 import type { AppConfig } from "./config.js";
 import { createCredentialVerifier } from "./credentials.js";
 import { HttpEmbeddingClient } from "./embeddings.js";
 import { ResendMailer, type TransactionalMailer } from "./mailer.js";
 import { registerWorkspaceMcpEndpoint } from "./mcp.js";
 import { buildOauthRuntime, registerOauthRoutes } from "./oauth.js";
+import { registerProblemDetails } from "./problems.js";
 import { registerApiRoutes } from "./routes.js";
 import { registerWebSessionRoutes } from "./web-session.js";
 
@@ -122,59 +122,7 @@ export async function buildApp(
     config.REMENTUM_PUBLIC_URL.replace(/\/$/, ""),
   );
 
-  app.setErrorHandler((error, request, reply) => {
-    request.log.error(error);
-    if (error instanceof ZodError) {
-      return reply
-        .code(400)
-        .type("application/problem+json")
-        .send({
-          type: "urn:rementum:problem:validation",
-          title: "Request validation failed",
-          status: 400,
-          detail: error.issues
-            .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-            .join("; "),
-          instance: request.url,
-          code: "validation",
-        });
-    }
-    if (error instanceof DomainError) {
-      if (error.status === 401) {
-        const workspaceId = workspaceIdFromMcpPath(request.url.split("?", 1)[0] ?? "");
-        if (workspaceId) {
-          reply.header(
-            "WWW-Authenticate",
-            `Bearer resource_metadata="${config.REMENTUM_PUBLIC_URL.replace(/\/$/, "")}/.well-known/oauth-protected-resource/mcp/workspace/${workspaceId}"`,
-          );
-        }
-      }
-      if (error.code === "insufficient_scope") {
-        reply.header(
-          "WWW-Authenticate",
-          `Bearer error="insufficient_scope", scope="${String(error.detail?.requiredScope ?? "")}"`,
-        );
-      }
-      return reply
-        .code(error.status)
-        .type("application/problem+json")
-        .send({
-          type: `urn:rementum:problem:${error.code}`,
-          title: error.message,
-          status: error.status,
-          detail: error.detail,
-          instance: request.url,
-          code: error.code,
-        });
-    }
-    return reply.code(500).type("application/problem+json").send({
-      type: "urn:rementum:problem:internal",
-      title: "Internal server error",
-      status: 500,
-      instance: request.url,
-      code: "internal",
-    });
-  });
+  registerProblemDetails(app, config.REMENTUM_PUBLIC_URL);
 
   app.addHook("onClose", async () => database.close());
   return app;

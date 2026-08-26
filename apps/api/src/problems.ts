@@ -1,0 +1,67 @@
+import { DomainError } from "@rementum/core";
+import type { FastifyInstance } from "fastify";
+import { ZodError } from "zod";
+import { workspaceIdFromMcpPath } from "./auth.js";
+
+/**
+ * Maps validation and domain failures onto RFC 9457 problem documents.
+ *
+ * `publicUrl` is the instance origin, used to point an unauthenticated MCP client at the
+ * protected-resource metadata for the workspace it asked for.
+ */
+export function registerProblemDetails(app: FastifyInstance, publicUrl: string): void {
+  const origin = publicUrl.replace(/\/$/, "");
+  app.setErrorHandler((error, request, reply) => {
+    request.log.error(error);
+    if (error instanceof ZodError) {
+      return reply
+        .code(400)
+        .type("application/problem+json")
+        .send({
+          type: "urn:rementum:problem:validation",
+          title: "Request validation failed",
+          status: 400,
+          detail: error.issues
+            .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+            .join("; "),
+          instance: request.url,
+          code: "validation",
+        });
+    }
+    if (error instanceof DomainError) {
+      if (error.status === 401) {
+        const workspaceId = workspaceIdFromMcpPath(request.url.split("?", 1)[0] ?? "");
+        if (workspaceId) {
+          reply.header(
+            "WWW-Authenticate",
+            `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp/workspace/${workspaceId}"`,
+          );
+        }
+      }
+      if (error.code === "insufficient_scope") {
+        reply.header(
+          "WWW-Authenticate",
+          `Bearer error="insufficient_scope", scope="${String(error.detail?.requiredScope ?? "")}"`,
+        );
+      }
+      return reply
+        .code(error.status)
+        .type("application/problem+json")
+        .send({
+          type: `urn:rementum:problem:${error.code}`,
+          title: error.message,
+          status: error.status,
+          detail: error.detail,
+          instance: request.url,
+          code: error.code,
+        });
+    }
+    return reply.code(500).type("application/problem+json").send({
+      type: "urn:rementum:problem:internal",
+      title: "Internal server error",
+      status: 500,
+      instance: request.url,
+      code: "internal",
+    });
+  });
+}
