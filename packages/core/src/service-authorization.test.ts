@@ -109,6 +109,7 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     scanMaintenance: vi.fn(async () => []),
     search: vi.fn(async () => []),
     createTask: vi.fn(async () => ({ id: "task-id", brainId })),
+    queueArticleCompaction: vi.fn(async () => undefined),
     claimTask: vi.fn(async () => null),
     getStagedWrite: vi.fn(async () => stagedWrite()),
     withdrawStagedWrite: vi.fn(async () => stagedWrite({ status: "withdrawn" })),
@@ -309,6 +310,11 @@ describe("staged write promotion", () => {
     await expect(service.withdrawWrite("write-id", actor("editor"))).rejects.toThrow(
       ForbiddenError,
     );
+    // The write was staged by otherUserId, so that editor may take it back even though
+    // the editor above may not.
+    await expect(
+      service.withdrawWrite("write-id", actor("editor", { userId: otherUserId })),
+    ).resolves.toMatchObject({ status: "withdrawn" });
     await expect(service.withdrawWrite("write-id", actor("owner"))).resolves.toMatchObject({
       status: "withdrawn",
     });
@@ -388,5 +394,6 @@ describe("article compaction requests", () => {
       version: 2,
       status: "queued",
     });
+    expect(store.queueArticleCompaction).not.toHaveBeenCalled();
   });
 });
