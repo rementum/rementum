@@ -12,8 +12,8 @@ wordmark when space allows and the mark alone for favicons, avatars, and compact
 
 Keep clear space around the logo equal to the width of the `R` stem. The mark itself must stay
 flat: do not add gradients, glows, outlines, shadows, or additional symbols to the logo, and keep
-it upright at its original proportions. Elsewhere in the product UI, the Mineral gradient ramp
-(`#2F6F5E → #34D399 → #79AA98`) and soft Mineral glows are part of the design language — they are
+it upright at its original proportions. Elsewhere in the product UI, Mineral gradient ramp
+(`#2F6F5E → #34D399 → #79AA98`) and soft Mineral glows are part of the design language; they are
 reserved for backdrops, emphasized words, and primary actions, never for the mark.
 
 ## Color

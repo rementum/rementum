@@ -59,8 +59,7 @@ workspace from its team page. If you enable signup, also set
 `./scripts/install.sh --help` for the complete input list.
 
 Non-interactive mode uses the same safety checks as the interactive installer. It generates `.env`,
-deploys the production stack, and creates the first owner. The installer refuses to overwrite an
-existing `.env`.
+deploys the production stack, and creates the first owner.
 
 The installer refuses to replace an existing `.env`. Update an existing instance from its Git
 checkout with:
