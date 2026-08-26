@@ -130,6 +130,22 @@ integration("batched multi-row writes", () => {
       ).rejects.toThrow(ConflictError);
       expect(await store.getArticleLinks(from, actor)).toMatchObject([{ articleId: second }]);
 
+      // The input is a list but the table holds a set: the same target and relation twice
+      // used to break the whole call on the primary key.
+      await store.setArticleLinks(
+        from,
+        [
+          { toArticleId: first, relation: "related" },
+          { toArticleId: first, relation: "related" },
+          { toArticleId: second, relation: "related" },
+        ],
+        actor,
+      );
+      expect(await store.getArticleLinks(from, actor)).toMatchObject([
+        { articleId: first },
+        { articleId: second },
+      ]);
+
       // An empty set clears the links without running an insert.
       await store.setArticleLinks(from, [], actor);
       expect(await store.getArticleLinks(from, actor)).toHaveLength(0);

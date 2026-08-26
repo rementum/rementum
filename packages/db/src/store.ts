@@ -665,12 +665,22 @@ export class PostgresStore implements DataStore {
       if (found.length !== targets.length) {
         throw new ConflictError("Article links must remain inside one brain");
       }
-      const values = links.map((link) => ({
-        from_article_id: articleId,
-        to_article_id: link.toArticleId,
-        relation: link.relation,
-        created_by: actor.userId,
-      }));
+      // The table holds a set keyed by (from, to, relation) but the input is a list, so
+      // the same pair twice used to fail the whole call on the primary key. Naming the
+      // links an article has is idempotent; asking for one twice is not an error.
+      const values = [
+        ...new Map(
+          links.map((link) => [
+            `${link.toArticleId}:${link.relation}`,
+            {
+              from_article_id: articleId,
+              to_article_id: link.toArticleId,
+              relation: link.relation,
+              created_by: actor.userId,
+            },
+          ]),
+        ).values(),
+      ];
       await tx`
         INSERT INTO article_links ${tx(values, "from_article_id", "to_article_id", "relation", "created_by")}
       `;
