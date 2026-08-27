@@ -21,7 +21,7 @@ Rementum.
 If you use several supported coding agents, install the skills for all detected agents at once:
 
 ```bash
-npx -y skills add yibudak/rementum --global --all
+npx -y skills add rementum/rementum --global --all
 ```
 
 The package contains `brain-context`, `brain-write`, `brain-import`, and `brain-maintenance`. For a
@@ -31,7 +31,7 @@ discovers the new skills.
 ## Claude Code
 
 ```bash
-npx -y skills add yibudak/rementum --global \
+npx -y skills add rementum/rementum --global \
   --agent claude-code --skill '*' --yes
 claude mcp add --scope user --transport http \
   rementum https://memory.example.com/mcp/workspace/WORKSPACE_UUID
@@ -43,7 +43,7 @@ Complete OAuth in the browser, then ask Claude to call `list_brains` and `get_br
 ## Codex
 
 ```bash
-npx -y skills add yibudak/rementum --global \
+npx -y skills add rementum/rementum --global \
   --agent codex --skill '*' --yes
 codex mcp add rementum --url https://memory.example.com/mcp/workspace/WORKSPACE_UUID
 codex mcp login rementum
@@ -54,7 +54,7 @@ codex mcp login rementum
 Add this server to the MCP configuration:
 
 ```bash
-npx -y skills add yibudak/rementum --global \
+npx -y skills add rementum/rementum --global \
   --agent cursor --skill '*' --yes
 ```
 
@@ -71,7 +71,7 @@ npx -y skills add yibudak/rementum --global \
 ## OpenCode
 
 ```bash
-npx -y skills add yibudak/rementum --global \
+npx -y skills add rementum/rementum --global \
   --agent opencode --skill '*' --yes
 opencode mcp add rementum --url https://memory.example.com/mcp/workspace/WORKSPACE_UUID
 opencode mcp auth rementum
