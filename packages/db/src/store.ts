@@ -272,13 +272,18 @@ export class PostgresStore implements DataStore {
       if (confirmation !== team.name) {
         throw new ConflictError("Team name confirmation does not match");
       }
-      const [remaining] = await tx<Array<{ count: number }>>`
-        SELECT count(*)::int AS count FROM team_members
-        WHERE user_id = ${actor.userId} AND team_id <> ${teamId}
+      // Locking every membership row serializes concurrent deletes by the same user: two
+      // transactions deleting the user's only two teams would otherwise each count the
+      // other team as remaining and leave the account with none. A row another transaction
+      // cascade-deletes while we wait is skipped after the lock, so the recount is honest.
+      // FOR UPDATE cannot sit next to an aggregate, hence the count in code.
+      const memberships = await tx<Array<{ team_id: string }>>`
+        SELECT team_id FROM team_members WHERE user_id = ${actor.userId} FOR UPDATE
       `;
+      const remaining = memberships.filter((row) => row.team_id !== teamId).length;
       // Registration creates exactly one team, and the whole web app assumes at least one
       // exists for the signed-in user; deleting the last one would strand the account.
-      if ((remaining?.count ?? 0) < 1) {
+      if (remaining < 1) {
         throw new ConflictError("Deleting your only team would leave the account without one");
       }
       const workspaceRows = await tx<Array<{ id: string }>>`

@@ -18,19 +18,24 @@ export function BrainDangerZone({ brainId, name }: { brainId: string; name: stri
     if (confirmation === null) return;
     setBusy(true);
     setError("");
-    const response = await fetch(`/bridge/brains/${brainId}`, {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ confirmation }),
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      setError(body.title ?? "Only the brain owner can delete it.");
+    try {
+      const response = await fetch(`/bridge/brains/${brainId}`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmation }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setError(body.title ?? "Only the brain owner can delete it.");
+        setBusy(false);
+        return;
+      }
+      router.push("/");
+      router.refresh();
+    } catch {
+      setError("The request could not be completed. Check your connection and try again.");
       setBusy(false);
-      return;
     }
-    router.push("/");
-    router.refresh();
   }
 
   return (
