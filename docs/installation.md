@@ -89,6 +89,9 @@ docker compose -f docker-compose.yml -f compose.production.yml ps
 The health response reports database access and embedding service status. The Compose output should
 show healthy API, web, embedding, and PostgreSQL services.
 
+The embedding service is the slowest to report healthy because it downloads its model on first
+start. The installer waits for it.
+
 ## Save the master key
 
 Copy `.env` into an encrypted secrets manager before you add knowledge. The encrypted backup does

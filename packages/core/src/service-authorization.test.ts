@@ -133,8 +133,8 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     createStagedWrite: vi.fn(async () => stagedWrite()),
   } as unknown as DataStore;
   const embeddings = {
-    embedQuery: vi.fn(async () => [0.1, 0.2]),
-    embedDocument: vi.fn(async () => [0.1, 0.2]),
+    embedQuery: vi.fn(async () => ({ model: "test-model", vector: [0.1, 0.2] })),
+    embedPassages: vi.fn(async () => ({ model: "test-model", vectors: [[0.1, 0.2]] })),
     healthy: vi.fn(async () => true),
   } as unknown as EmbeddingClient;
   const service = new RementumService(store, embeddings, masterKey, null, options.llmAvailable);
@@ -290,7 +290,10 @@ describe("search", () => {
   it("passes the query embedding to the store when the service answers", async () => {
     const { service, store } = setup();
     await service.search({ brainId, query: "encryption", limit: 10 } as never, actor("viewer"));
-    expect(store.search).toHaveBeenCalledWith(expect.anything(), expect.anything(), [0.1, 0.2]);
+    expect(store.search).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      model: "test-model",
+      vector: [0.1, 0.2],
+    });
     expect(store.audit).toHaveBeenCalledWith(
       expect.anything(),
       "article.search",

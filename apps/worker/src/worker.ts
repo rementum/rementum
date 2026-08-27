@@ -7,22 +7,47 @@ class WorkerEmbeddingClient {
   constructor(private readonly baseUrl: string) {}
 
   embedQuery(value: string) {
-    return this.embed("query", [value]).then((rows) => rows[0] ?? []);
+    return this.embed("query", [value]).then(({ model, vectors }) => ({
+      model,
+      vector: vectors[0] ?? [],
+    }));
   }
 
   embedPassages(values: string[]) {
     return this.embed("passage", values);
   }
 
+  // /healthz blocks on the model load, which can run for minutes on a cold cache. A probe that
+  // times out during that window reads as "not up yet", which every caller already treats as
+  // retry-next-pass — while an unbounded probe would hang the maintenance loop itself.
   async healthy() {
     try {
-      return (await fetch(`${this.baseUrl}/healthz`)).ok;
+      const response = await fetch(`${this.baseUrl}/healthz`, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      return response.ok;
     } catch {
       return false;
     }
   }
 
-  private async embed(kind: "query" | "passage", texts: string[]): Promise<number[][]> {
+  /** The active model, or null while the service is unreachable or still loading. */
+  async activeModel(): Promise<string | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/healthz`, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) return null;
+      return ((await response.json()) as { model: string }).model;
+    } catch {
+      return null;
+    }
+  }
+
+  private async embed(
+    kind: "query" | "passage",
+    texts: string[],
+  ): Promise<{ model: string; vectors: number[][] }> {
     const response = await fetch(`${this.baseUrl}/embed`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -30,7 +55,7 @@ class WorkerEmbeddingClient {
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) throw new Error(`Embedding service returned ${response.status}`);
-    return ((await response.json()) as { vectors: number[][] }).vectors;
+    return (await response.json()) as { model: string; vectors: number[][] };
   }
 }
 
@@ -109,9 +134,16 @@ async function runPass() {
   for (const brain of brains) {
     await service.scanMaintenance(brain.brain_id, await actorFor(brain.owner_id));
   }
-  const missing = await database.sql<Array<{ article_id: string; owner_id: string }>>`
-    SELECT * FROM owl_worker_unindexed_articles(100)
-  `;
+  // An article indexed under a different embedding model counts as unindexed, so switching
+  // models re-embeds the whole corpus through this same pass. While the embedding service is
+  // down or still loading there is no model to compare against, and reindexing would fail
+  // anyway, so the pass skips instead of guessing.
+  const activeModel = await embeddings.activeModel();
+  const missing = activeModel
+    ? await database.sql<Array<{ article_id: string; owner_id: string }>>`
+        SELECT * FROM owl_worker_unindexed_articles(100, ${activeModel})
+      `
+    : [];
   for (const article of missing) {
     try {
       await service.reindexArticle(article.article_id, await actorFor(article.owner_id));

@@ -18,8 +18,8 @@ integration("account and team authorization", () => {
     const service = new RementumService(
       store,
       {
-        embedQuery: async () => [],
-        embedPassages: async () => [],
+        embedQuery: async () => ({ model: "test-model", vector: [] }),
+        embedPassages: async () => ({ model: "test-model", vectors: [] }),
         healthy: async () => true,
       },
       Buffer.alloc(32, 7),
@@ -92,8 +92,8 @@ integration("account and team authorization", () => {
       const llmService = new RementumService(
         store,
         {
-          embedQuery: async () => [],
-          embedPassages: async () => [],
+          embedQuery: async () => ({ model: "test-model", vector: [] }),
+          embedPassages: async () => ({ model: "test-model", vectors: [] }),
           healthy: async () => true,
         },
         Buffer.alloc(32, 7),

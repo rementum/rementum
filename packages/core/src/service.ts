@@ -477,7 +477,7 @@ export class RementumService {
 
   async search(input: SearchArticlesInput, actor: Actor): Promise<SearchHit[]> {
     requireBrainRole(actor, input.brainId, ["owner", "editor", "commenter", "viewer"]);
-    let embedding: number[] | null = null;
+    let embedding: { model: string; vector: number[] } | null = null;
     try {
       embedding = await this.embeddings.embedQuery(input.query);
     } catch {
@@ -780,14 +780,14 @@ export class RementumService {
 
   private async indexPromotedArticle(articleId: string, actor: Actor): Promise<void> {
     const article = await this.readArticle(articleId, actor);
-    const vectors = await this.embeddings.embedPassages(
+    const { model, vectors } = await this.embeddings.embedPassages(
       splitMarkdownByHeading(article.body).map(
-        (section) => `passage: ${article.title}\n${article.summary}\n${section.text}`,
+        (section) => `${article.title}\n${article.summary}\n${section.text}`,
       ),
     );
     await Promise.all(
       vectors.map((vector, ordinal) =>
-        this.store.setEmbedding(articleId, article.currentVersion, ordinal, vector, actor),
+        this.store.setEmbedding(articleId, article.currentVersion, ordinal, vector, model, actor),
       ),
     );
   }

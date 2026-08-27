@@ -20,6 +20,10 @@ WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/embeddings/node_modules ./apps/embeddings/node_modules
 COPY --from=build /app/apps/embeddings/dist ./apps/embeddings/dist
+# Docker seeds an empty `model_cache` volume from this directory, ownership included. Without
+# it the volume is created root-owned, the unprivileged user cannot write the downloaded model,
+# and every embed request fails with EACCES.
+RUN mkdir -p /models && chown -R rementum:rementum /models
 USER rementum
 EXPOSE 8790
 CMD ["node", "apps/embeddings/dist/server.js"]
