@@ -18,7 +18,7 @@ not need an email provider for the first owner.
 ## Run the installer
 
 ```bash
-git clone https://github.com/yibudak/rementum.git
+git clone https://github.com/rementum/rementum.git
 cd rementum
 ./scripts/install.sh
 ```

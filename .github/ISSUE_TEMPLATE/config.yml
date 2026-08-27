@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/yibudak/rementum/blob/main/SECURITY.md
+    url: https://github.com/rementum/rementum/blob/main/SECURITY.md
     about: Report vulnerabilities privately to the maintainers instead of opening an issue.
   - name: Documentation
-    url: https://yibudak.github.io/rementum/
+    url: https://rementum.dev/
     about: Installation, configuration, operations, security, and agent connection guides.

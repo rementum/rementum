@@ -5,7 +5,7 @@ under AGPL-3.0-only.
 
 ## Ways to contribute
 
-- Report a bug or request a feature through [GitHub issues](https://github.com/yibudak/rementum/issues).
+- Report a bug or request a feature through [GitHub issues](https://github.com/rementum/rementum/issues).
 - Improve the documentation under `docs/`.
 - Send a pull request for a bug fix or a feature.
 
@@ -21,7 +21,7 @@ Report security vulnerabilities privately instead of opening an issue. See [SECU
 ## Set up
 
 ```bash
-git clone https://github.com/yibudak/rementum.git
+git clone https://github.com/rementum/rementum.git
 cd rementum
 pnpm install --frozen-lockfile
 cp .env.example .env

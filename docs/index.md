@@ -16,7 +16,7 @@ installer generates the instance secrets, starts the stack, runs migrations, and
 owner.
 
 ```bash
-git clone https://github.com/yibudak/rementum.git
+git clone https://github.com/rementum/rementum.git
 cd rementum
 ./scripts/install.sh
 ```
