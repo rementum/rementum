@@ -19,7 +19,20 @@ for the reason:
 
 ```bash
 docker compose -f docker-compose.yml -f compose.production.yml exec embeddings \
-  wget -qO- http://127.0.0.1:8790/healthz
+  wget -qO- --content-on-error http://127.0.0.1:8790/healthz
+```
+
+(`--content-on-error` matters: the reason arrives in the body of a 503, which wget otherwise
+discards.)
+
+If the reason is `Model cache /models is not writable`, the `model_cache` volume predates the
+image that seeds its ownership — Docker only applies that to an empty volume, so a volume created
+root-owned stays root-owned across upgrades. Fix it once and restart:
+
+```bash
+docker compose -f docker-compose.yml -f compose.production.yml \
+  run --rm --user root embeddings chown -R rementum:rementum /models
+docker compose -f docker-compose.yml -f compose.production.yml up -d embeddings
 ```
 
 Until the model loads, the API answers `semanticSearch: false` and search falls back to metadata and
