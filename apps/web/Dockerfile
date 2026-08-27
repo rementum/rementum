@@ -9,6 +9,10 @@ FROM deps AS build
 COPY apps/web apps/web
 ARG NEXT_PUBLIC_REMENTUM_API_URL
 ENV NEXT_PUBLIC_REMENTUM_API_URL=$NEXT_PUBLIC_REMENTUM_API_URL
+# Node sizes its default heap from the machine's total memory, which the build shares
+# with the running stack on a single host; the cap makes the compiler garbage-collect
+# instead of inviting the OOM killer. The runtime stage does not inherit this ENV.
+ENV NODE_OPTIONS=--max-old-space-size=2048
 RUN pnpm --filter @rementum/web build
 
 FROM node:24-alpine

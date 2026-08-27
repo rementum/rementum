@@ -113,6 +113,18 @@ In an emergency, you can explicitly skip the backup:
 This is not recommended. If deployment fails after the source is updated, inspect the service logs
 and restore the encrypted backup when recovery is required.
 
+### Memory during a deployment
+
+Deployments build the images one at a time and only then replace containers, so the running stack
+keeps serving throughout and a build never competes with four others for memory. The web build is
+additionally capped at a 2 GB Node heap. This fits a 4 GB host with the stack running; add a little
+swap as a safety margin if the host has none, for example:
+
+```bash
+fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+```
+
 ## Restore
 
 Restore into an empty instance or accept that `pg_restore --clean` will replace the current database
