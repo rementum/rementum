@@ -419,10 +419,13 @@ export async function registerApiRoutes(
   });
   app.get("/api/v1/brains/:brainId/activity", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
-    const { limit } = z
-      .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
+    const { limit, source } = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        source: z.enum(["mcp"]).optional(),
+      })
       .parse(request.query);
-    return service.recentActivity(brainId, limit, await authorize(request, "brain:read"));
+    return service.recentActivity(brainId, limit, await authorize(request, "brain:read"), source);
   });
   app.get("/api/v1/articles/:articleId", async (request) => {
     const { articleId } = z.object({ articleId: z.uuid() }).parse(request.params);

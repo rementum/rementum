@@ -392,6 +392,7 @@ export interface DataStore {
     brainId: string,
     actor: Actor,
     limit: number,
+    source?: "mcp",
   ): Promise<
     Array<{
       id: string;

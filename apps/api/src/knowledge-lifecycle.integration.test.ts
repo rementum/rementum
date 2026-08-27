@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { AuthRepository, createDatabaseClient } from "@rementum/db";
+import { WEB_SESSION_CLIENT_ID } from "@rementum/contracts";
+import { AuthRepository, createDatabaseClient, PostgresStore } from "@rementum/db";
 import { exportJWK, generateKeyPair } from "jose";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
@@ -186,6 +187,33 @@ integration("knowledge lifecycle", () => {
       const actions = activity.json().map((event: { action: string }) => event.action);
       expect(actions).toContain("article.search");
       expect(actions).toContain("brain.read");
+
+      // source=mcp keeps events from agent clients (dev-auth audits as "dev-header")
+      // and drops browser-session events and legacy rows with no client at all.
+      const store = new PostgresStore(database);
+      const webActor = await store.loadActor(owner.user.id, WEB_SESSION_CLIENT_ID);
+      await store.audit(webActor, "article.read", `brain:${brainId}`);
+      const legacyActor = await store.loadActor(owner.user.id, null);
+      await store.audit(legacyActor, "article.read", `brain:${brainId}`);
+      const unfiltered = await app.inject({
+        method: "GET",
+        url: `/api/v1/brains/${brainId}/activity`,
+        headers: as(owner.user.id),
+      });
+      const unfilteredClients = unfiltered
+        .json()
+        .map((event: { clientId: string | null }) => event.clientId);
+      expect(unfilteredClients).toContain(WEB_SESSION_CLIENT_ID);
+      expect(unfilteredClients).toContain(null);
+      const mcpOnly = await app.inject({
+        method: "GET",
+        url: `/api/v1/brains/${brainId}/activity?source=mcp`,
+        headers: as(owner.user.id),
+      });
+      const mcpClients = mcpOnly.json().map((event: { clientId: string | null }) => event.clientId);
+      expect(mcpClients).toContain("dev-header");
+      expect(mcpClients).not.toContain(WEB_SESSION_CLIENT_ID);
+      expect(mcpClients).not.toContain(null);
 
       const exported = await app.inject({
         method: "GET",

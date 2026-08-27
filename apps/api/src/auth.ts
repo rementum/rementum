@@ -1,3 +1,4 @@
+import { WEB_SESSION_CLIENT_ID } from "@rementum/contracts";
 import { DomainError } from "@rementum/core";
 import type { AuthRepository, PostgresStore } from "@rementum/db";
 import type { FastifyRequest } from "fastify";
@@ -5,7 +6,7 @@ import { createLocalJWKSet, type JWK, type JWTPayload, jwtVerify } from "jose";
 import { type ScopedActor, withAccessScopes, withAllAccessScopes } from "./access.js";
 import type { AppConfig } from "./config.js";
 import type { OauthRuntime } from "./oauth.js";
-import { requirePublicOrigin, resolveWebSession, WEB_SESSION_CLIENT_ID } from "./web-session.js";
+import { requirePublicOrigin, resolveWebSession } from "./web-session.js";
 
 export function createAuthenticator(
   config: AppConfig,

@@ -1,14 +1,15 @@
-import type {
-  BrainArticleCount,
-  BrainRole,
-  CreateBrainInput,
-  CreateTaskInput,
-  MaintenanceCandidate,
-  PromoteWriteInput,
-  SearchArticlesInput,
-  SourceInput,
-  Task,
-  TeamRole,
+import {
+  type BrainArticleCount,
+  type BrainRole,
+  type CreateBrainInput,
+  type CreateTaskInput,
+  type MaintenanceCandidate,
+  type PromoteWriteInput,
+  type SearchArticlesInput,
+  type SourceInput,
+  type Task,
+  type TeamRole,
+  WEB_SESSION_CLIENT_ID,
 } from "@rementum/contracts";
 import {
   type Actor,
@@ -1634,11 +1635,14 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async recentActivity(brainId: string, actor: Actor, limit: number) {
+  async recentActivity(brainId: string, actor: Actor, limit: number, source?: "mcp") {
     return this.withActor(actor, async (tx) => {
+      // Browser sessions audit under WEB_SESSION_CLIENT_ID and predate-it web rows
+      // under NULL; source=mcp keeps only events from OAuth agent clients.
       const rows = await tx<any[]>`
         SELECT id, action, resource, actor_id, client_id, detail, created_at
         FROM audit_events WHERE brain_id = ${brainId}
+        ${source === "mcp" ? tx`AND client_id IS NOT NULL AND client_id <> ${WEB_SESSION_CLIENT_ID}` : tx``}
         ORDER BY created_at DESC LIMIT ${limit}
       `;
       return rows.map((row) => ({
