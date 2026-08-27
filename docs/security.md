@@ -36,7 +36,9 @@ remains searchable metadata and is not covered by article-body encryption.
 When both settings are enabled, promotion temporarily keeps the submitted version encrypted while a
 background job is queued. The worker sends its title and body to the configured OpenAI-compatible
 provider. A successful result overwrites that exact version, removing the submitted body. After
-three failures the submitted body remains canonical and the article exposes a failed status. Turning
+three failures the submitted body remains canonical and the article exposes a failed status; the
+worker's maintenance pass keeps requeueing failed articles for new attempts, so failed content is
+sent to the provider again until compaction succeeds or the workspace turns compaction off. Turning
 workspace compaction off cancels queued jobs, but cannot recall a provider request already in flight.
 Review the provider's retention, training, regional processing, and access policies before enabling
 it.

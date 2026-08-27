@@ -53,7 +53,8 @@ through the Chat Completions `response_format` field. It returns a title of at m
 one-sentence summary of at most 300 characters, and a Markdown body of at most 1,500 characters. A
 successful job overwrites the same encrypted version, removing the submitted body. Jobs retry after
 1 and 5 minutes; after the third failure the submitted body remains canonical and the article can be
-retried manually.
+retried manually. The worker's maintenance pass also requeues failed articles automatically once
+they have been failed for at least an hour, for as long as workspace compaction stays enabled.
 
 Enabling a workspace affects future promoted versions. Use **Compact existing** to queue only the
 current version of existing articles; historical versions are not changed. Turning compaction off
