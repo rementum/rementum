@@ -240,6 +240,74 @@ integration("account and team authorization", () => {
         compaction: { status: "disabled" },
       });
 
+      const retryWrite = await llmService.stageWrite(
+        {
+          brainId: brain.brain.id,
+          operation: "create",
+          slug: `retry-${suffix}`,
+          title: "Retry compaction",
+          keywords: [],
+          kind: "canonical",
+          body: "This article fails compaction until the maintenance pass requeues it.",
+          changeSummary: "Create retry article",
+          sources: [],
+          acknowledgePotentialConflicts: false,
+        },
+        ownerActor,
+      );
+      const retryArticle = await llmService.promoteWrite(
+        {
+          writeId: retryWrite.id,
+          decision: "promote",
+          decisionSummary: "Approve retry article",
+        },
+        ownerActor,
+      );
+      expect(retryArticle.article.compactionStatus).toBe("queued");
+      // A zero-second lease lets each reclaim count as an expired attempt without waiting
+      // out the failure backoff, driving the job to its terminal third attempt.
+      let retryClaim = await store.claimCompaction(`retry-worker-${suffix}`, 0);
+      expect(retryClaim).toMatchObject({ articleId: retryArticle.article.id, attempts: 1 });
+      for (let attempt = 2; attempt <= 3; attempt += 1) {
+        retryClaim = await store.claimCompaction(`retry-worker-${suffix}`, 0);
+        expect(retryClaim).toMatchObject({
+          articleId: retryArticle.article.id,
+          attempts: attempt,
+        });
+      }
+      if (!retryClaim) throw new Error("Retry article was not claimed");
+      await llmService.failClaimedCompaction(
+        retryClaim,
+        new Error("provider unavailable"),
+        ownerActor,
+      );
+      await expect(
+        llmService.getArticleCompaction(retryArticle.article.id, ownerActor),
+      ).resolves.toMatchObject({ status: "failed", attempts: 3 });
+      const cooledDown = await database.sql<Array<{ article_id: string; owner_id: string }>>`
+        SELECT * FROM owl_worker_failed_compactions(0, 100)
+      `;
+      expect(cooledDown).toContainEqual(
+        expect.objectContaining({
+          article_id: retryArticle.article.id,
+          owner_id: owner.user.id,
+        }),
+      );
+      const withinCooldown = await database.sql<Array<{ article_id: string }>>`
+        SELECT * FROM owl_worker_failed_compactions(3600, 100)
+      `;
+      expect(withinCooldown.map((row) => row.article_id)).not.toContain(retryArticle.article.id);
+      await expect(
+        llmService.queueArticleCompaction(retryArticle.article.id, ownerActor),
+      ).resolves.toMatchObject({ status: "queued" });
+      const requeuedClaim = await store.claimCompaction(`retry-worker-${suffix}`, 120);
+      expect(requeuedClaim).toMatchObject({ articleId: retryArticle.article.id, attempts: 1 });
+      if (!requeuedClaim) throw new Error("Requeued job was not claimed");
+      await llmService.compactClaimedJob(requeuedClaim, ownerActor);
+      await expect(
+        llmService.readArticle(retryArticle.article.id, ownerActor),
+      ).resolves.toMatchObject({ compaction: { status: "compacted" } });
+
       const member = await auth.registerAccount(
         `member-${suffix}@example.test`,
         "Member",

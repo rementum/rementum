@@ -68,6 +68,10 @@ const intervalMs = Number(process.env.REMENTUM_MAINTENANCE_INTERVAL_MS ?? 60 * 6
 const compactionPollMs = numberEnv("REMENTUM_COMPACTION_POLL_MS", 2_000, 250, 60_000);
 const workerId = `rementum-worker-${randomUUID()}`;
 
+// A terminally failed compaction keeps its 3-attempt cost each time it is requeued, so
+// hold retries back for at least an hour rather than every maintenance pass.
+const COMPACTION_RETRY_COOLDOWN_SECONDS = 60 * 60;
+
 /**
  * Loads each owner's context at most once every {@link ACTOR_CACHE_MS}.
  *
@@ -115,8 +119,23 @@ async function runPass() {
       process.stderr.write(`Indexing ${article.article_id} failed: ${(error as Error).message}\n`);
     }
   }
+  // Without a generator this worker would queue jobs nothing processes, so skip the retry.
+  const failed = articleGenerator
+    ? await database.sql<Array<{ article_id: string; owner_id: string }>>`
+        SELECT * FROM owl_worker_failed_compactions(${COMPACTION_RETRY_COOLDOWN_SECONDS}, 100)
+      `
+    : [];
+  for (const article of failed) {
+    try {
+      await service.queueArticleCompaction(article.article_id, await actorFor(article.owner_id));
+    } catch (error) {
+      process.stderr.write(
+        `Requeueing compaction for ${article.article_id} failed: ${(error as Error).message}\n`,
+      );
+    }
+  }
   process.stdout.write(
-    `${new Date().toISOString()} maintenance pass: ${brains.length} brains, ${missing.length} index candidates, ${Date.now() - started}ms\n`,
+    `${new Date().toISOString()} maintenance pass: ${brains.length} brains, ${missing.length} index candidates, ${failed.length} compaction retries, ${Date.now() - started}ms\n`,
   );
 }
 
