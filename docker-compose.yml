@@ -113,6 +113,10 @@ services:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8790/healthz"]
       interval: 10s
       timeout: 5s
+      # The first probe pulls the model, a few hundred megabytes, so probes are expected to fail
+      # until that finishes. The grace period covers a slow link; a cache the container cannot
+      # write is caught at startup instead, so this budget only has to outlast a download.
+      start_period: 600s
       retries: 30
 
   postgres:

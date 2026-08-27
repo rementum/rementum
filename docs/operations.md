@@ -13,6 +13,31 @@ The public probes are:
 - `/readyz` checks PostgreSQL.
 - `/metrics` exposes the current build information metric.
 
+The embedding container turns healthy only once its model is loaded, and the first start downloads
+roughly 465 MB into the `model_cache` volume. A failing probe after that is real; ask the container
+for the reason:
+
+```bash
+docker compose -f docker-compose.yml -f compose.production.yml exec embeddings \
+  wget -qO- --content-on-error http://127.0.0.1:8790/healthz
+```
+
+(`--content-on-error` matters: the reason arrives in the body of a 503, which wget otherwise
+discards.)
+
+If the reason is `Model cache /models is not writable`, the `model_cache` volume predates the
+image that seeds its ownership — Docker only applies that to an empty volume, so a volume created
+root-owned stays root-owned across upgrades. Fix it once and restart:
+
+```bash
+docker compose -f docker-compose.yml -f compose.production.yml \
+  run --rm --user root embeddings chown -R rementum:rementum /models
+docker compose -f docker-compose.yml -f compose.production.yml up -d embeddings
+```
+
+Until the model loads, the API answers `semanticSearch: false` and search falls back to metadata and
+full-text ranking.
+
 ## Create an encrypted backup
 
 Install `age` on an administrator workstation and create an identity:
