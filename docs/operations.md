@@ -86,6 +86,16 @@ The updater:
 4. Fast-forwards the source, rebuilds the images, runs pending migrations, replaces changed
    services, and waits for their health checks.
 
+A configuration change alone — editing `.env` without a new release, such as switching the
+embedding model — does not get past the updater's "already up to date" exit. Deploy it with:
+
+```bash
+./scripts/update.sh --redeploy
+```
+
+This keeps the backup-first flow and then rebuilds and redeploys; Compose recreates only the
+containers whose configuration actually changed.
+
 The first Rementum deployment also migrates legacy environment-variable names in `.env`. It keeps
 the previous file as `.env.pre-rementum`; move that secrets-bearing backup into your encrypted
 secrets system after verifying the deployment.

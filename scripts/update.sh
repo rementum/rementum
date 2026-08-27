@@ -11,30 +11,34 @@ fail() {
 
 usage() {
   printf '%s\n' \
-    'Usage: ./scripts/update.sh [--no-backup]' \
+    'Usage: ./scripts/update.sh [--no-backup] [--redeploy]' \
     '' \
     'Fetch the configured upstream branch and deploy the latest Rementum version.' \
     'A successful encrypted backup is required before the source is updated.' \
     '' \
     'Options:' \
     '  --no-backup  Update without creating a backup (not recommended).' \
+    '  --redeploy   Rebuild and deploy even when the source is already current,' \
+    '               so configuration changes in .env take effect.' \
     '  -h, --help   Show this help.'
 }
 
 create_backup=true
-case "${1:-}" in
-  "") ;;
-  --no-backup) create_backup=false ;;
-  -h|--help)
-    usage
-    exit 0
-    ;;
-  *)
-    usage >&2
-    exit 2
-    ;;
-esac
-[ "$#" -le 1 ] || fail "Only one option can be passed"
+redeploy=false
+for option in "$@"; do
+  case "$option" in
+    --no-backup) create_backup=false ;;
+    --redeploy) redeploy=true ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
 
 command -v git >/dev/null 2>&1 || fail "Git is required"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
@@ -56,8 +60,12 @@ git fetch --prune
 target=$(git rev-parse '@{upstream}')
 
 if [ "$before" = "$target" ]; then
-  printf 'Rementum is already up to date (%s).\n' "$(git rev-parse --short HEAD)"
-  exit 0
+  if [ "$redeploy" = true ]; then
+    printf 'Source is already up to date (%s); redeploying.\n' "$(git rev-parse --short HEAD)"
+  else
+    printf 'Rementum is already up to date (%s).\n' "$(git rev-parse --short HEAD)"
+    exit 0
+  fi
 fi
 
 git merge-base --is-ancestor "$before" "$target" \
@@ -97,6 +105,10 @@ if ! ./scripts/deploy.sh; then
   exit 1
 fi
 
-printf 'Updated Rementum from %s to %s.\n' \
-  "$(git rev-parse --short "$before")" \
-  "$(git rev-parse --short HEAD)"
+if [ "$before" = "$target" ]; then
+  printf 'Redeployed Rementum at %s.\n' "$(git rev-parse --short HEAD)"
+else
+  printf 'Updated Rementum from %s to %s.\n' \
+    "$(git rev-parse --short "$before")" \
+    "$(git rev-parse --short HEAD)"
+fi
