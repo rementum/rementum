@@ -5,7 +5,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { AppConfig } from "./config.js";
 import type { VerifyCredentials } from "./credentials.js";
-import { requireTurnstile } from "./turnstile.js";
+import { requireTurnstile, turnstileTokenSchema } from "./turnstile.js";
 
 export const WEB_SESSION_COOKIE = "rementum_session";
 const WEB_SESSION_TTL_SECONDS = 14 * 24 * 60 * 60;
@@ -24,7 +24,7 @@ export async function registerWebSessionRoutes(
       .object({
         email: z.string().trim().min(1).max(320),
         password: z.string().min(1).max(1000),
-        turnstileToken: z.string().min(1).max(2048).optional(),
+        turnstileToken: turnstileTokenSchema,
       })
       .parse(request.body);
     await requireTurnstile(config, input.turnstileToken, request.ip);

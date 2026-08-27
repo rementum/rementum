@@ -1,7 +1,14 @@
 import { DomainError } from "@rementum/core";
+import { z } from "zod";
 import type { AppConfig } from "./config.js";
 
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+
+/**
+ * One schema for every guarded route: a drifted copy would make a single form
+ * reject tokens the other flows accept.
+ */
+export const turnstileTokenSchema = z.string().min(1).max(2048).optional();
 
 /**
  * Cloudflare returns 200 with `{ success: false }` for a failed challenge, so only

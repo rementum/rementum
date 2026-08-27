@@ -30,7 +30,7 @@ import { type AccessScope, requireAccessScope, type ScopedActor } from "./access
 import type { AppConfig } from "./config.js";
 import type { TransactionalMailer } from "./mailer.js";
 import { sanitize } from "./mcp.js";
-import { requireTurnstile } from "./turnstile.js";
+import { requireTurnstile, turnstileTokenSchema } from "./turnstile.js";
 
 type Authenticate = (request: FastifyRequest) => Promise<ScopedActor>;
 
@@ -77,7 +77,7 @@ export async function registerApiRoutes(
         displayName: z.string().trim().min(1).max(160),
         password: z.string().min(12).max(1000),
         teamName: z.string().trim().min(1).max(160),
-        turnstileToken: z.string().min(1).max(2048).optional(),
+        turnstileToken: turnstileTokenSchema,
       })
       .parse(request.body);
     await requireTurnstile(config, input.turnstileToken, request.ip);
@@ -115,10 +115,12 @@ export async function registerApiRoutes(
 
   app.post("/api/v1/auth/resend-verification", authRateLimit, async (request, reply) => {
     const input = z
-      .object({ email: z.email(), turnstileToken: z.string().min(1).max(2048).optional() })
+      .object({ email: z.email(), turnstileToken: turnstileTokenSchema })
       .parse(request.body);
-    await requireTurnstile(config, input.turnstileToken, request.ip);
+    // Mailer availability first: a doomed request must not consume the user's
+    // single-use challenge token on a Cloudflare round trip.
     if (!mailer) throw new DomainError("email_unavailable", "Email delivery is unavailable", 503);
+    await requireTurnstile(config, input.turnstileToken, request.ip);
     const user = await authRepository.findUserByEmail(input.email.trim().toLowerCase());
     if (user && !user.emailVerifiedAt) {
       const token = randomBytes(32).toString("base64url");
@@ -151,10 +153,12 @@ export async function registerApiRoutes(
 
   app.post("/api/v1/auth/forgot-password", authRateLimit, async (request, reply) => {
     const input = z
-      .object({ email: z.email(), turnstileToken: z.string().min(1).max(2048).optional() })
+      .object({ email: z.email(), turnstileToken: turnstileTokenSchema })
       .parse(request.body);
-    await requireTurnstile(config, input.turnstileToken, request.ip);
+    // Mailer availability first: a doomed request must not consume the user's
+    // single-use challenge token on a Cloudflare round trip.
     if (!mailer) throw new DomainError("email_unavailable", "Email delivery is unavailable", 503);
+    await requireTurnstile(config, input.turnstileToken, request.ip);
     const user = await authRepository.findUserByEmail(input.email.trim().toLowerCase());
     if (user) {
       const token = randomBytes(32).toString("base64url");
