@@ -41,6 +41,9 @@ send, and verification fails closed when Cloudflare cannot be reached. Tokens ar
 the sign-in form requests a fresh challenge after every failed attempt. Leave both keys empty to
 run without the widget.
 
+The MCP OAuth consent sign-in (`/oauth/interaction/.../login`) is not challenge-protected — its
+strict no-script page cannot load the widget — and relies on its request rate limit instead.
+
 Do not replace `REMENTUM_MASTER_KEY` on an existing instance. Rementum will lose access to every
 wrapped brain key. Keep the original value with your disaster-recovery material.
 
