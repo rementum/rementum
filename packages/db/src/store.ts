@@ -40,10 +40,7 @@ import type { DatabaseClient } from "./client.js";
 type Tx = postgres.TransactionSql;
 
 export class PostgresStore implements DataStore {
-  constructor(
-    private readonly client: DatabaseClient,
-    private readonly embeddingModel = "intfloat/multilingual-e5-small",
-  ) {}
+  constructor(private readonly client: DatabaseClient) {}
 
   async loadActor(userId: string, clientId: string | null): Promise<Actor> {
     const [row] = await this.client.sql<
@@ -1146,7 +1143,7 @@ export class PostgresStore implements DataStore {
   async search(
     input: SearchArticlesInput,
     actor: Actor,
-    embedding: number[] | null,
+    embedding: { model: string; vector: number[] } | null,
   ): Promise<SearchHit[]> {
     return this.withActor(actor, async (tx) => {
       const fts = await tx<any[]>`
@@ -1158,15 +1155,18 @@ export class PostgresStore implements DataStore {
           ${input.freshness?.length ? tx`AND a.freshness = ANY(${input.freshness})` : tx``}
         ORDER BY rank DESC LIMIT 50
       `;
+      // Cosine distance across vectors from different models is noise, so rows from a
+      // previous embedding model are excluded rather than ranked.
       const vectorRows = embedding
         ? await tx<any[]>`
             SELECT DISTINCT ON (a.id) ${tx.unsafe(ARTICLE_COLUMNS_A)},
-                   (1 - (ae.embedding <=> ${vectorLiteral(embedding)}::vector))::float8 AS rank
+                   (1 - (ae.embedding <=> ${vectorLiteral(embedding.vector)}::vector))::float8 AS rank
             FROM article_embeddings ae
             JOIN articles a ON a.id = ae.article_id AND a.current_version = ae.version
             WHERE a.brain_id = ${input.brainId} AND a.archived_at IS NULL
+              AND ae.model = ${embedding.model}
               ${input.freshness?.length ? tx`AND a.freshness = ANY(${input.freshness})` : tx``}
-            ORDER BY a.id, ae.embedding <=> ${vectorLiteral(embedding)}::vector
+            ORDER BY a.id, ae.embedding <=> ${vectorLiteral(embedding.vector)}::vector
             LIMIT 50
           `
         : [];
@@ -1201,6 +1201,7 @@ export class PostgresStore implements DataStore {
     version: number,
     ordinal: number,
     vector: number[],
+    model: string,
     actor: Actor,
   ): Promise<void> {
     if (vector.length !== 384)
@@ -1208,7 +1209,7 @@ export class PostgresStore implements DataStore {
     await this.withActor(actor, async (tx) => {
       await tx`
         INSERT INTO article_embeddings (article_id, version, ordinal, embedding, model)
-        VALUES (${articleId}, ${version}, ${ordinal}, ${vectorLiteral(vector)}::vector, ${this.embeddingModel})
+        VALUES (${articleId}, ${version}, ${ordinal}, ${vectorLiteral(vector)}::vector, ${model})
         ON CONFLICT (article_id, version, ordinal) DO UPDATE SET
           embedding = excluded.embedding, model = excluded.model, created_at = now()
       `;

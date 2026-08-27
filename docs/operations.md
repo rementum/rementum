@@ -38,6 +38,10 @@ docker compose -f docker-compose.yml -f compose.production.yml up -d embeddings
 Until the model loads, the API answers `semanticSearch: false` and search falls back to metadata and
 full-text ranking.
 
+After an upgrade that changes the embedding model, articles indexed under the previous model are
+re-embedded by the worker's hourly maintenance pass, one batch per pass. They stay searchable
+through metadata and full-text ranking until their turn comes.
+
 ## Create an encrypted backup
 
 Install `age` on an administrator workstation and create an identity:

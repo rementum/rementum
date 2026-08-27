@@ -105,7 +105,12 @@ services:
       dockerfile: apps/embeddings/Dockerfile
     restart: unless-stopped
     environment:
-      REMENTUM_EMBEDDING_MODEL: ${REMENTUM_EMBEDDING_MODEL:-intfloat/multilingual-e5-small}
+      REMENTUM_EMBEDDING_MODEL: ${REMENTUM_EMBEDDING_MODEL:-onnx-community/granite-embedding-97m-multilingual-r2-ONNX}
+      # Optional overrides for models the service does not recognize; empty means unset.
+      REMENTUM_EMBEDDING_DTYPE: ${REMENTUM_EMBEDDING_DTYPE:-}
+      REMENTUM_EMBEDDING_POOLING: ${REMENTUM_EMBEDDING_POOLING:-}
+      REMENTUM_EMBEDDING_QUERY_PREFIX: ${REMENTUM_EMBEDDING_QUERY_PREFIX:-}
+      REMENTUM_EMBEDDING_PASSAGE_PREFIX: ${REMENTUM_EMBEDDING_PASSAGE_PREFIX:-}
       REMENTUM_MODEL_CACHE: /models
     volumes:
       - model_cache:/models

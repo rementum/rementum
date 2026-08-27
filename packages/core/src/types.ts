@@ -341,13 +341,14 @@ export interface DataStore {
   search(
     input: SearchArticlesInput,
     actor: Actor,
-    embedding: number[] | null,
+    embedding: { model: string; vector: number[] } | null,
   ): Promise<SearchHit[]>;
   setEmbedding(
     articleId: string,
     version: number,
     ordinal: number,
     vector: number[],
+    model: string,
     actor: Actor,
   ): Promise<void>;
   clearEmbeddings(articleId: string, version: number, actor: Actor): Promise<void>;
@@ -414,9 +415,11 @@ export interface DataStore {
   ): Promise<void>;
 }
 
+// The model name travels with the vectors it produced: vectors are only comparable inside
+// one model's space, so the store needs to know which space each row and each query belongs to.
 export interface EmbeddingClient {
-  embedQuery(value: string): Promise<number[]>;
-  embedPassages(values: string[]): Promise<number[][]>;
+  embedQuery(value: string): Promise<{ model: string; vector: number[] }>;
+  embedPassages(values: string[]): Promise<{ model: string; vectors: number[][] }>;
   healthy(): Promise<boolean>;
 }
 
