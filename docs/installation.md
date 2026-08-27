@@ -23,7 +23,8 @@ cd rementum
 ./scripts/install.sh
 ```
 
-The installer asks for the domain, owner account, optional LLM, and optional mail settings. It then:
+The installer asks for the domain, owner account, optional LLM, optional mail, and optional
+Cloudflare Turnstile bot-protection settings. It then:
 
 1. Generates database passwords, a 32-byte master key, cookie keys, and a persistent OAuth signing
    key.
@@ -55,7 +56,9 @@ preserve submitted titles and bodies and use local summaries. To make compaction
 `REMENTUM_INSTALL_LLM_ENABLED=true`, a base URL, and a structured-output-capable model; omit the API
 key file for a keyless compatible endpoint. After installation, enable compaction on each intended
 workspace from its team page. If you enable signup, also set
-`REMENTUM_INSTALL_RESEND_API_KEY_FILE` and `REMENTUM_INSTALL_MAIL_FROM`. Run
+`REMENTUM_INSTALL_RESEND_API_KEY_FILE` and `REMENTUM_INSTALL_MAIL_FROM`. To protect the account
+forms with Cloudflare Turnstile, set `REMENTUM_INSTALL_TURNSTILE_SITE_KEY` and store the secret in
+`REMENTUM_INSTALL_TURNSTILE_SECRET_KEY_FILE`; the installer refuses one without the other. Run
 `./scripts/install.sh --help` for the complete input list.
 
 Non-interactive mode uses the same safety checks as the interactive installer. It generates `.env`,

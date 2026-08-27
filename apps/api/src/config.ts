@@ -44,6 +44,14 @@ const configSchema = z
       (value) => (value === "" ? undefined : value),
       z.string().min(3).optional(),
     ),
+    REMENTUM_TURNSTILE_SITE_KEY: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    REMENTUM_TURNSTILE_SECRET_KEY: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
     REMENTUM_ALLOW_SIGNUP: z
       .string()
       .default("false")
@@ -112,6 +120,16 @@ const configSchema = z
         code: "custom",
         path: ["REMENTUM_ALLOW_SIGNUP"],
         message: "Public signup requires Resend email delivery",
+      });
+    }
+    if (
+      Boolean(value.REMENTUM_TURNSTILE_SITE_KEY) !== Boolean(value.REMENTUM_TURNSTILE_SECRET_KEY)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["REMENTUM_TURNSTILE_SITE_KEY"],
+        message:
+          "REMENTUM_TURNSTILE_SITE_KEY and REMENTUM_TURNSTILE_SECRET_KEY must be configured together",
       });
     }
   });

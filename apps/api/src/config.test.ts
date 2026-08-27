@@ -82,6 +82,33 @@ describe("account email configuration", () => {
   });
 });
 
+describe("turnstile configuration", () => {
+  it("is off by default", () => {
+    const config = loadConfig({ ...baseEnv, REMENTUM_TURNSTILE_SITE_KEY: "" });
+    expect(config.REMENTUM_TURNSTILE_SITE_KEY).toBeUndefined();
+    expect(config.REMENTUM_TURNSTILE_SECRET_KEY).toBeUndefined();
+  });
+
+  it("refuses a half-configured pair", () => {
+    expect(() => loadConfig({ ...baseEnv, REMENTUM_TURNSTILE_SITE_KEY: "0x4AAA-site" })).toThrow(
+      /must be configured together/,
+    );
+    expect(() =>
+      loadConfig({ ...baseEnv, REMENTUM_TURNSTILE_SECRET_KEY: "0x4AAA-secret" }),
+    ).toThrow(/must be configured together/);
+  });
+
+  it("accepts a complete pair", () => {
+    const config = loadConfig({
+      ...baseEnv,
+      REMENTUM_TURNSTILE_SITE_KEY: "0x4AAA-site",
+      REMENTUM_TURNSTILE_SECRET_KEY: "0x4AAA-secret",
+    });
+    expect(config.REMENTUM_TURNSTILE_SITE_KEY).toBe("0x4AAA-site");
+    expect(config.REMENTUM_TURNSTILE_SECRET_KEY).toBe("0x4AAA-secret");
+  });
+});
+
 describe("development identity header", () => {
   it("is accepted outside production", () => {
     expect(loadConfig({ ...baseEnv, REMENTUM_DEV_AUTH: "true" }).REMENTUM_DEV_AUTH).toBe(true);
