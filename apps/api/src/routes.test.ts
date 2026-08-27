@@ -45,13 +45,14 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
   const service = {
     listTeams: vi.fn(async () => [{ id: teamId }]),
     listWorkspaces: vi.fn(async () => [{ id: workspaceId, llmCompactionEnabled: false }]),
-    listBrains: vi.fn(async () => [{ id: brainId }]),
+    listBrains: vi.fn(async () => ({ items: [{ id: brainId }], total: 1 })),
     countArticlesByBrain: vi.fn(async () => [
       { brainId, articleCount: 2, latestArticleUpdatedAt: "2026-08-27T10:00:00.000Z" },
     ]),
     getBrain: vi.fn(async () => ({
       brain: { id: brainId, slug: "product" },
       routingIndex: [{ id: "article-id", slug: "architecture" }],
+      articleTotal: 1,
     })),
     readArticle: vi.fn(async () => ({
       id: "article-id",
@@ -479,8 +480,9 @@ describe("routing index sort", () => {
     expect(context.service.getBrain).toHaveBeenCalledWith(
       brainId,
       expect.anything(),
-      undefined,
+      200,
       "updated",
+      0,
     );
   });
 
@@ -493,8 +495,9 @@ describe("routing index sort", () => {
     expect(context.service.getBrain).toHaveBeenCalledWith(
       brainId,
       expect.anything(),
-      undefined,
+      200,
       "title",
+      0,
     );
   });
 
@@ -505,6 +508,55 @@ describe("routing index sort", () => {
     });
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ code: "validation" });
+    expect(context.service.getBrain).not.toHaveBeenCalled();
+  });
+});
+
+describe("list pagination", () => {
+  it("forwards brain paging and filter params to the service", async () => {
+    const response = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/brains?workspaceId=${workspaceId}&shared=true&sort=name&limit=5&offset=10`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ items: [{ id: brainId }], total: 1 });
+    expect(context.service.listBrains).toHaveBeenCalledWith(expect.anything(), {
+      workspaceId,
+      shared: true,
+      sort: "name",
+      limit: 5,
+      offset: 10,
+    });
+  });
+
+  it("rejects an out-of-range brain page size", async () => {
+    const response = await context.app.inject({ method: "GET", url: "/api/v1/brains?limit=0" });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: "validation" });
+    expect(context.service.listBrains).not.toHaveBeenCalled();
+  });
+
+  it("forwards the routing index page to the service", async () => {
+    const response = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/brains/${brainId}?limit=50&offset=100`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(context.service.getBrain).toHaveBeenCalledWith(
+      brainId,
+      expect.anything(),
+      50,
+      "updated",
+      100,
+    );
+  });
+
+  it("rejects a negative routing index offset", async () => {
+    const response = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/brains/${brainId}?offset=-1`,
+    });
+    expect(response.statusCode).toBe(400);
     expect(context.service.getBrain).not.toHaveBeenCalled();
   });
 });

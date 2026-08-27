@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type {
+  BrainListSort,
   CreateBrainInput,
   CreateTaskInput,
   CreateTeamInput,
@@ -279,20 +280,44 @@ export class RementumService {
       brainId,
     );
     await this.store.audit(actor, "brain.created", `brain:${record.id}`);
-    return { brain: withoutWrappedKey(record), routingIndex: [], role: "owner" as const };
+    return {
+      brain: withoutWrappedKey(record),
+      routingIndex: [],
+      articleTotal: 0,
+      role: "owner" as const,
+    };
   }
 
-  async listBrains(actor: Actor, workspaceId?: string) {
+  async listBrains(
+    actor: Actor,
+    options: {
+      workspaceId?: string;
+      shared?: boolean;
+      sort?: BrainListSort;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) {
+    const { workspaceId, shared, sort, limit, offset } = options;
     if (workspaceId) requireWorkspaceRole(actor, workspaceId, ["owner", "admin", "member"]);
-    const brains = await this.store.listBrains(actor, workspaceId);
-    return brains.map(withoutWrappedKey);
+    const { items, total } = await this.store.listBrains(actor, {
+      ...(workspaceId ? { workspaceId } : {}),
+      // "Shared" means readable through a brain role while outside every workspace the
+      // actor belongs to; an empty membership list therefore marks all brains shared.
+      ...(shared ? { excludeWorkspaceIds: [...actor.workspaceRoles.keys()] } : {}),
+      ...(sort ? { sort } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+    });
+    return { items: items.map(withoutWrappedKey), total };
   }
 
-  // No service-level role guard, matching listBrains without a workspace filter: the
-  // row-level policies on articles decide which brains contribute rows, and the result
-  // carries only ids and counts.
-  async countArticlesByBrain(actor: Actor) {
-    return this.store.countArticlesByBrain(actor);
+  // No service-level role guard when unfiltered, matching listBrains without a workspace
+  // filter: the row-level policies on articles decide which brains contribute rows, and
+  // the result carries only ids and counts.
+  async countArticlesByBrain(actor: Actor, workspaceId?: string) {
+    if (workspaceId) requireWorkspaceRole(actor, workspaceId, ["owner", "admin", "member"]);
+    return this.store.countArticlesByBrain(actor, workspaceId);
   }
 
   async getBrain(
@@ -300,17 +325,22 @@ export class RementumService {
     actor: Actor,
     limit = 200,
     sort: RoutingIndexSort = "updated",
+    offset = 0,
   ): Promise<BrainWithIndex> {
     requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
     const brain = await this.store.getBrain(brainId, actor);
     if (!brain) throw new NotFoundError("Brain");
-    const articles = await this.store.listRoutingIndex(brainId, actor, limit, sort);
+    const [articles, articleTotal] = await Promise.all([
+      this.store.listRoutingIndex(brainId, actor, limit, sort, offset),
+      this.store.countArticles(brainId, actor),
+    ]);
     await this.store.audit(actor, "brain.read", `brain:${brainId}`, {
-      articleCount: articles.length,
+      articleCount: articleTotal,
     });
     return {
       brain: withoutWrappedKey(brain),
       routingIndex: articles.map(toSummary),
+      articleTotal,
       role: actor.brainRoles.get(brainId) ?? "viewer",
     };
   }

@@ -107,7 +107,10 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
       inputSchema: {},
       annotations: read,
     },
-    () => scoped(actor, "brain:read", () => result(service.listBrains(actor))),
+    () =>
+      scoped(actor, "brain:read", () =>
+        result(service.listBrains(actor).then((page) => page.items)),
+      ),
   );
 
   server.registerTool(

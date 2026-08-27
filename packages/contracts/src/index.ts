@@ -131,6 +131,9 @@ export type BrainArticleCount = z.infer<typeof brainArticleCountSchema>;
 export const routingIndexSortSchema = z.enum(["updated", "title"]);
 export type RoutingIndexSort = z.infer<typeof routingIndexSortSchema>;
 
+export const brainListSortSchema = z.enum(["updated", "articles", "name"]);
+export type BrainListSort = z.infer<typeof brainListSortSchema>;
+
 export const teamSchema = z.object({
   id: idSchema,
   slug: slugSchema,

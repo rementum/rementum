@@ -228,6 +228,57 @@ integration("knowledge lifecycle", () => {
       );
       expect(manifest.articles).toMatchObject([{ slug: "architecture", version: 2 }]);
 
+      // A second article makes the routing index pageable: offset 1 skips the newer
+      // "conventions" article and articleTotal reports the full count, not the page.
+      const second = await app.inject({
+        method: "POST",
+        url: "/api/v1/writes",
+        headers: as(owner.user.id),
+        payload: {
+          brainId,
+          operation: "create",
+          slug: "conventions",
+          title: "Conventions",
+          body: "# Conventions\n\nKeep entries short.",
+          changeSummary: "Record the conventions",
+        },
+      });
+      expect(second.statusCode).toBe(201);
+      const secondPromoted = await app.inject({
+        method: "POST",
+        url: `/api/v1/writes/${second.json().id}/promote`,
+        headers: as(owner.user.id),
+        payload: { decisionSummary: "Reviewed" },
+      });
+      expect(secondPromoted.statusCode).toBe(200);
+
+      const indexPage = await app.inject({
+        method: "GET",
+        url: `/api/v1/brains/${brainId}?limit=1&offset=1`,
+        headers: as(owner.user.id),
+      });
+      expect(indexPage.json()).toMatchObject({
+        articleTotal: 2,
+        routingIndex: [{ slug: "architecture" }],
+      });
+      expect(indexPage.json().routingIndex).toHaveLength(1);
+
+      const brainPage = await app.inject({
+        method: "GET",
+        url: `/api/v1/brains?workspaceId=${owner.workspaceId}&limit=1&offset=0`,
+        headers: as(owner.user.id),
+      });
+      expect(brainPage.json().total).toBe(1);
+      expect(brainPage.json().items).toMatchObject([{ id: brainId }]);
+
+      // The owner belongs to the brain's workspace, so nothing is "shared" with them.
+      const sharedForOwner = await app.inject({
+        method: "GET",
+        url: "/api/v1/brains?shared=true",
+        headers: as(owner.user.id),
+      });
+      expect(sharedForOwner.json()).toEqual({ items: [], total: 0 });
+
       const stranger = await auth.registerAccount(
         `lifecycle-stranger-${suffix}@example.test`,
         "Stranger",
@@ -257,7 +308,7 @@ integration("knowledge lifecycle", () => {
         url: "/api/v1/brains",
         headers: as(stranger.user.id),
       });
-      expect(strangerBrains.json()).toEqual([]);
+      expect(strangerBrains.json()).toEqual({ items: [], total: 0 });
     } finally {
       await database.close();
       await app.close();

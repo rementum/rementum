@@ -35,7 +35,9 @@ async function connectedClient(scopes: string, service: RementumService) {
 
 describe("MCP OAuth scopes", () => {
   it("allows a matching read tool", async () => {
-    const service = { listBrains: vi.fn(async () => []) } as unknown as RementumService;
+    const service = {
+      listBrains: vi.fn(async () => ({ items: [], total: 0 })),
+    } as unknown as RementumService;
     const client = await connectedClient("brain:read", service);
     const response = await client.callTool({ name: "list_brains", arguments: {} });
     expect(response.isError).not.toBe(true);

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
+  brainListSortSchema,
   claimTaskSchema,
   createBrainSchema,
   createTaskSchema,
@@ -393,8 +394,22 @@ export async function registerApiRoutes(
   });
 
   app.get("/api/v1/brains", async (request) => {
-    const { workspaceId } = z.object({ workspaceId: z.uuid().optional() }).parse(request.query);
-    return service.listBrains(await authorize(request, "brain:read"), workspaceId);
+    const { workspaceId, shared, sort, limit, offset } = z
+      .object({
+        workspaceId: z.uuid().optional(),
+        shared: z.enum(["true"]).optional(),
+        sort: brainListSortSchema.default("updated"),
+        limit: z.coerce.number().int().min(1).max(200).optional(),
+        offset: z.coerce.number().int().min(0).default(0),
+      })
+      .parse(request.query);
+    return service.listBrains(await authorize(request, "brain:read"), {
+      ...(workspaceId ? { workspaceId } : {}),
+      ...(shared ? { shared: true } : {}),
+      sort,
+      ...(limit !== undefined ? { limit } : {}),
+      offset,
+    });
   });
   app.post("/api/v1/brains", async (request, reply) => {
     const actor = await authorize(request, "brain:write");
@@ -404,15 +419,19 @@ export async function registerApiRoutes(
   });
   // Static segment, so the router matches it ahead of the :brainId parameter below.
   app.get("/api/v1/brains/article-counts", async (request) => {
-    return service.countArticlesByBrain(await authorize(request, "brain:read"));
+    const { workspaceId } = z.object({ workspaceId: z.uuid().optional() }).parse(request.query);
+    return service.countArticlesByBrain(await authorize(request, "brain:read"), workspaceId);
   });
   app.get("/api/v1/brains/:brainId", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
-    const { sort } = z
-      .object({ sort: routingIndexSortSchema.default("updated") })
+    const { sort, limit, offset } = z
+      .object({
+        sort: routingIndexSortSchema.default("updated"),
+        limit: z.coerce.number().int().min(1).max(1000).default(200),
+        offset: z.coerce.number().int().min(0).default(0),
+      })
       .parse(request.query);
-    // limit stays undefined so its default lives in the service alone.
-    return service.getBrain(brainId, await authorize(request, "brain:read"), undefined, sort);
+    return service.getBrain(brainId, await authorize(request, "brain:read"), limit, sort, offset);
   });
   app.delete("/api/v1/brains/:brainId", async (request, reply) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);

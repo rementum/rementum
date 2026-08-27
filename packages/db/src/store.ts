@@ -1,5 +1,6 @@
 import {
   type BrainArticleCount,
+  type BrainListSort,
   type BrainRole,
   type CreateBrainInput,
   type CreateTaskInput,
@@ -431,19 +432,38 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async listBrains(actor: Actor, workspaceId?: string): Promise<BrainRecord[]> {
+  async listBrains(
+    actor: Actor,
+    options: {
+      workspaceId?: string;
+      excludeWorkspaceIds?: string[];
+      sort?: BrainListSort;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<{ items: BrainRecord[]; total: number }> {
+    const { workspaceId, excludeWorkspaceIds, sort = "updated", limit, offset } = options;
     return this.withActor(actor, async (tx) => {
-      const rows = await tx<any[]>`
-        SELECT * FROM brains
-        WHERE deleted_at IS NULL
-          AND (${workspaceId ?? null}::uuid IS NULL OR workspace_id = ${workspaceId ?? null})
-        ORDER BY updated_at DESC
+      // A fragment object cannot be embedded twice, so both queries rebuild the WHERE.
+      const where = () => tx`
+        deleted_at IS NULL
+        AND (${workspaceId ?? null}::uuid IS NULL OR workspace_id = ${workspaceId ?? null})
+        ${excludeWorkspaceIds ? tx`AND workspace_id <> ALL(${excludeWorkspaceIds}::uuid[])` : tx``}
       `;
-      return rows.map(mapBrain);
+      const rows = await tx<any[]>`
+        SELECT * FROM brains WHERE ${where()}
+        ORDER BY ${tx.unsafe(BRAIN_LIST_ORDER[sort])}
+        ${limit !== undefined ? tx`LIMIT ${limit}` : tx``}
+        ${offset ? tx`OFFSET ${offset}` : tx``}
+      `;
+      const [count] = await tx<Array<{ total: number }>>`
+        SELECT COUNT(*)::int AS total FROM brains WHERE ${where()}
+      `;
+      return { items: rows.map(mapBrain), total: count?.total ?? 0 };
     });
   }
 
-  async countArticlesByBrain(actor: Actor): Promise<BrainArticleCount[]> {
+  async countArticlesByBrain(actor: Actor, workspaceId?: string): Promise<BrainArticleCount[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<
         Array<{ brain_id: string; article_count: number; latest_article_updated_at: Date | string }>
@@ -451,6 +471,14 @@ export class PostgresStore implements DataStore {
         SELECT brain_id, COUNT(*)::int AS article_count,
           MAX(updated_at) AS latest_article_updated_at
         FROM articles WHERE archived_at IS NULL
+        ${
+          workspaceId
+            ? tx`AND EXISTS (
+                SELECT 1 FROM brains
+                WHERE brains.id = articles.brain_id AND brains.workspace_id = ${workspaceId}
+              )`
+            : tx``
+        }
         GROUP BY brain_id
       `;
       return rows.map((row) => ({
@@ -458,6 +486,16 @@ export class PostgresStore implements DataStore {
         articleCount: row.article_count,
         latestArticleUpdatedAt: asDate(row.latest_article_updated_at).toISOString(),
       }));
+    });
+  }
+
+  async countArticles(brainId: string, actor: Actor): Promise<number> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<Array<{ total: number }>>`
+        SELECT COUNT(*)::int AS total FROM articles
+        WHERE brain_id = ${brainId} AND archived_at IS NULL
+      `;
+      return row?.total ?? 0;
     });
   }
 
@@ -500,12 +538,13 @@ export class PostgresStore implements DataStore {
     actor: Actor,
     limit: number,
     sort: RoutingIndexSort,
+    offset = 0,
   ): Promise<ArticleRecord[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
         SELECT ${tx.unsafe(ARTICLE_COLUMNS)} FROM articles
         WHERE brain_id = ${brainId} AND archived_at IS NULL
-        ORDER BY ${tx.unsafe(ROUTING_INDEX_ORDER[sort])} LIMIT ${limit}
+        ORDER BY ${tx.unsafe(ROUTING_INDEX_ORDER[sort])} LIMIT ${limit} OFFSET ${offset}
       `;
       return rows.map(mapArticle);
     });
@@ -1747,6 +1786,19 @@ const ARTICLE_COLUMNS_A = ARTICLE_COLUMNS.split(", ")
 const ROUTING_INDEX_ORDER: Record<RoutingIndexSort, string> = {
   updated: "updated_at DESC, slug ASC",
   title: "lower(title) ASC, slug ASC",
+};
+
+// brains.updated_at is frozen at creation, so "updated" orders by the newest article
+// promote — the same truth the dashboard shows. Sorting lives in SQL because the list
+// is paged; a client-side sort would only ever reorder the visible page.
+const LATEST_ARTICLE_AT =
+  "(SELECT MAX(a.updated_at) FROM articles a WHERE a.brain_id = brains.id AND a.archived_at IS NULL)";
+const ARTICLE_COUNT_OF_BRAIN =
+  "(SELECT COUNT(*) FROM articles a WHERE a.brain_id = brains.id AND a.archived_at IS NULL)";
+const BRAIN_LIST_ORDER: Record<BrainListSort, string> = {
+  updated: `COALESCE(${LATEST_ARTICLE_AT}, brains.updated_at) DESC, lower(brains.name) ASC, brains.id ASC`,
+  articles: `${ARTICLE_COUNT_OF_BRAIN} DESC, lower(brains.name) ASC, brains.id ASC`,
+  name: "lower(brains.name) ASC, brains.slug ASC, brains.id ASC",
 };
 
 export async function setActorConfig(
