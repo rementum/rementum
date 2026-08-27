@@ -1,3 +1,9 @@
+# Only useful when a www record points at this host; without one Caddy retries certificate
+# issuance for the name in the background, which is noisy in the logs but harmless.
+www.{$REMENTUM_DOMAIN:localhost} {
+	redir https://{$REMENTUM_DOMAIN:localhost}{uri} permanent
+}
+
 {$REMENTUM_DOMAIN:localhost} {
 	encode zstd gzip
 	log {
