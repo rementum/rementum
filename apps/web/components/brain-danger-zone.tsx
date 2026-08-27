@@ -46,7 +46,10 @@ export function BrainDangerZone({ brainId, name }: { brainId: string; name: stri
           className={DANGER_BUTTON_CLASS}
           type="button"
           disabled={busy}
-          onClick={() => setConfirming(true)}
+          onClick={() => {
+            setError("");
+            setConfirming(true);
+          }}
         >
           Delete brain
         </button>

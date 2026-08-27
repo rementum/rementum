@@ -167,7 +167,10 @@ export function TeamDangerZone({ teamId, name }: { teamId: string; name: string 
           className={DANGER_BUTTON_CLASS}
           type="button"
           disabled={busy}
-          onClick={() => setConfirming(true)}
+          onClick={() => {
+            setError("");
+            setConfirming(true);
+          }}
         >
           Delete team
         </button>
@@ -248,6 +251,9 @@ export function WorkspaceManagement({
     setError("");
     try {
       await bridge(`/workspaces/${workspaceId}`, "DELETE", { confirmation });
+      // Close eagerly: router.refresh() re-enables the confirm button before the
+      // deleted row unmounts, which would invite a doomed second delete.
+      setDeleting(false);
       router.refresh();
     } catch (value) {
       setError((value as Error).message);
@@ -278,6 +284,8 @@ export function WorkspaceManagement({
     setNotice("");
     try {
       const result = await bridge(`/workspaces/${workspaceId}/compactions`, "POST");
+      // Close before showing the notice, which renders behind the dialog overlay.
+      setCompacting(false);
       setNotice(`${result.queued} article${result.queued === 1 ? "" : "s"} queued.`);
       router.refresh();
     } catch (value) {
@@ -466,6 +474,8 @@ export function TeamManagement({
     setActionError("");
     try {
       await bridge(`/teams/${teamId}/members/${userId}`, "DELETE");
+      // router.refresh() keeps client state, so the dialog must close itself.
+      setPendingAction(null);
       router.refresh();
     } catch (value) {
       setActionError((value as Error).message);
@@ -492,6 +502,8 @@ export function TeamManagement({
     setActionError("");
     try {
       await bridge(`/team-invitations/${id}`, "DELETE");
+      // router.refresh() keeps client state, so the dialog must close itself.
+      setPendingAction(null);
       router.refresh();
     } catch (value) {
       setActionError((value as Error).message);

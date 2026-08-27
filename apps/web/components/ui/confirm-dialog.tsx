@@ -1,7 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { Field, fieldControlClass } from "./field";
 
 const DANGER_CONFIRM_CLASS =
@@ -26,7 +33,18 @@ interface DialogProps {
  * open so typed input resets and autofocus re-engages without extra state.
  */
 export function ConfirmDialog({ open, ...dialog }: DialogProps & { open: boolean }) {
-  return <AnimatePresence>{open ? <DialogPanel {...dialog} /> : null}</AnimatePresence>;
+  // Reopening within the exit animation would otherwise reconcile into the
+  // exiting panel and resurrect its typed confirmation, so every open gets a
+  // fresh identity.
+  const generation = useRef(0);
+  const wasOpen = useRef(false);
+  if (open && !wasOpen.current) generation.current += 1;
+  wasOpen.current = open;
+  return (
+    <AnimatePresence>
+      {open ? <DialogPanel key={generation.current} {...dialog} /> : null}
+    </AnimatePresence>
+  );
 }
 
 function DialogPanel({
@@ -43,31 +61,57 @@ function DialogPanel({
   const titleId = useId();
   const descriptionId = useId();
   const inputId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const matched = expectedName === undefined || typed === expectedName;
 
-  // Native dialogs dismiss on Escape; keep that affordance so keyboard users can back out.
+  // Native dialogs dismiss on Escape; keep that affordance, but never while a
+  // request is in flight — a dialog dismissed mid-request would swallow its
+  // outcome, like the busy-disabled Cancel button already prevents.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onCancel();
+      if (event.key === "Escape" && !busy) onCancel();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+  }, [onCancel, busy]);
 
-  // Move focus into the dialog on open: the name input when one exists, Cancel otherwise.
+  // Not a native <dialog>, so focus has to be walked in by hand.
   useEffect(() => {
     (expectedName === undefined ? cancelRef : inputRef).current?.focus();
   }, [expectedName]);
 
-  return (
-    <div className="fixed inset-0 z-50">
+  // aria-modal promises an inert background; without a native top layer, hold
+  // Tab inside the dialog so keyboard focus cannot reach the page behind it.
+  function trapTab(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+    const focusables = rootRef.current?.querySelectorAll<HTMLElement>(
+      "button:not(:disabled), input:not(:disabled)",
+    );
+    if (!focusables || focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
+
+  // Portaled to <body>: an ancestor with its own stacking context (the brain
+  // page's sticky aside) would otherwise trap the overlay under the app chrome.
+  return createPortal(
+    <div className="fixed inset-0 z-50" ref={rootRef}>
       <motion.button
         type="button"
         aria-label="Cancel"
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        disabled={busy}
         onClick={onCancel}
+        onKeyDown={trapTab}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -78,6 +122,7 @@ function DialogPanel({
           aria-modal="true"
           aria-labelledby={titleId}
           aria-describedby={descriptionId}
+          onKeyDown={trapTab}
           className="w-full max-w-md rounded-card border border-line bg-surface p-4 shadow-overlay"
           initial={{ opacity: 0, scale: 0.96, y: 8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -90,51 +135,54 @@ function DialogPanel({
           <p id={descriptionId} className="mt-1 text-xs text-ink-2">
             {description}
           </p>
-          {expectedName !== undefined ? (
-            <div className="mt-3">
-              <Field
-                label="Confirmation"
-                htmlFor={inputId}
-                hint={`Type "${expectedName}" to continue.`}
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!busy && matched) onConfirm(typed);
+            }}
+          >
+            {expectedName !== undefined ? (
+              <div className="mt-3">
+                <Field
+                  label="Confirmation"
+                  htmlFor={inputId}
+                  hint={`Type "${expectedName}" to continue.`}
+                >
+                  <input
+                    id={inputId}
+                    ref={inputRef}
+                    className={fieldControlClass}
+                    value={typed}
+                    onChange={(event) => setTyped(event.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </Field>
+              </div>
+            ) : null}
+            {error ? (
+              <p className="mt-3 rounded-control border border-red/25 bg-red/10 px-3 py-2 text-xs text-red">
+                {error}
+              </p>
+            ) : null}
+            <div className="mt-4 flex items-center justify-end gap-3">
+              <button
+                className={CANCEL_CLASS}
+                ref={cancelRef}
+                type="button"
+                disabled={busy}
+                onClick={onCancel}
               >
-                <input
-                  id={inputId}
-                  ref={inputRef}
-                  className={fieldControlClass}
-                  value={typed}
-                  onChange={(event) => setTyped(event.target.value)}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </Field>
+                Cancel
+              </button>
+              <button className={DANGER_CONFIRM_CLASS} type="submit" disabled={busy || !matched}>
+                {confirmLabel}
+              </button>
             </div>
-          ) : null}
-          {error ? (
-            <p className="mt-3 rounded-control border border-red/25 bg-red/10 px-3 py-2 text-xs text-red">
-              {error}
-            </p>
-          ) : null}
-          <div className="mt-4 flex items-center justify-end gap-3">
-            <button
-              className={CANCEL_CLASS}
-              ref={cancelRef}
-              type="button"
-              disabled={busy}
-              onClick={onCancel}
-            >
-              Cancel
-            </button>
-            <button
-              className={DANGER_CONFIRM_CLASS}
-              type="button"
-              disabled={busy || !matched}
-              onClick={() => onConfirm(expectedName === undefined ? "" : typed)}
-            >
-              {confirmLabel}
-            </button>
-          </div>
+          </form>
         </motion.div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
