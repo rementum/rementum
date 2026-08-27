@@ -28,12 +28,25 @@ async function request(path: string, body: Record<string, unknown>) {
  * remounts the widget for a fresh challenge. The submit button stays locked until the
  * challenge is solved whenever bot protection is configured.
  */
-function useTurnstileGuard(siteKey: string | null) {
+function useTurnstileGuard(initialSiteKey: string | null) {
+  const [siteKey, setSiteKey] = useState(initialSiteKey);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [challenge, setChallenge] = useState(0);
   const resetTurnstile = () => {
     setTurnstileToken("");
     setChallenge((n) => n + 1);
+    // A null site key may be the server-render fallback from a moment the API was
+    // unreachable, while the API itself still demands a token. Re-check from the
+    // browser so a submit rejected for a missing captcha recovers its widget
+    // instead of failing identically on every retry.
+    if (!siteKey) {
+      fetch(`${apiBase}/api/v1/auth/config`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body) => {
+          if (body?.turnstileSiteKey) setSiteKey(body.turnstileSiteKey as string);
+        })
+        .catch(() => null);
+    }
   };
   return {
     siteKey,
@@ -240,6 +253,8 @@ export function ForgotPasswordForm({ turnstileSiteKey }: { turnstileSiteKey: str
         ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
       });
       setSent(true);
+      // The form stays mounted for a re-send, and siteverify just consumed the token.
+      turnstile.resetTurnstile();
     } catch (value) {
       setError((value as Error).message);
       turnstile.resetTurnstile();
@@ -288,6 +303,8 @@ export function ResendVerificationForm({ turnstileSiteKey }: { turnstileSiteKey:
         ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
       });
       setSent(true);
+      // The form stays mounted for a re-send, and siteverify just consumed the token.
+      turnstile.resetTurnstile();
     } catch (value) {
       setError((value as Error).message);
       turnstile.resetTurnstile();
