@@ -1,6 +1,6 @@
 ---
 name: brain-maintenance
-description: Review Rementum maintenance candidates and stage safe splits, merges, deprecations, or freshness updates.
+description: Review Rementum maintenance candidates and stage safe splits, merges, deprecations, or freshness updates. Use when the user asks to clean up, curate, or maintain a brain, and after scan_brain reports findings.
 ---
 
 # Maintain a brain
