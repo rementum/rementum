@@ -5,7 +5,7 @@ import { PageHeader } from "../../components/ui/page-header";
 import { api, workspaceContext } from "../../lib/api";
 import { formatDate, formatDateTime, relativeTime } from "../../lib/format";
 
-export const metadata: Metadata = { title: "Activity" };
+export const metadata: Metadata = { title: "MCP Activity" };
 
 interface Brain {
   id: string;
@@ -17,7 +17,7 @@ interface Activity {
   id: string;
   action: string;
   resource: string;
-  clientId: string | null;
+  clientId: string;
   createdAt: string;
 }
 
@@ -28,11 +28,11 @@ export default async function WorkspaceActivityPage() {
   if (!activeTeam || !activeWorkspace) {
     return (
       <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
-        <PageHeader kicker="Workspace" title="Activity" />
+        <PageHeader kicker="Workspace" title="MCP Activity" />
         <section className="mt-8">
           <EmptyState
             title="No workspace yet."
-            body="Create a team and workspace to see activity here."
+            body="Create a team and workspace to see MCP activity here."
           />
         </section>
       </main>
@@ -43,7 +43,9 @@ export default async function WorkspaceActivityPage() {
   const brainName = new Map(brains.map((brain) => [brain.id, brain.name]));
   const feeds = await Promise.all(
     brains.slice(0, BRAIN_LIMIT).map(async (brain) => {
-      const events = await api<Activity[]>(`/api/v1/brains/${brain.id}/activity?limit=50`);
+      const events = await api<Activity[]>(
+        `/api/v1/brains/${brain.id}/activity?limit=50&source=mcp`,
+      );
       return events.map((event) => ({ ...event, brainId: brain.id }));
     }),
   );
@@ -64,8 +66,8 @@ export default async function WorkspaceActivityPage() {
     <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
       <PageHeader
         kicker={`${activeTeam.name} · ${activeWorkspace.name}`}
-        title="Activity"
-        description="Everything connected agents and teammates did across this workspace's brains."
+        title="MCP Activity"
+        description="Everything connected MCP agents did across this workspace's brains."
       />
       <section className="mt-8">
         {days.length ? (
@@ -92,7 +94,7 @@ export default async function WorkspaceActivityPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Chip>{brainName.get(event.brainId) ?? "Unknown brain"}</Chip>
-                      <Chip>{event.clientId ?? "web"}</Chip>
+                      <Chip>{event.clientId}</Chip>
                     </div>
                   </article>
                 ))}
@@ -100,7 +102,7 @@ export default async function WorkspaceActivityPage() {
             </div>
           ))
         ) : (
-          <EmptyState title="No activity yet." body="Connected agents will appear here." />
+          <EmptyState title="No MCP activity yet." body="Connected agents will appear here." />
         )}
       </section>
     </main>
