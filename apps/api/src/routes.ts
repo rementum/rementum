@@ -45,6 +45,18 @@ export async function registerApiRoutes(
     config.REMENTUM_LLM_ENABLED && config.REMENTUM_LLM_BASE_URL && config.REMENTUM_LLM_MODEL,
   );
   const authRateLimit = { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } };
+  // Every /api/v1 and /mcp response is scoped to the authenticated actor, so no cache —
+  // browser or intermediary — may reuse one across sessions. Registered here without
+  // encapsulation, the hook covers the MCP endpoint too; OAuth responses keep the
+  // headers oidc-provider sets itself.
+  app.addHook("onSend", async (request, reply) => {
+    if (
+      !reply.getHeader("cache-control") &&
+      (request.url.startsWith("/api/v1/") || request.url.startsWith("/mcp/"))
+    ) {
+      reply.header("cache-control", "no-store");
+    }
+  });
   const authorize = async (request: FastifyRequest, scope: AccessScope) =>
     requireAccessScope(await authenticate(request), scope);
 
