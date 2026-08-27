@@ -5,6 +5,7 @@ import {
   type CreateTaskInput,
   type MaintenanceCandidate,
   type PromoteWriteInput,
+  type RoutingIndexSort,
   type SearchArticlesInput,
   type SourceInput,
   type Task,
@@ -444,12 +445,19 @@ export class PostgresStore implements DataStore {
 
   async countArticlesByBrain(actor: Actor): Promise<BrainArticleCount[]> {
     return this.withActor(actor, async (tx) => {
-      const rows = await tx<Array<{ brain_id: string; article_count: number }>>`
-        SELECT brain_id, COUNT(*)::int AS article_count
+      const rows = await tx<
+        Array<{ brain_id: string; article_count: number; latest_article_updated_at: Date | string }>
+      >`
+        SELECT brain_id, COUNT(*)::int AS article_count,
+          MAX(updated_at) AS latest_article_updated_at
         FROM articles WHERE archived_at IS NULL
         GROUP BY brain_id
       `;
-      return rows.map((row) => ({ brainId: row.brain_id, articleCount: row.article_count }));
+      return rows.map((row) => ({
+        brainId: row.brain_id,
+        articleCount: row.article_count,
+        latestArticleUpdatedAt: asDate(row.latest_article_updated_at).toISOString(),
+      }));
     });
   }
 
@@ -487,12 +495,17 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async listRoutingIndex(brainId: string, actor: Actor, limit: number): Promise<ArticleRecord[]> {
+  async listRoutingIndex(
+    brainId: string,
+    actor: Actor,
+    limit: number,
+    sort: RoutingIndexSort,
+  ): Promise<ArticleRecord[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
         SELECT ${tx.unsafe(ARTICLE_COLUMNS)} FROM articles
         WHERE brain_id = ${brainId} AND archived_at IS NULL
-        ORDER BY updated_at DESC, slug ASC LIMIT ${limit}
+        ORDER BY ${tx.unsafe(ROUTING_INDEX_ORDER[sort])} LIMIT ${limit}
       `;
       return rows.map(mapArticle);
     });
@@ -1728,6 +1741,13 @@ const ARTICLE_COLUMNS =
 const ARTICLE_COLUMNS_A = ARTICLE_COLUMNS.split(", ")
   .map((column) => `a.${column}`)
   .join(", ");
+
+// Sort keys resolve to constant SQL fragments through this closed record, so caller
+// input never reaches tx.unsafe — the same discipline as ARTICLE_COLUMNS above.
+const ROUTING_INDEX_ORDER: Record<RoutingIndexSort, string> = {
+  updated: "updated_at DESC, slug ASC",
+  title: "lower(title) ASC, slug ASC",
+};
 
 export async function setActorConfig(
   tx: Tx,

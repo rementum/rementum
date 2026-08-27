@@ -7,6 +7,7 @@ import {
   createTeamSchema,
   createWorkspaceSchema,
   promoteWriteSchema,
+  routingIndexSortSchema,
   searchArticlesSchema,
   stageWriteSchema,
   taskStatusSchema,
@@ -407,7 +408,11 @@ export async function registerApiRoutes(
   });
   app.get("/api/v1/brains/:brainId", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
-    return service.getBrain(brainId, await authorize(request, "brain:read"));
+    const { sort } = z
+      .object({ sort: routingIndexSortSchema.default("updated") })
+      .parse(request.query);
+    // limit stays undefined so its default lives in the service alone.
+    return service.getBrain(brainId, await authorize(request, "brain:read"), undefined, sort);
   });
   app.delete("/api/v1/brains/:brainId", async (request, reply) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);

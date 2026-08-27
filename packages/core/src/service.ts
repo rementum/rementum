@@ -5,6 +5,7 @@ import type {
   CreateTeamInput,
   CreateWorkspaceInput,
   PromoteWriteInput,
+  RoutingIndexSort,
   SearchArticlesInput,
   StageWriteInput,
   Task,
@@ -294,11 +295,16 @@ export class RementumService {
     return this.store.countArticlesByBrain(actor);
   }
 
-  async getBrain(brainId: string, actor: Actor, limit = 200): Promise<BrainWithIndex> {
+  async getBrain(
+    brainId: string,
+    actor: Actor,
+    limit = 200,
+    sort: RoutingIndexSort = "updated",
+  ): Promise<BrainWithIndex> {
     requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
     const brain = await this.store.getBrain(brainId, actor);
     if (!brain) throw new NotFoundError("Brain");
-    const articles = await this.store.listRoutingIndex(brainId, actor, limit);
+    const articles = await this.store.listRoutingIndex(brainId, actor, limit, sort);
     await this.store.audit(actor, "brain.read", `brain:${brainId}`, {
       articleCount: articles.length,
     });

@@ -1,10 +1,14 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { BrainDangerZone } from "../../../components/brain-danger-zone";
 import { BrainNav } from "../../../components/brain-nav";
 import { InviteMemberForm } from "../../../components/invite-member-form";
+import { PrefToggle } from "../../../components/pref-toggle";
 import { Card, CardHeader } from "../../../components/ui/card";
 import { StatusPill } from "../../../components/ui/status-pill";
 import { api } from "../../../lib/api";
+import { relativeTime } from "../../../lib/format";
+import { ARTICLES_SORT_COOKIE, ARTICLES_SORTS, parsePref } from "../../../lib/prefs";
 
 interface BrainResponse {
   brain: { id: string; name: string; description: string; instructions: string };
@@ -22,7 +26,14 @@ interface BrainResponse {
 
 export default async function BrainPage({ params }: { params: Promise<{ brainId: string }> }) {
   const { brainId } = await params;
-  const data = await api<BrainResponse>(`/api/v1/brains/${brainId}`);
+  // parsePref narrows the cookie to the closed enum before it touches the URL,
+  // and the API validates the value again.
+  const sort = parsePref(
+    (await cookies()).get(ARTICLES_SORT_COOKIE)?.value,
+    ARTICLES_SORTS,
+    "updated",
+  );
+  const data = await api<BrainResponse>(`/api/v1/brains/${brainId}?sort=${sort}`);
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
       <div className="grid gap-8 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -93,6 +104,17 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
               <CardHeader
                 title="Current canon"
                 count={`${data.routingIndex.length} ${data.routingIndex.length === 1 ? "article" : "articles"}`}
+                action={
+                  <PrefToggle
+                    cookieName={ARTICLES_SORT_COOKIE}
+                    value={sort}
+                    label="Sort articles"
+                    options={[
+                      { value: "updated", label: "Updated" },
+                      { value: "title", label: "Title" },
+                    ]}
+                  />
+                }
               />
               {data.routingIndex.length ? (
                 <div className="divide-y divide-line">
@@ -111,6 +133,12 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
                         <StatusPill status={article.freshness} />
+                        <time
+                          className="font-mono text-2xs tabular-nums text-ink-3"
+                          dateTime={article.updatedAt}
+                        >
+                          {relativeTime(article.updatedAt)}
+                        </time>
                         <span className="font-mono text-2xs tabular-nums text-ink-3">
                           v{article.currentVersion}
                         </span>

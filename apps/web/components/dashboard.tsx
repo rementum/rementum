@@ -1,12 +1,24 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { api, workspaceContext } from "../lib/api";
 import { relativeTime } from "../lib/format";
+import {
+  BRAINS_SORT_COOKIE,
+  BRAINS_SORTS,
+  BRAINS_VIEW_COOKIE,
+  BRAINS_VIEWS,
+  type BrainsSort,
+  type BrainsView,
+  parsePref,
+} from "../lib/prefs";
 import { AgentConnect } from "./agent-connect";
+import { PrefToggle } from "./pref-toggle";
 import { EyebrowPill } from "./pui";
 import { AURORA_SOFT, AuroraBackdrop } from "./ui/backdrop";
 import { ButtonLink } from "./ui/button-link";
 import { Card, CardHeader } from "./ui/card";
 import { Chip } from "./ui/chip";
+import { IconGrid, IconIndex } from "./ui/icons";
 import { StatusPill } from "./ui/status-pill";
 
 interface Brain {
@@ -21,6 +33,7 @@ interface Brain {
 interface BrainArticleCount {
   brainId: string;
   articleCount: number;
+  latestArticleUpdatedAt: string;
 }
 
 interface Write {
@@ -41,15 +54,24 @@ interface BrainOverview {
 const OVERVIEW_LIMIT = 12;
 
 export async function Dashboard() {
+  const cookieStore = await cookies();
+  const view = parsePref(cookieStore.get(BRAINS_VIEW_COOKIE)?.value, BRAINS_VIEWS, "card");
+  const sort = parsePref(cookieStore.get(BRAINS_SORT_COOKIE)?.value, BRAINS_SORTS, "updated");
   const { workspaces, activeTeam, activeWorkspace } = await workspaceContext();
   const [allBrains, articleCounts] = await Promise.all([
     api<Brain[]>("/api/v1/brains"),
     api<BrainArticleCount[]>("/api/v1/brains/article-counts"),
   ]);
+  const statsByBrain = new Map(articleCounts.map((row) => [row.brainId, row]));
   const countByBrain = new Map(articleCounts.map((row) => [row.brainId, row.articleCount]));
+  // brains.updated_at is frozen at creation; the newest article promote is the
+  // truthful "last updated", falling back to creation time for empty brains.
+  const lastUpdated = (brain: Brain) =>
+    statsByBrain.get(brain.id)?.latestArticleUpdatedAt ?? brain.updatedAt;
   const workspaceIds = new Set(workspaces.map((workspace) => workspace.id));
   const sharedBrains = allBrains.filter((brain) => !workspaceIds.has(brain.workspaceId));
-  if (!activeWorkspace || !activeTeam) return <NoWorkspace sharedBrains={sharedBrains} />;
+  if (!activeWorkspace || !activeTeam)
+    return <NoWorkspace sharedBrains={sharedBrains} view={view} lastUpdated={lastUpdated} />;
   const brains = allBrains.filter((brain) => brain.workspaceId === activeWorkspace.id);
   if (!brains.length)
     return (
@@ -58,12 +80,29 @@ export async function Dashboard() {
         workspaceName={activeWorkspace.name}
         mcpUrl={activeWorkspace.mcpUrl}
         sharedBrains={sharedBrains}
+        view={view}
+        lastUpdated={lastUpdated}
       />
     );
 
+  const byName = (a: Brain, b: Brain) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) ||
+    a.slug.localeCompare(b.slug);
+  // The overview slice (writes fetch, review queue) keeps recency semantics no
+  // matter which display sort is active.
   const recentFirst = [...brains].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    (a, b) =>
+      new Date(lastUpdated(b)).getTime() - new Date(lastUpdated(a)).getTime() || byName(a, b),
   );
+  const displayBrains =
+    sort === "updated"
+      ? recentFirst
+      : [...brains].sort(
+          sort === "articles"
+            ? (a, b) =>
+                (countByBrain.get(b.id) ?? 0) - (countByBrain.get(a.id) ?? 0) || byName(a, b)
+            : byName,
+        );
   const overviews = await Promise.all(
     recentFirst.slice(0, OVERVIEW_LIMIT).map(async (brain): Promise<BrainOverview> => {
       const writes = await api<Write[]>(`/api/v1/brains/${brain.id}/writes`);
@@ -159,38 +198,62 @@ export async function Dashboard() {
         </section>
 
         <section className="mt-10" aria-labelledby="dash-brains-title">
-          <SectionHead id="dash-brains-title" title="Brains" note="Most recently updated first" />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {recentFirst.map((brain) => {
+          <SectionHead
+            id="dash-brains-title"
+            title="Brains"
+            note={SORT_NOTES[sort]}
+            actions={
+              <>
+                <PrefToggle
+                  cookieName={BRAINS_SORT_COOKIE}
+                  value={sort}
+                  label="Sort brains"
+                  options={[
+                    { value: "updated", label: "Updated" },
+                    { value: "articles", label: "Articles" },
+                    { value: "name", label: "Name" },
+                  ]}
+                />
+                <PrefToggle
+                  cookieName={BRAINS_VIEW_COOKIE}
+                  value={view}
+                  label="Brains layout"
+                  options={[
+                    { value: "card", label: "Card view", icon: <IconGrid /> },
+                    { value: "list", label: "List view", icon: <IconIndex /> },
+                  ]}
+                />
+              </>
+            }
+          />
+          <BrainCollection
+            view={view}
+            items={displayBrains.map((brain) => {
               const pending = pendingByBrain.get(brain.id) ?? 0;
               const count = countByBrain.get(brain.id) ?? 0;
-              return (
-                <BrainCard
-                  key={brain.id}
-                  brain={brain}
-                  badge={
-                    pending ? (
-                      <Chip tone="orange">
-                        <span
-                          aria-hidden="true"
-                          className="size-1.5 animate-pulse-dot rounded-full bg-current"
-                        />
-                        {pending} to review
-                      </Chip>
-                    ) : null
-                  }
-                  meta={`${count} ${count === 1 ? "article" : "articles"}`}
-                />
-              );
+              return {
+                brain,
+                updatedAt: lastUpdated(brain),
+                meta: `${count} ${count === 1 ? "article" : "articles"}`,
+                badge: pending ? (
+                  <Chip tone="orange">
+                    <span
+                      aria-hidden="true"
+                      className="size-1.5 animate-pulse-dot rounded-full bg-current"
+                    />
+                    {pending} to review
+                  </Chip>
+                ) : null,
+              };
             })}
-          </div>
+          />
         </section>
 
         <div className="mt-10">
           <AgentConnect workspaceName={activeWorkspace.name} mcpUrl={activeWorkspace.mcpUrl} />
         </div>
 
-        <SharedBrains brains={sharedBrains} />
+        <SharedBrains brains={sharedBrains} view={view} lastUpdated={lastUpdated} />
       </main>
     </div>
   );
@@ -229,9 +292,25 @@ function StatTile({
   );
 }
 
-function SectionHead({ id, title, note }: { id: string; title: string; note?: string }) {
+const SORT_NOTES: Record<BrainsSort, string> = {
+  updated: "Most recently updated first",
+  articles: "Most articles first",
+  name: "A to Z",
+};
+
+function SectionHead({
+  id,
+  title,
+  note,
+  actions,
+}: {
+  id: string;
+  title: string;
+  note?: string;
+  actions?: React.ReactNode;
+}) {
   return (
-    <div className="mb-4 flex items-baseline gap-3 border-b border-dashed border-line pb-2">
+    <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-dashed border-line pb-2">
       <h2
         id={id}
         className="font-mono text-2xs font-semibold uppercase tracking-[0.08em] text-ink-3"
@@ -239,19 +318,40 @@ function SectionHead({ id, title, note }: { id: string; title: string; note?: st
         {title}
       </h2>
       {note ? <span className="text-2xs text-ink-3">{note}</span> : null}
+      {actions ? <div className="ml-auto flex items-center gap-2">{actions}</div> : null}
     </div>
   );
 }
 
-function BrainCard({
-  brain,
-  badge,
-  meta,
-}: {
+interface BrainItem {
   brain: Brain;
+  updatedAt: string;
   badge?: React.ReactNode;
   meta?: string | null;
-}) {
+}
+
+function BrainCollection({ view, items }: { view: BrainsView; items: BrainItem[] }) {
+  if (view === "list") {
+    return (
+      <Card>
+        <div className="divide-y divide-line">
+          {items.map((item) => (
+            <BrainListRow key={item.brain.id} {...item} />
+          ))}
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((item) => (
+        <BrainCard key={item.brain.id} {...item} />
+      ))}
+    </div>
+  );
+}
+
+function BrainCard({ brain, updatedAt, badge, meta }: BrainItem) {
   return (
     <Link
       className="group relative flex flex-col rounded-card border border-line bg-surface/70 p-4 shadow-card backdrop-blur-sm transition-all duration-150 hover:border-accent/30 hover:shadow-raised active:scale-[0.98]"
@@ -269,13 +369,47 @@ function BrainCard({
       </p>
       <div className="mt-auto flex items-center justify-between border-t border-line pt-2.5 font-mono text-2xs tabular-nums text-ink-3">
         <span>{meta}</span>
-        <time dateTime={brain.updatedAt}>Updated {relativeTime(brain.updatedAt)}</time>
+        <time dateTime={updatedAt}>Updated {relativeTime(updatedAt)}</time>
       </div>
     </Link>
   );
 }
 
-function SharedBrains({ brains }: { brains: Brain[] }) {
+function BrainListRow({ brain, updatedAt, badge, meta }: BrainItem) {
+  return (
+    <Link
+      className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-hover active:scale-[0.98]"
+      href={`/brains/${brain.id}`}
+    >
+      <Chip className="max-w-[20%] shrink-0">
+        <span className="truncate">{brain.slug}</span>
+      </Chip>
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate text-sm font-medium text-ink">{brain.name}</h3>
+        <p className="line-clamp-1 text-xs text-ink-2">
+          {brain.description || "No description yet."}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        {badge}
+        {meta ? <span className="font-mono text-2xs tabular-nums text-ink-3">{meta}</span> : null}
+        <time className="font-mono text-2xs tabular-nums text-ink-3" dateTime={updatedAt}>
+          {relativeTime(updatedAt)}
+        </time>
+      </div>
+    </Link>
+  );
+}
+
+function SharedBrains({
+  brains,
+  view,
+  lastUpdated,
+}: {
+  brains: Brain[];
+  view: BrainsView;
+  lastUpdated: (brain: Brain) => string;
+}) {
   if (!brains.length) return null;
   return (
     <section className="mt-10" aria-labelledby="dash-shared-title">
@@ -284,11 +418,14 @@ function SharedBrains({ brains }: { brains: Brain[] }) {
         title="Shared with me"
         note="Guest access outside your teams"
       />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {brains.map((brain) => (
-          <BrainCard key={brain.id} brain={brain} badge={<Chip tone="accent">Guest</Chip>} />
-        ))}
-      </div>
+      <BrainCollection
+        view={view}
+        items={brains.map((brain) => ({
+          brain,
+          updatedAt: lastUpdated(brain),
+          badge: <Chip tone="accent">Guest</Chip>,
+        }))}
+      />
     </section>
   );
 }
@@ -310,7 +447,15 @@ function EmptyShell({ kicker, children }: { kicker: string; children: React.Reac
   );
 }
 
-function NoWorkspace({ sharedBrains }: { sharedBrains: Brain[] }) {
+function NoWorkspace({
+  sharedBrains,
+  view,
+  lastUpdated,
+}: {
+  sharedBrains: Brain[];
+  view: BrainsView;
+  lastUpdated: (brain: Brain) => string;
+}) {
   return (
     <EmptyShell kicker="Workspace">
       <section className="mt-12 rounded-card border border-dashed border-line bg-surface/50 px-6 py-14 text-center backdrop-blur-sm">
@@ -326,7 +471,7 @@ function NoWorkspace({ sharedBrains }: { sharedBrains: Brain[] }) {
           </ButtonLink>
         </div>
       </section>
-      <SharedBrains brains={sharedBrains} />
+      <SharedBrains brains={sharedBrains} view={view} lastUpdated={lastUpdated} />
     </EmptyShell>
   );
 }
@@ -336,11 +481,15 @@ function EmptyWorkspace({
   workspaceName,
   mcpUrl,
   sharedBrains,
+  view,
+  lastUpdated,
 }: {
   teamName: string;
   workspaceName: string;
   mcpUrl: string;
   sharedBrains: Brain[];
+  view: BrainsView;
+  lastUpdated: (brain: Brain) => string;
 }) {
   return (
     <EmptyShell kicker={`${teamName} · ${workspaceName}`}>
@@ -361,7 +510,7 @@ function EmptyWorkspace({
           </ButtonLink>
         </div>
       </section>
-      <SharedBrains brains={sharedBrains} />
+      <SharedBrains brains={sharedBrains} view={view} lastUpdated={lastUpdated} />
     </EmptyShell>
   );
 }

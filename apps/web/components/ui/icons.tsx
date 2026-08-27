@@ -61,6 +61,17 @@ export function IconIndex(props: IconProps) {
   );
 }
 
+export function IconGrid(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="9" width="4.5" height="4.5" rx="1" />
+    </Icon>
+  );
+}
+
 export function IconWrites(props: IconProps) {
   return (
     <Icon {...props}>
