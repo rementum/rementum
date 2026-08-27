@@ -28,7 +28,9 @@ describe("HttpEmbeddingClient", () => {
   it("asks for a query embedding with the query prefix", async () => {
     fetchMock.mockResolvedValueOnce(embedResponse([vector()]));
     const client = new HttpEmbeddingClient(baseUrl);
-    await expect(client.embedQuery("encryption")).resolves.toHaveLength(384);
+    const { model, vector: embedded } = await client.embedQuery("encryption");
+    expect(model).toBe("intfloat/multilingual-e5-small");
+    expect(embedded).toHaveLength(384);
     const [url, init] = fetchMock.mock.calls[0] as [string, { body: string }];
     expect(url).toBe(`${baseUrl}/embed`);
     expect(JSON.parse(init.body)).toEqual({ kind: "query", texts: ["encryption"] });
@@ -37,7 +39,9 @@ describe("HttpEmbeddingClient", () => {
   it("asks for passage embeddings in one request", async () => {
     fetchMock.mockResolvedValueOnce(embedResponse([vector(0.1), vector(0.2)]));
     const client = new HttpEmbeddingClient(baseUrl);
-    await expect(client.embedPassages(["one", "two"])).resolves.toHaveLength(2);
+    const { model, vectors } = await client.embedPassages(["one", "two"]);
+    expect(model).toBe("intfloat/multilingual-e5-small");
+    expect(vectors).toHaveLength(2);
     const [, passageInit] = fetchMock.mock.calls[0] as [string, { body: string }];
     expect(JSON.parse(passageInit.body)).toEqual({
       kind: "passage",
@@ -46,7 +50,10 @@ describe("HttpEmbeddingClient", () => {
   });
 
   it("does not call the service for an empty batch", async () => {
-    await expect(new HttpEmbeddingClient(baseUrl).embedPassages([])).resolves.toEqual([]);
+    await expect(new HttpEmbeddingClient(baseUrl).embedPassages([])).resolves.toEqual({
+      model: "",
+      vectors: [],
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -64,7 +71,10 @@ describe("HttpEmbeddingClient", () => {
 
   it("returns an empty vector when the service answers with none", async () => {
     fetchMock.mockResolvedValueOnce(embedResponse([]));
-    await expect(new HttpEmbeddingClient(baseUrl).embedQuery("x")).resolves.toEqual([]);
+    await expect(new HttpEmbeddingClient(baseUrl).embedQuery("x")).resolves.toEqual({
+      model: "intfloat/multilingual-e5-small",
+      vector: [],
+    });
   });
 
   it("treats an unreachable or unhealthy service as unhealthy", async () => {

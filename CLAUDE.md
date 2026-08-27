@@ -58,7 +58,7 @@ higher with one — because the integration suites are half the code under measu
 apps/api         Fastify: REST /api/v1, OAuth provider (oidc-provider), MCP endpoint
 apps/web         Next.js 16 (App Router, RSC), Tailwind 4
 apps/worker      loop: maintenance scans, reindexing, LLM compaction jobs
-apps/embeddings  local multilingual-e5-small over @huggingface/transformers
+apps/embeddings  local granite-embedding-97m-multilingual-r2 over @huggingface/transformers
 packages/contracts  Zod schemas — the single source of truth for REST, MCP tools, and web types
 packages/core       RementumService (all domain logic), crypto, imports, search ranking
 packages/db         PostgresStore, AuthRepository, drizzle schema, SQL migrations

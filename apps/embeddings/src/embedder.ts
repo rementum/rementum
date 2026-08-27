@@ -17,10 +17,62 @@ export function assertModelCacheWritable(dir: string): void {
 
 export type Extractor = (
   texts: string[],
-  options: { pooling: "mean"; normalize: true },
+  options: { pooling: "cls" | "mean"; normalize: true },
 ) => Promise<{ tolist(): unknown }>;
 
 export const embeddingDimensions = 384;
+
+export type ModelSpec = {
+  pooling: "cls" | "mean";
+  queryPrefix: string;
+  passagePrefix: string;
+  dtype: string;
+};
+
+// Pooling, prefixes, and dtype are properties of how a model was trained, not preferences.
+// CLS-pooling a mean-pooled model, or dropping the "query: " marker an e5 model was trained
+// with, silently degrades every vector it produces. Known families get their trained
+// configuration; anything unrecognized keeps the e5-style behaviour this service always had,
+// and each field can be overridden through the environment for models not listed here.
+const KNOWN_FAMILIES: Array<{ match: RegExp; spec: ModelSpec }> = [
+  {
+    match: /granite-embedding/i,
+    spec: { pooling: "cls", queryPrefix: "", passagePrefix: "", dtype: "q8" },
+  },
+  {
+    match: /-e5-|\be5\b/i,
+    spec: { pooling: "mean", queryPrefix: "query: ", passagePrefix: "passage: ", dtype: "fp32" },
+  },
+];
+
+const FALLBACK_SPEC: ModelSpec = {
+  pooling: "mean",
+  queryPrefix: "query: ",
+  passagePrefix: "passage: ",
+  dtype: "fp32",
+};
+
+// Compose passes optional variables through as empty strings, so empty means unset.
+function override(value: string | undefined): string | undefined {
+  return value ? value : undefined;
+}
+
+export function resolveModelSpec(
+  model: string,
+  env: Record<string, string | undefined>,
+): ModelSpec {
+  const base = KNOWN_FAMILIES.find((family) => family.match.test(model))?.spec ?? FALLBACK_SPEC;
+  const pooling = override(env.REMENTUM_EMBEDDING_POOLING) ?? base.pooling;
+  if (pooling !== "cls" && pooling !== "mean") {
+    throw new Error(`REMENTUM_EMBEDDING_POOLING must be "cls" or "mean", received "${pooling}"`);
+  }
+  return {
+    pooling,
+    queryPrefix: override(env.REMENTUM_EMBEDDING_QUERY_PREFIX) ?? base.queryPrefix,
+    passagePrefix: override(env.REMENTUM_EMBEDDING_PASSAGE_PREFIX) ?? base.passagePrefix,
+    dtype: override(env.REMENTUM_EMBEDDING_DTYPE) ?? base.dtype,
+  };
+}
 
 export type Embedder = {
   ready(): boolean;
@@ -30,6 +82,7 @@ export type Embedder = {
 
 export function createEmbedder(
   model: string,
+  spec: ModelSpec,
   load: (model: string) => Promise<Extractor>,
 ): Embedder {
   let pending: Promise<Extractor> | null = null;
@@ -56,11 +109,11 @@ export function createEmbedder(
     ready: () => ready,
     load: loadOnce,
     async embed(kind, texts) {
-      const prefix = kind === "query" ? "query: " : "passage: ";
+      const prefix = kind === "query" ? spec.queryPrefix : spec.passagePrefix;
       const extractor = await loadOnce();
       const output = await extractor(
         texts.map((text) => `${prefix}${text}`),
-        { pooling: "mean", normalize: true },
+        { pooling: spec.pooling, normalize: true },
       );
       const vectors = output.tolist() as number[][];
       if (vectors.some((vector) => vector.length !== embeddingDimensions)) {

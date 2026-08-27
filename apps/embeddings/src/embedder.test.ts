@@ -7,7 +7,16 @@ import {
   createEmbedder,
   type Extractor,
   embeddingDimensions,
+  type ModelSpec,
+  resolveModelSpec,
 } from "./embedder.js";
+
+const E5_SPEC: ModelSpec = {
+  pooling: "mean",
+  queryPrefix: "query: ",
+  passagePrefix: "passage: ",
+  dtype: "fp32",
+};
 
 function extractorReturning(vectors: number[][]): Extractor {
   return async () => ({ tolist: () => vectors });
@@ -21,7 +30,7 @@ describe("createEmbedder", () => {
       .fn<(model: string) => Promise<Extractor>>()
       .mockRejectedValueOnce(new Error("EACCES: permission denied, mkdir '/models/intfloat'"))
       .mockResolvedValueOnce(extractorReturning(oneVector));
-    const embedder = createEmbedder("test-model", load);
+    const embedder = createEmbedder("test-model", E5_SPEC, load);
 
     await expect(embedder.load()).rejects.toThrow("EACCES");
     expect(embedder.ready()).toBe(false);
@@ -33,7 +42,7 @@ describe("createEmbedder", () => {
 
   it("loads the model once for concurrent callers", async () => {
     const load = vi.fn(async () => extractorReturning(oneVector));
-    const embedder = createEmbedder("test-model", load);
+    const embedder = createEmbedder("test-model", E5_SPEC, load);
 
     await Promise.all([embedder.load(), embedder.load(), embedder.embed("passage", ["a"])]);
 
@@ -42,7 +51,7 @@ describe("createEmbedder", () => {
 
   it("prefixes queries and passages the way the e5 models expect", async () => {
     const extractor = vi.fn(extractorReturning(oneVector));
-    const embedder = createEmbedder("test-model", async () => extractor);
+    const embedder = createEmbedder("test-model", E5_SPEC, async () => extractor);
 
     await embedder.embed("query", ["how do I deploy"]);
     await embedder.embed("passage", ["deployment guide"]);
@@ -53,7 +62,9 @@ describe("createEmbedder", () => {
   });
 
   it("refuses a model whose vectors are the wrong width", async () => {
-    const embedder = createEmbedder("wrong-model", async () => extractorReturning([[0, 1, 2]]));
+    const embedder = createEmbedder("wrong-model", E5_SPEC, async () =>
+      extractorReturning([[0, 1, 2]]),
+    );
 
     await expect(embedder.embed("query", ["hello"])).rejects.toThrow(
       `Embedding model wrong-model did not produce ${embeddingDimensions} dimensions`,
@@ -79,5 +90,41 @@ describe("assertModelCacheWritable", () => {
     } finally {
       chmodSync(dir, 0o700);
     }
+  });
+});
+
+describe("resolveModelSpec", () => {
+  it("gives granite models CLS pooling, no prefixes, and a quantized dtype", () => {
+    expect(
+      resolveModelSpec("onnx-community/granite-embedding-97m-multilingual-r2-ONNX", {}),
+    ).toEqual({ pooling: "cls", queryPrefix: "", passagePrefix: "", dtype: "q8" });
+  });
+
+  it("keeps the trained e5 configuration for e5 models", () => {
+    expect(resolveModelSpec("intfloat/multilingual-e5-small", {})).toEqual(E5_SPEC);
+  });
+
+  it("falls back to the historical e5-style behaviour for unknown models", () => {
+    expect(resolveModelSpec("acme/some-embedder", {})).toEqual(E5_SPEC);
+  });
+
+  it("lets the environment override each field, treating empty strings as unset", () => {
+    const spec = resolveModelSpec("acme/some-embedder", {
+      REMENTUM_EMBEDDING_POOLING: "cls",
+      REMENTUM_EMBEDDING_QUERY_PREFIX: "",
+      REMENTUM_EMBEDDING_DTYPE: "q4",
+    });
+    expect(spec).toEqual({
+      pooling: "cls",
+      queryPrefix: "query: ",
+      passagePrefix: "passage: ",
+      dtype: "q4",
+    });
+  });
+
+  it("refuses a pooling value the runtime does not support", () => {
+    expect(() =>
+      resolveModelSpec("acme/some-embedder", { REMENTUM_EMBEDDING_POOLING: "max" }),
+    ).toThrow('REMENTUM_EMBEDDING_POOLING must be "cls" or "mean"');
   });
 });

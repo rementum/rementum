@@ -6,9 +6,13 @@ import {
   createEmbedder,
   type Extractor,
   embeddingDimensions,
+  resolveModelSpec,
 } from "./embedder.js";
 
-const model = process.env.REMENTUM_EMBEDDING_MODEL ?? "intfloat/multilingual-e5-small";
+const model =
+  process.env.REMENTUM_EMBEDDING_MODEL ||
+  "onnx-community/granite-embedding-97m-multilingual-r2-ONNX";
+const spec = resolveModelSpec(model, process.env);
 const cacheDir = process.env.REMENTUM_MODEL_CACHE;
 if (cacheDir) {
   env.cacheDir = cacheDir;
@@ -23,14 +27,14 @@ const requestSchema = z.object({
   texts: z.array(z.string().min(1).max(20_000)).min(1).max(64),
 });
 
-const embedder = createEmbedder(model, (name) =>
+const embedder = createEmbedder(model, spec, (name) =>
   (
     pipeline as unknown as (
       task: string,
       modelName: string,
       options: { dtype: string },
     ) => Promise<Extractor>
-  )("feature-extraction", name, { dtype: "fp32" }),
+  )("feature-extraction", name, { dtype: spec.dtype }),
 );
 
 app.get("/healthz", async (request, reply) => {

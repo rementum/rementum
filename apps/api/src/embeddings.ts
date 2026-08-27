@@ -10,12 +10,13 @@ const responseSchema = z.object({
 export class HttpEmbeddingClient implements EmbeddingClient {
   constructor(private readonly baseUrl: string) {}
 
-  async embedQuery(value: string): Promise<number[]> {
-    return (await this.embed("query", [value]))[0] ?? [];
+  async embedQuery(value: string): Promise<{ model: string; vector: number[] }> {
+    const { model, vectors } = await this.embed("query", [value]);
+    return { model, vector: vectors[0] ?? [] };
   }
 
-  async embedPassages(values: string[]): Promise<number[][]> {
-    if (!values.length) return [];
+  async embedPassages(values: string[]): Promise<{ model: string; vectors: number[][] }> {
+    if (!values.length) return { model: "", vectors: [] };
     return this.embed("passage", values);
   }
 
@@ -30,7 +31,10 @@ export class HttpEmbeddingClient implements EmbeddingClient {
     }
   }
 
-  private async embed(kind: "query" | "passage", texts: string[]): Promise<number[][]> {
+  private async embed(
+    kind: "query" | "passage",
+    texts: string[],
+  ): Promise<{ model: string; vectors: number[][] }> {
     const response = await fetch(`${this.baseUrl}/embed`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -38,6 +42,7 @@ export class HttpEmbeddingClient implements EmbeddingClient {
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) throw new Error(`Embedding service returned ${response.status}`);
-    return responseSchema.parse(await response.json()).vectors;
+    const { model, vectors } = responseSchema.parse(await response.json());
+    return { model, vectors };
   }
 }

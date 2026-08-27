@@ -80,10 +80,26 @@ REMENTUM_MAIL_FROM='Rementum <rementum@example.com>'
 | `REMENTUM_POSTGRES_PASSWORD` | Application database role password |
 | `REMENTUM_POSTGRES_SUPER_PASSWORD` | Migration and backup database password |
 | `REMENTUM_EMBEDDING_MODEL` | Model loaded by the embedding service |
+| `REMENTUM_EMBEDDING_DTYPE` | Optional weight precision override, such as `fp32` or `q8` |
+| `REMENTUM_EMBEDDING_POOLING` | Optional pooling override (`cls` or `mean`) for unrecognized models |
+| `REMENTUM_EMBEDDING_QUERY_PREFIX` | Optional query prefix for models trained with one |
+| `REMENTUM_EMBEDDING_PASSAGE_PREFIX` | Optional passage prefix for models trained with one |
 | `REMENTUM_BLOB_DIR` | Blob storage path inside API and worker containers |
 | `REMENTUM_EXPORT_DIR` | Export workspace inside API and worker containers |
 | `REMENTUM_BACKUP_HOST_DIR` | Host directory that receives encrypted backup archives |
 | `REMENTUM_BACKUP_AGE_RECIPIENT` | Age recipient required by the backup command |
+
+The default embedding model is `onnx-community/granite-embedding-97m-multilingual-r2-ONNX`,
+loaded quantized. Pooling, text prefixes, and precision follow the model family: granite models
+use CLS pooling with no prefixes, e5 models use mean pooling with `query:`/`passage:` prefixes,
+and anything unrecognized is treated like e5 unless the override variables say otherwise. Any
+replacement model must produce 384-dimensional vectors.
+
+Changing the model needs no migration. Every stored vector is stamped with the model that produced
+it, search ranks only vectors from the active model, and the worker's hourly maintenance pass
+re-embeds each article it finds indexed under anything else. Until an article is re-embedded it is
+still found through metadata and full-text search, so search quality recovers brain by brain over
+the passes that follow a switch.
 
 The Compose file creates named volumes for PostgreSQL, blobs, Caddy state, and the embedding model
 cache. `REMENTUM_BACKUP_HOST_DIR` uses a host bind mount so you can move encrypted archives off the
