@@ -17,9 +17,15 @@ class WorkerEmbeddingClient {
     return this.embed("passage", values);
   }
 
+  // /healthz blocks on the model load, which can run for minutes on a cold cache. A probe that
+  // times out during that window reads as "not up yet", which every caller already treats as
+  // retry-next-pass — while an unbounded probe would hang the maintenance loop itself.
   async healthy() {
     try {
-      return (await fetch(`${this.baseUrl}/healthz`)).ok;
+      const response = await fetch(`${this.baseUrl}/healthz`, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      return response.ok;
     } catch {
       return false;
     }
@@ -28,7 +34,9 @@ class WorkerEmbeddingClient {
   /** The active model, or null while the service is unreachable or still loading. */
   async activeModel(): Promise<string | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/healthz`);
+      const response = await fetch(`${this.baseUrl}/healthz`, {
+        signal: AbortSignal.timeout(10_000),
+      });
       if (!response.ok) return null;
       return ((await response.json()) as { model: string }).model;
     } catch {

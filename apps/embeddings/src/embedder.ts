@@ -1,4 +1,5 @@
 import { accessSync, constants, mkdirSync } from "node:fs";
+import type { DataType } from "@huggingface/transformers";
 
 // The cache directory is normally a Docker volume, and an empty volume is created root-owned
 // unless the image seeds it. The unprivileged user then fails the model download deep inside the
@@ -26,8 +27,26 @@ export type ModelSpec = {
   pooling: "cls" | "mean";
   queryPrefix: string;
   passagePrefix: string;
-  dtype: string;
+  dtype: DataType;
 };
+
+// Mirrors DATA_TYPES in @huggingface/transformers; `satisfies` fails the build if the library
+// drops one, so a value accepted here is always a value the pipeline accepts.
+const DTYPES = [
+  "auto",
+  "fp32",
+  "fp16",
+  "q8",
+  "int8",
+  "uint8",
+  "q4",
+  "bnb4",
+  "q4f16",
+] as const satisfies readonly DataType[];
+
+function isDataType(value: string): value is DataType {
+  return (DTYPES as readonly string[]).includes(value);
+}
 
 // Pooling, prefixes, and dtype are properties of how a model was trained, not preferences.
 // CLS-pooling a mean-pooled model, or dropping the "query: " marker an e5 model was trained
@@ -66,12 +85,35 @@ export function resolveModelSpec(
   if (pooling !== "cls" && pooling !== "mean") {
     throw new Error(`REMENTUM_EMBEDDING_POOLING must be "cls" or "mean", received "${pooling}"`);
   }
+  const dtype = override(env.REMENTUM_EMBEDDING_DTYPE) ?? base.dtype;
+  if (!isDataType(dtype)) {
+    throw new Error(
+      `REMENTUM_EMBEDDING_DTYPE must be one of ${DTYPES.join(", ")}, received "${dtype}"`,
+    );
+  }
   return {
     pooling,
     queryPrefix: override(env.REMENTUM_EMBEDDING_QUERY_PREFIX) ?? base.queryPrefix,
     passagePrefix: override(env.REMENTUM_EMBEDDING_PASSAGE_PREFIX) ?? base.passagePrefix,
-    dtype: override(env.REMENTUM_EMBEDDING_DTYPE) ?? base.dtype,
+    dtype,
   };
+}
+
+// Pooling and the prefixes define the vector space: change either and every stored vector stops
+// being comparable with new ones, exactly as if the model itself had changed. So when an override
+// moves a model off its family defaults, the identity stored next to each vector moves too —
+// search then refuses to mix the spaces and the worker's unindexed pass re-embeds the corpus,
+// the same self-healing a model switch gets. dtype stays out on purpose: quantization perturbs
+// vectors inside the same space rather than replacing it, and forcing a corpus re-embed over a
+// precision change would be waste.
+export function embeddingSpaceId(model: string, spec: ModelSpec): string {
+  const defaults = resolveModelSpec(model, {});
+  const drift = [
+    spec.pooling !== defaults.pooling ? `pooling=${spec.pooling}` : null,
+    spec.queryPrefix !== defaults.queryPrefix ? `query=${spec.queryPrefix}` : null,
+    spec.passagePrefix !== defaults.passagePrefix ? `passage=${spec.passagePrefix}` : null,
+  ].filter((part) => part !== null);
+  return drift.length > 0 ? `${model}#${drift.join(";")}` : model;
 }
 
 export type Embedder = {

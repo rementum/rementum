@@ -101,6 +101,12 @@ re-embeds each article it finds indexed under anything else. Until an article is
 still found through metadata and full-text search, so search quality recovers brain by brain over
 the passes that follow a switch.
 
+Overriding pooling or a prefix changes the vectors a model produces just as a model switch would,
+so those overrides become part of the stored identity (for example
+`acme/some-embedder#pooling=cls`) and trigger the same automatic re-embed when they change.
+`REMENTUM_EMBEDDING_DTYPE` does not: precision only perturbs vectors inside the same space, and an
+unsupported value is rejected at startup.
+
 The Compose file creates named volumes for PostgreSQL, blobs, Caddy state, and the embedding model
 cache. `REMENTUM_BACKUP_HOST_DIR` uses a host bind mount so you can move encrypted archives off the
 server.

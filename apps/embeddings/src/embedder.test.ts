@@ -7,6 +7,7 @@ import {
   createEmbedder,
   type Extractor,
   embeddingDimensions,
+  embeddingSpaceId,
   type ModelSpec,
   resolveModelSpec,
 } from "./embedder.js";
@@ -126,5 +127,37 @@ describe("resolveModelSpec", () => {
     expect(() =>
       resolveModelSpec("acme/some-embedder", { REMENTUM_EMBEDDING_POOLING: "max" }),
     ).toThrow('REMENTUM_EMBEDDING_POOLING must be "cls" or "mean"');
+  });
+
+  it("refuses a dtype the pipeline does not support", () => {
+    expect(() =>
+      resolveModelSpec("acme/some-embedder", { REMENTUM_EMBEDDING_DTYPE: "int8x" }),
+    ).toThrow("REMENTUM_EMBEDDING_DTYPE must be one of");
+  });
+});
+
+describe("embeddingSpaceId", () => {
+  const model = "onnx-community/granite-embedding-97m-multilingual-r2-ONNX";
+
+  it("is the bare model name while the spec matches the family defaults", () => {
+    expect(embeddingSpaceId(model, resolveModelSpec(model, {}))).toBe(model);
+  });
+
+  it("ignores a dtype override, which stays inside the same vector space", () => {
+    const spec = resolveModelSpec(model, { REMENTUM_EMBEDDING_DTYPE: "fp32" });
+    expect(embeddingSpaceId(model, spec)).toBe(model);
+  });
+
+  it("changes when an override changes the vector space", () => {
+    const spec = resolveModelSpec(model, {
+      REMENTUM_EMBEDDING_POOLING: "mean",
+      REMENTUM_EMBEDDING_QUERY_PREFIX: "query: ",
+    });
+    expect(embeddingSpaceId(model, spec)).toBe(`${model}#pooling=mean;query=query: `);
+  });
+
+  it("marks an unknown model whose overrides drift from the fallback spec", () => {
+    const spec = resolveModelSpec("acme/some-embedder", { REMENTUM_EMBEDDING_POOLING: "cls" });
+    expect(embeddingSpaceId("acme/some-embedder", spec)).toBe("acme/some-embedder#pooling=cls");
   });
 });
