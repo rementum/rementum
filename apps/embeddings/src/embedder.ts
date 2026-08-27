@@ -7,7 +7,8 @@ import { accessSync, constants, mkdirSync } from "node:fs";
 export function assertModelCacheWritable(dir: string): void {
   try {
     mkdirSync(dir, { recursive: true });
-    accessSync(dir, constants.W_OK);
+    // W_OK alone passes on a directory the loader cannot traverse into; X_OK is search permission.
+    accessSync(dir, constants.W_OK | constants.X_OK);
   } catch (error) {
     const uid = process.getuid?.() ?? "unknown";
     const reason = error instanceof Error ? error.message : String(error);

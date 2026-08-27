@@ -80,4 +80,16 @@ describe("assertModelCacheWritable", () => {
       chmodSync(dir, 0o700);
     }
   });
+
+  // Writable but not searchable: W_OK alone would pass here and the loader would fail later.
+  it.skipIf(process.getuid?.() === 0)("names a directory it cannot search", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "rementum-cache-"));
+    chmodSync(dir, 0o600);
+
+    try {
+      expect(() => assertModelCacheWritable(dir)).toThrow(`Model cache ${dir} is not writable`);
+    } finally {
+      chmodSync(dir, 0o700);
+    }
+  });
 });
