@@ -13,6 +13,8 @@ Rementum reads `.env` through Docker Compose. The installer writes production va
 | `REMENTUM_COOKIE_KEYS` | Comma-separated cookie signing keys |
 | `REMENTUM_JWT_JWKS` | Private RSA JWKS used to sign OAuth tokens |
 | `REMENTUM_ALLOW_SIGNUP` | Enables public registration when set to `true` |
+| `REMENTUM_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key shown on the account forms; empty disables bot protection |
+| `REMENTUM_TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret used to verify challenge tokens server-side |
 | `REMENTUM_DEV_AUTH` | Enables the development identity header; rejected when `NODE_ENV=production` |
 | `REMENTUM_TRUSTED_PROXIES` | Reverse proxies whose `X-Forwarded-For` entries are trusted, as IPs, CIDRs, or the `loopback`, `linklocal`, and `uniquelocal` presets; empty when the API is exposed directly |
 
@@ -21,6 +23,23 @@ or a missing persistent JWKS in that mode.
 
 Browser sign-in uses a 14-day, server-side session stored as a hashed opaque token. OAuth is not
 used for the web app; it is exposed only for workspace MCP connections.
+
+### Bot protection
+
+Rementum is self-hosted and works without any captcha service. Setting both Cloudflare Turnstile
+keys adds a human-verification challenge to sign-in, registration, verification resend, and
+password reset:
+
+```dotenv
+REMENTUM_TURNSTILE_SITE_KEY='0x4AAAAAAA...'
+REMENTUM_TURNSTILE_SECRET_KEY='0x4AAAAAAA...'
+```
+
+The keys must be configured together; the API refuses to start with only one. Challenge tokens are
+verified server-side against Cloudflare before any credential check, account creation, or email
+send, and verification fails closed when Cloudflare cannot be reached. Tokens are single-use, so
+the sign-in form requests a fresh challenge after every failed attempt. Leave both keys empty to
+run without the widget.
 
 Do not replace `REMENTUM_MASTER_KEY` on an existing instance. Rementum will lose access to every
 wrapped brain key. Keep the original value with your disaster-recovery material.

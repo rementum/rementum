@@ -134,6 +134,8 @@ if [ "$non_interactive" = true ]; then
       "Resend API key" "${REMENTUM_INSTALL_RESEND_API_KEY_FILE:-}" true)
     mail_from=${REMENTUM_INSTALL_MAIL_FROM:-}
   fi
+  turnstile_site_key=${REMENTUM_INSTALL_TURNSTILE_SITE_KEY:-}
+  turnstile_secret_key=${REMENTUM_INSTALL_TURNSTILE_SECRET_KEY:-}
   owner_password=$(read_secret_file \
     "Owner password" "${REMENTUM_INSTALL_OWNER_PASSWORD_FILE:-}" true)
 else
@@ -169,6 +171,21 @@ else
     mail_from=$(prompt "Verified sender, for example Rementum <rementum@example.com>" "")
     [ -n "$mail_from" ] || fail "Public registration requires a verified sender"
   fi
+
+  turnstile_site_key=""
+  turnstile_secret_key=""
+  turnstile_enabled=$(prompt \
+    "Protect sign-in and registration with Cloudflare Turnstile? (yes/no)" "no")
+  case "$turnstile_enabled" in
+    yes|y)
+      turnstile_site_key=$(prompt "Turnstile site key from the Cloudflare dashboard" "")
+      [ -n "$turnstile_site_key" ] || fail "Turnstile requires a site key"
+      turnstile_secret_key=$(prompt_secret "Turnstile secret key")
+      [ -n "$turnstile_secret_key" ] || fail "Turnstile requires a secret key"
+      ;;
+    no|n) ;;
+    *) fail "Answer yes or no for Cloudflare Turnstile" ;;
+  esac
 
   owner_password=$(prompt_secret "Owner password (12 characters minimum)")
   owner_password_again=$(prompt_secret "Repeat owner password")
@@ -218,6 +235,13 @@ reject_apostrophe "Model name" "$llm_model"
 reject_apostrophe "LLM API key" "$llm_api_key"
 reject_apostrophe "Resend API key" "$resend_api_key"
 reject_apostrophe "Mail sender" "$mail_from"
+reject_apostrophe "Turnstile site key" "$turnstile_site_key"
+reject_apostrophe "Turnstile secret key" "$turnstile_secret_key"
+
+if { [ -n "$turnstile_site_key" ] || [ -n "$turnstile_secret_key" ]; } \
+  && { [ -z "$turnstile_site_key" ] || [ -z "$turnstile_secret_key" ]; }; then
+  fail "Cloudflare Turnstile needs both a site key and a secret key"
+fi
 
 printf '\nGenerating instance secrets...\n'
 postgres_password=$(openssl rand -hex 32)
@@ -269,6 +293,9 @@ REMENTUM_COMPACTION_POLL_MS='2000'
 REMENTUM_RESEND_API_KEY='$resend_api_key'
 REMENTUM_MAIL_FROM='$mail_from'
 
+REMENTUM_TURNSTILE_SITE_KEY='$turnstile_site_key'
+REMENTUM_TURNSTILE_SECRET_KEY='$turnstile_secret_key'
+
 REMENTUM_BACKUP_HOST_DIR='./backups'
 REMENTUM_BACKUP_AGE_RECIPIENT=''
 REMENTUM_DOMAIN='$domain'
@@ -277,7 +304,7 @@ chmod 600 .env
 mkdir -p backups
 chmod 700 backups
 
-unset owner_password_again llm_api_key resend_api_key
+unset owner_password_again llm_api_key resend_api_key turnstile_secret_key
 
 printf 'Building and starting Rementum...\n'
 ./scripts/deploy.sh

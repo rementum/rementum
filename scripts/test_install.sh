@@ -111,6 +111,20 @@ grep -Fq 'Resend API key file is required' "$fixture/signup.err" \
   || fail "missing signup secret error is not actionable"
 [ ! -e "$fixture/.env" ] || fail "failed signup validation created .env"
 
+if PATH="$fixture/fake-bin:$PATH" \
+REMENTUM_INSTALL_TEST_LOG="$fixture/log" \
+REMENTUM_INSTALL_DOMAIN='memory.example.com' \
+REMENTUM_INSTALL_OWNER_EMAIL='owner@example.com' \
+REMENTUM_INSTALL_OWNER_PASSWORD_FILE="$fixture/owner-password" \
+REMENTUM_INSTALL_TURNSTILE_SITE_KEY='0x4AAAAAAA-site' \
+"$fixture/scripts/install.sh" --non-interactive \
+  > "$fixture/turnstile.out" 2> "$fixture/turnstile.err"; then
+  fail "a half-configured Turnstile pair was accepted"
+fi
+grep -Fq 'both a site key and a secret key' "$fixture/turnstile.err" \
+  || fail "half-configured Turnstile error is not actionable"
+[ ! -e "$fixture/.env" ] || fail "failed Turnstile validation created .env"
+
 PATH="$fixture/fake-bin:$PATH" \
 REMENTUM_INSTALL_TEST_LOG="$fixture/log" \
 REMENTUM_INSTALL_DOMAIN='memory.example.com' \
@@ -122,6 +136,8 @@ REMENTUM_INSTALL_LLM_BASE_URL='https://llm.example.com/v1' \
 REMENTUM_INSTALL_LLM_MODEL='summary-model' \
 REMENTUM_INSTALL_LLM_API_KEY_FILE="$fixture/llm-api-key" \
 REMENTUM_INSTALL_ALLOW_SIGNUP='false' \
+REMENTUM_INSTALL_TURNSTILE_SITE_KEY='0x4AAAAAAA-site' \
+REMENTUM_INSTALL_TURNSTILE_SECRET_KEY='0x4AAAAAAA-secret' \
 "$fixture/scripts/install.sh" --non-interactive \
   > "$fixture/install.out" 2> "$fixture/install.err"
 
@@ -135,6 +151,10 @@ grep -Fq "REMENTUM_LLM_API_KEY='agent-llm-key'" "$fixture/.env" \
   || fail "API key file was not read"
 grep -Fq "REMENTUM_ALLOW_SIGNUP='false'" "$fixture/.env" \
   || fail "safe signup default was not written"
+grep -Fq "REMENTUM_TURNSTILE_SITE_KEY='0x4AAAAAAA-site'" "$fixture/.env" \
+  || fail "turnstile site key was not written"
+grep -Fq "REMENTUM_TURNSTILE_SECRET_KEY='0x4AAAAAAA-secret'" "$fixture/.env" \
+  || fail "turnstile secret key was not written"
 [ -f "$fixture/log/deploy" ] || fail "deployment was not called"
 grep -Fxq 'agent-owner-password' "$fixture/log/owner-password" \
   || fail "owner password was not passed through standard input"
@@ -144,6 +164,9 @@ if grep -Fq 'agent-owner-password' "$fixture/install.out" "$fixture/install.err"
 fi
 if grep -Fq 'agent-llm-key' "$fixture/install.out" "$fixture/install.err"; then
   fail "LLM API key leaked to installer output"
+fi
+if grep -Fq '0x4AAAAAAA-secret' "$fixture/install.out" "$fixture/install.err"; then
+  fail "Turnstile secret key leaked to installer output"
 fi
 
 env_mode=$(stat -c '%a' "$fixture/.env" 2>/dev/null || stat -f '%Lp' "$fixture/.env")
@@ -168,5 +191,9 @@ grep -Fq "REMENTUM_LLM_MODEL=''" "$fixture/.env" \
   || fail "local summary mode retained an LLM model"
 grep -Fq "REMENTUM_LLM_API_KEY=''" "$fixture/.env" \
   || fail "local summary mode retained an LLM API key"
+grep -Fq "REMENTUM_TURNSTILE_SITE_KEY=''" "$fixture/.env" \
+  || fail "turnstile protection was not off by default"
+grep -Fq "REMENTUM_TURNSTILE_SECRET_KEY=''" "$fixture/.env" \
+  || fail "turnstile protection was not off by default"
 
 printf 'Installer tests passed.\n'
