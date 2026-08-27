@@ -72,7 +72,7 @@ export function ArticleCompactionStatus({
   return (
     <span className="inline-flex flex-wrap items-center gap-2 normal-case tracking-normal">
       <StatusPill status={compaction.status} label={labels[compaction.status]} />
-      {compaction.attempts ? (
+      {compaction.attempts && compaction.status !== "compacted" ? (
         <small className="font-mono text-2xs tabular-nums text-ink-3">
           {compaction.attempts}/3 attempts
         </small>
