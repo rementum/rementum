@@ -103,9 +103,14 @@ staged write and promotion protocol.
 
 ## First request
 
+At initialization the server sends MCP instructions that tell the agent when to load and write
+memory. Clients that surface server instructions, Claude Code among them, apply this guidance
+without extra prompt configuration.
+
 Start with these calls:
 
-1. `list_brains` finds the brains available to the connected workspace.
+1. `search_brains` finds the brain matching the current project by name, slug, or description;
+   `list_brains` enumerates every accessible brain when a search is not enough.
 2. `get_brain` returns one brain's instructions and routing index.
 3. `read_article` loads the current version of an article selected from that index.
 

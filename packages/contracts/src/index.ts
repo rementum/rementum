@@ -220,6 +220,13 @@ export const promoteWriteSchema = z.object({
 });
 export type PromoteWriteInput = z.infer<typeof promoteWriteSchema>;
 
+export const searchBrainsSchema = z.object({
+  query: z.string().min(1).max(500),
+  workspaceId: idSchema.optional(),
+  limit: z.number().int().min(1).max(50).default(10),
+});
+export type SearchBrainsInput = z.infer<typeof searchBrainsSchema>;
+
 export const searchArticlesSchema = z.object({
   brainId: idSchema,
   query: z.string().min(1).max(2000),
@@ -306,6 +313,7 @@ export const WEB_SESSION_CLIENT_ID = "rementum-web";
 
 export const toolNames = [
   "list_brains",
+  "search_brains",
   "create_brain",
   "get_brain",
   "search_articles",
