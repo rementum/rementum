@@ -1,8 +1,10 @@
 import { RegisterForm } from "../../components/account-flows";
 import { AuthShell } from "../../components/auth-shell";
 import { GradientText } from "../../components/pui";
+import { publicAuthConfig } from "../../lib/api";
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  const { turnstileSiteKey } = await publicAuthConfig();
   return (
     <AuthShell
       kicker="Open registration"
@@ -13,7 +15,7 @@ export default function RegisterPage() {
       }
       description="Start with one team, then create as many as you need."
     >
-      <RegisterForm />
+      <RegisterForm turnstileSiteKey={turnstileSiteKey} />
     </AuthShell>
   );
 }
