@@ -294,6 +294,10 @@ export const problemSchema = z.object({
 });
 export type Problem = z.infer<typeof problemSchema>;
 
+// Audit events from browser sessions carry this client id; MCP OAuth clients carry
+// their own. The API and the store both filter on it, so it lives in contracts.
+export const WEB_SESSION_CLIENT_ID = "rementum-web";
+
 export const toolNames = [
   "list_brains",
   "create_brain",

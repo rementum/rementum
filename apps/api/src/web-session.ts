@@ -7,7 +7,6 @@ import type { AppConfig } from "./config.js";
 import type { VerifyCredentials } from "./credentials.js";
 
 export const WEB_SESSION_COOKIE = "rementum_session";
-export const WEB_SESSION_CLIENT_ID = "rementum-web";
 const WEB_SESSION_TTL_SECONDS = 14 * 24 * 60 * 60;
 
 export async function registerWebSessionRoutes(

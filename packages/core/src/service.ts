@@ -694,9 +694,9 @@ export class RementumService {
     return candidate;
   }
 
-  async recentActivity(brainId: string, limit: number, actor: Actor) {
+  async recentActivity(brainId: string, limit: number, actor: Actor, source?: "mcp") {
     requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
-    return this.store.recentActivity(brainId, actor, limit);
+    return this.store.recentActivity(brainId, actor, limit, source);
   }
 
   async reindexArticle(articleId: string, actor: Actor) {
