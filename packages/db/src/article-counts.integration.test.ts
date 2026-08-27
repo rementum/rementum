@@ -82,16 +82,19 @@ integration("article counts", () => {
       await createArticle(full.brain.id, `second-${suffix}`, ownerActor);
       await createArticle(thin.brain.id, `only-${suffix}`, ownerActor);
 
-      const counts = new Map(
-        (await service.countArticlesByBrain(ownerActor)).map((row) => [
-          row.brainId,
-          row.articleCount,
-        ]),
+      const stats = new Map(
+        (await service.countArticlesByBrain(ownerActor)).map((row) => [row.brainId, row]),
       );
-      expect(counts.get(full.brain.id)).toBe(2);
-      expect(counts.get(thin.brain.id)).toBe(1);
+      expect(stats.get(full.brain.id)?.articleCount).toBe(2);
+      expect(stats.get(thin.brain.id)?.articleCount).toBe(1);
       // GROUP BY yields no row for a brain without articles; callers treat absence as zero.
-      expect(counts.has(empty.brain.id)).toBe(false);
+      expect(stats.has(empty.brain.id)).toBe(false);
+
+      // The aggregate's MAX(updated_at) must agree with the newest routing-index entry.
+      const fullBrain = await service.getBrain(full.brain.id, ownerActor);
+      expect(stats.get(full.brain.id)?.latestArticleUpdatedAt).toBe(
+        fullBrain.routingIndex[0]?.updatedAt,
+      );
 
       // A different account passes no application-level guard here at all, so the empty
       // result has to come from the row-level policies on articles.

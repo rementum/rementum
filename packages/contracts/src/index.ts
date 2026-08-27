@@ -122,8 +122,14 @@ export type CreateBrainInput = z.infer<typeof createBrainSchema>;
 export const brainArticleCountSchema = z.object({
   brainId: idSchema,
   articleCount: z.number().int().nonnegative(),
+  // Non-nullable: the aggregate only emits rows for brains with at least one
+  // non-archived article, so MAX(updated_at) never comes back NULL.
+  latestArticleUpdatedAt: z.iso.datetime(),
 });
 export type BrainArticleCount = z.infer<typeof brainArticleCountSchema>;
+
+export const routingIndexSortSchema = z.enum(["updated", "title"]);
+export type RoutingIndexSort = z.infer<typeof routingIndexSortSchema>;
 
 export const teamSchema = z.object({
   id: idSchema,

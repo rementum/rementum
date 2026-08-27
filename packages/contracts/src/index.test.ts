@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  brainArticleCountSchema,
   createTaskSchema,
   externalUrlSchema,
+  routingIndexSortSchema,
   stageWriteSchema,
   updateWorkspaceSchema,
 } from "./index.js";
@@ -30,6 +32,31 @@ describe("updateWorkspaceSchema", () => {
 
   it("rejects an empty workspace update", () => {
     expect(() => updateWorkspaceSchema.parse({})).toThrow(/workspace field/i);
+  });
+});
+
+describe("brainArticleCountSchema", () => {
+  it("requires the latest article timestamp alongside the count", () => {
+    const row = {
+      brainId: "00000000-0000-4000-8000-000000000001",
+      articleCount: 3,
+      latestArticleUpdatedAt: "2026-08-27T10:00:00.000Z",
+    };
+    expect(brainArticleCountSchema.parse(row)).toEqual(row);
+    expect(() =>
+      brainArticleCountSchema.parse({ ...row, latestArticleUpdatedAt: undefined }),
+    ).toThrow();
+    expect(() =>
+      brainArticleCountSchema.parse({ ...row, latestArticleUpdatedAt: "yesterday" }),
+    ).toThrow();
+  });
+});
+
+describe("routingIndexSortSchema", () => {
+  it("accepts only the allowlisted sort keys", () => {
+    expect(routingIndexSortSchema.parse("updated")).toBe("updated");
+    expect(routingIndexSortSchema.parse("title")).toBe("title");
+    expect(() => routingIndexSortSchema.parse("updated_at DESC")).toThrow();
   });
 });
 

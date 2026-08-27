@@ -46,7 +46,9 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
     listTeams: vi.fn(async () => [{ id: teamId }]),
     listWorkspaces: vi.fn(async () => [{ id: workspaceId, llmCompactionEnabled: false }]),
     listBrains: vi.fn(async () => [{ id: brainId }]),
-    countArticlesByBrain: vi.fn(async () => [{ brainId, articleCount: 2 }]),
+    countArticlesByBrain: vi.fn(async () => [
+      { brainId, articleCount: 2, latestArticleUpdatedAt: "2026-08-27T10:00:00.000Z" },
+    ]),
     getBrain: vi.fn(async () => ({
       brain: { id: brainId, slug: "product" },
       routingIndex: [{ id: "article-id", slug: "architecture" }],
@@ -463,7 +465,46 @@ describe("article counts", () => {
       url: "/api/v1/brains/article-counts",
     });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual([{ brainId, articleCount: 2 }]);
+    expect(response.json()).toEqual([
+      { brainId, articleCount: 2, latestArticleUpdatedAt: "2026-08-27T10:00:00.000Z" },
+    ]);
+    expect(context.service.getBrain).not.toHaveBeenCalled();
+  });
+});
+
+describe("routing index sort", () => {
+  it("defaults the brain detail sort to recency", async () => {
+    const response = await context.app.inject({ method: "GET", url: `/api/v1/brains/${brainId}` });
+    expect(response.statusCode).toBe(200);
+    expect(context.service.getBrain).toHaveBeenCalledWith(
+      brainId,
+      expect.anything(),
+      undefined,
+      "updated",
+    );
+  });
+
+  it("forwards an allowlisted sort value", async () => {
+    const response = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/brains/${brainId}?sort=title`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(context.service.getBrain).toHaveBeenCalledWith(
+      brainId,
+      expect.anything(),
+      undefined,
+      "title",
+    );
+  });
+
+  it("rejects an unknown sort value before reaching the service", async () => {
+    const response = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/brains/${brainId}?sort=updated_at%20DESC`,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: "validation" });
     expect(context.service.getBrain).not.toHaveBeenCalled();
   });
 });

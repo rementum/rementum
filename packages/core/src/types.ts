@@ -8,6 +8,7 @@ import type {
   CreateTaskInput,
   MaintenanceCandidate,
   PromoteWriteInput,
+  RoutingIndexSort,
   SearchArticlesInput,
   SourceInput,
   StageWriteInput,
@@ -266,7 +267,12 @@ export interface DataStore {
   getBrain(id: string, actor: Actor): Promise<BrainRecord | null>;
   deleteBrain(brainId: string, confirmation: string, actor: Actor): Promise<BrainRecord>;
   isBrainCompactionEnabled(brainId: string, actor: Actor): Promise<boolean>;
-  listRoutingIndex(brainId: string, actor: Actor, limit: number): Promise<ArticleRecord[]>;
+  listRoutingIndex(
+    brainId: string,
+    actor: Actor,
+    limit: number,
+    sort: RoutingIndexSort,
+  ): Promise<ArticleRecord[]>;
   getArticle(id: string, actor: Actor): Promise<ArticleRecord | null>;
   getArticleBySlug(brainId: string, slug: string, actor: Actor): Promise<ArticleRecord | null>;
   getVersion(articleId: string, version: number, actor: Actor): Promise<VersionRecord | null>;
