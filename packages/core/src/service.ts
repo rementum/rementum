@@ -255,6 +255,17 @@ export class RementumService {
     await this.store.audit(actor, "team_member.removed", `team:${teamId}`, { userId });
   }
 
+  async deleteTeam(teamId: string, confirmation: string, actor: Actor) {
+    requireTeamRole(actor, teamId, ["owner"]);
+    const team = await this.store.deleteTeam(teamId, confirmation, actor);
+    // The team row is gone, so a `team:` resource would violate the audit foreign key;
+    // the event attaches to the actor instead and stays visible to them.
+    await this.store.audit(actor, "team.deleted", `user:${actor.userId}`, {
+      teamId,
+      teamName: team.name,
+    });
+  }
+
   async createBrain(input: CreateBrainInput, actor: Actor): Promise<BrainWithIndex> {
     const workspaceId = resolveWorkspaceId(input.workspaceId, actor);
     const resolvedInput = { ...input, workspaceId };
@@ -267,7 +278,7 @@ export class RementumService {
       brainId,
     );
     await this.store.audit(actor, "brain.created", `brain:${record.id}`);
-    return { brain: withoutWrappedKey(record), routingIndex: [] };
+    return { brain: withoutWrappedKey(record), routingIndex: [], role: "owner" as const };
   }
 
   async listBrains(actor: Actor, workspaceId?: string) {
@@ -287,7 +298,19 @@ export class RementumService {
     return {
       brain: withoutWrappedKey(brain),
       routingIndex: articles.map(toSummary),
+      role: actor.brainRoles.get(brainId) ?? "viewer",
     };
+  }
+
+  async deleteBrain(brainId: string, confirmation: string, actor: Actor) {
+    requireBrainRole(actor, brainId, ["owner"]);
+    const brain = await this.store.deleteBrain(brainId, confirmation, actor);
+    // Deleting the row destroys the only copy of the brain's wrapped data key, so the
+    // cascade-deleted ciphertext is unrecoverable even from database backups taken later.
+    await this.store.audit(actor, "brain.deleted", `workspace:${brain.workspaceId}`, {
+      brainId,
+      brainName: brain.name,
+    });
   }
 
   async readArticle(articleId: string, actor: Actor): Promise<ReadArticleResult> {

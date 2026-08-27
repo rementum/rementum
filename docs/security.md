@@ -58,6 +58,13 @@ Team owners and admins can create or rename workspaces. Only the team owner can 
 last workspace is protected, and deletion requires the exact workspace name because it permanently
 removes every brain and note inside that workspace.
 
+Brains and teams can be deleted the same way: only the brain owner can delete a brain, only the
+team owner can delete a team, a user's last team is protected, and each deletion requires typing
+the exact name. Deletion is immediate and permanent — there is no trash. Deleting a brain also
+destroys the only copy of its wrapped data key, so its encrypted article bodies are unrecoverable
+even from database backups taken afterwards. Deletion is available only in the web interface;
+MCP agents cannot delete brains, workspaces, or teams.
+
 ## Backups
 
 The backup job refuses to create an unencrypted archive. Test a restore on a separate host and keep

@@ -128,6 +128,8 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     })),
     cancelWorkspaceCompactions: vi.fn(async () => []),
     deleteWorkspace: vi.fn(async () => ({ id: workspaceId, teamId, name: "Workspace" })),
+    deleteBrain: vi.fn(async () => brainRecord()),
+    deleteTeam: vi.fn(async () => ({ id: teamId, slug: "team", name: "Team" })),
     getStagedWriteByIdempotencyKey: vi.fn(async () => null),
     findPotentialConflicts: vi.fn(async () => []),
     createStagedWrite: vi.fn(async () => stagedWrite()),
@@ -231,6 +233,25 @@ describe("workspace and team role boundaries", () => {
     await expect(
       service.deleteWorkspace(workspaceId, "Workspace", actor("owner")),
     ).resolves.toBeUndefined();
+  });
+
+  it("only lets a brain owner delete the brain", async () => {
+    const { service, store } = setup();
+    await expect(
+      service.deleteBrain(brainId, "Product knowledge", actor("editor")),
+    ).rejects.toThrow(ForbiddenError);
+    expect(store.deleteBrain).not.toHaveBeenCalled();
+    await expect(
+      service.deleteBrain(brainId, "Product knowledge", actor("owner")),
+    ).resolves.toBeUndefined();
+  });
+
+  it("only lets the team owner delete the team", async () => {
+    const { service, store } = setup();
+    const admin = actor("owner", { teamRoles: new Map([[teamId, "admin"]]) });
+    await expect(service.deleteTeam(teamId, "Team", admin)).rejects.toThrow(ForbiddenError);
+    expect(store.deleteTeam).not.toHaveBeenCalled();
+    await expect(service.deleteTeam(teamId, "Team", actor("owner"))).resolves.toBeUndefined();
   });
 
   it("only lets a team owner or admin create a workspace", async () => {

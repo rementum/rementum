@@ -235,6 +235,7 @@ export interface DataStore {
     confirmation: string,
     actor: Actor,
   ): Promise<WorkspaceRecord>;
+  deleteTeam(teamId: string, confirmation: string, actor: Actor): Promise<TeamRecord>;
   listTeamMembers(teamId: string, actor: Actor): Promise<TeamMemberRecord[]>;
   updateTeamMemberRole(
     teamId: string,
@@ -261,6 +262,7 @@ export interface DataStore {
   ): Promise<BrainRecord>;
   listBrains(actor: Actor, workspaceId?: string): Promise<BrainRecord[]>;
   getBrain(id: string, actor: Actor): Promise<BrainRecord | null>;
+  deleteBrain(brainId: string, confirmation: string, actor: Actor): Promise<BrainRecord>;
   isBrainCompactionEnabled(brainId: string, actor: Actor): Promise<boolean>;
   listRoutingIndex(brainId: string, actor: Actor, limit: number): Promise<ArticleRecord[]>;
   getArticle(id: string, actor: Actor): Promise<ArticleRecord | null>;
@@ -432,6 +434,7 @@ export interface BlobStore {
 export interface BrainWithIndex {
   brain: Omit<BrainRecord, "wrappedKey">;
   routingIndex: ArticleSummary[];
+  role: BrainRole;
 }
 
 export interface ReadArticleResult extends Article {}

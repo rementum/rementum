@@ -252,6 +252,14 @@ export async function registerApiRoutes(
         ),
       ),
   );
+  app.delete("/api/v1/teams/:teamId", async (request, reply) => {
+    const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
+    const { confirmation } = z
+      .object({ confirmation: z.string().min(1).max(160) })
+      .parse(request.body);
+    await service.deleteTeam(teamId, confirmation, await authorize(request, "team:write"));
+    return reply.code(204).send();
+  });
   app.get("/api/v1/workspaces", async (request) => {
     const workspaces = await service.listWorkspaces(await authorize(request, "team:read"));
     return workspaces.map((workspace) => ({
@@ -384,6 +392,14 @@ export async function registerApiRoutes(
   app.get("/api/v1/brains/:brainId", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     return service.getBrain(brainId, await authorize(request, "brain:read"));
+  });
+  app.delete("/api/v1/brains/:brainId", async (request, reply) => {
+    const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
+    const { confirmation } = z
+      .object({ confirmation: z.string().min(1).max(160) })
+      .parse(request.body);
+    await service.deleteBrain(brainId, confirmation, await authorize(request, "brain:write"));
+    return reply.code(204).send();
   });
   app.get("/api/v1/brains/:brainId/activity", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
