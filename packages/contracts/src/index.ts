@@ -119,6 +119,12 @@ export const createBrainSchema = z.object({
 });
 export type CreateBrainInput = z.infer<typeof createBrainSchema>;
 
+export const brainArticleCountSchema = z.object({
+  brainId: idSchema,
+  articleCount: z.number().int().nonnegative(),
+});
+export type BrainArticleCount = z.infer<typeof brainArticleCountSchema>;
+
 export const teamSchema = z.object({
   id: idSchema,
   slug: slugSchema,

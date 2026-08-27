@@ -389,6 +389,10 @@ export async function registerApiRoutes(
       .code(201)
       .send(await service.createBrain(createBrainSchema.parse(request.body), actor));
   });
+  // Static segment, so the router matches it ahead of the :brainId parameter below.
+  app.get("/api/v1/brains/article-counts", async (request) => {
+    return service.countArticlesByBrain(await authorize(request, "brain:read"));
+  });
   app.get("/api/v1/brains/:brainId", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     return service.getBrain(brainId, await authorize(request, "brain:read"));
