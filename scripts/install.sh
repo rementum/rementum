@@ -30,6 +30,8 @@ usage() {
     '  REMENTUM_INSTALL_ALLOW_SIGNUP            true or false; default: false' \
     '  REMENTUM_INSTALL_RESEND_API_KEY_FILE     required when signup is true' \
     '  REMENTUM_INSTALL_MAIL_FROM               required when signup is true' \
+    '  REMENTUM_INSTALL_TURNSTILE_SITE_KEY      optional Cloudflare Turnstile site key' \
+    '  REMENTUM_INSTALL_TURNSTILE_SECRET_KEY_FILE  secret file; required with the site key' \
     '' \
     'The installer reads secrets from files to keep them out of arguments and logs.' \
     'The installer refuses to replace an existing .env file.'
@@ -135,7 +137,8 @@ if [ "$non_interactive" = true ]; then
     mail_from=${REMENTUM_INSTALL_MAIL_FROM:-}
   fi
   turnstile_site_key=${REMENTUM_INSTALL_TURNSTILE_SITE_KEY:-}
-  turnstile_secret_key=${REMENTUM_INSTALL_TURNSTILE_SECRET_KEY:-}
+  turnstile_secret_key=$(read_secret_file \
+    "Turnstile secret key" "${REMENTUM_INSTALL_TURNSTILE_SECRET_KEY_FILE:-}" false)
   owner_password=$(read_secret_file \
     "Owner password" "${REMENTUM_INSTALL_OWNER_PASSWORD_FILE:-}" true)
 else

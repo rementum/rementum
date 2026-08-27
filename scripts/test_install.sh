@@ -92,7 +92,8 @@ grep -Fq 'Owner password file is required' "$fixture/missing.err" \
 
 printf '%s\n' 'agent-owner-password' > "$fixture/owner-password"
 printf '%s\n' 'agent-llm-key' > "$fixture/llm-api-key"
-chmod 600 "$fixture/owner-password" "$fixture/llm-api-key"
+printf '%s\n' '0x4AAAAAAA-secret' > "$fixture/turnstile-secret"
+chmod 600 "$fixture/owner-password" "$fixture/llm-api-key" "$fixture/turnstile-secret"
 
 if PATH="$fixture/fake-bin:$PATH" \
   REMENTUM_INSTALL_TEST_LOG="$fixture/log" \
@@ -137,7 +138,7 @@ REMENTUM_INSTALL_LLM_MODEL='summary-model' \
 REMENTUM_INSTALL_LLM_API_KEY_FILE="$fixture/llm-api-key" \
 REMENTUM_INSTALL_ALLOW_SIGNUP='false' \
 REMENTUM_INSTALL_TURNSTILE_SITE_KEY='0x4AAAAAAA-site' \
-REMENTUM_INSTALL_TURNSTILE_SECRET_KEY='0x4AAAAAAA-secret' \
+REMENTUM_INSTALL_TURNSTILE_SECRET_KEY_FILE="$fixture/turnstile-secret" \
 "$fixture/scripts/install.sh" --non-interactive \
   > "$fixture/install.out" 2> "$fixture/install.err"
 
