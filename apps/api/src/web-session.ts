@@ -5,6 +5,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { AppConfig } from "./config.js";
 import type { VerifyCredentials } from "./credentials.js";
+import { requireTurnstile } from "./turnstile.js";
 
 export const WEB_SESSION_COOKIE = "rementum_session";
 const WEB_SESSION_TTL_SECONDS = 14 * 24 * 60 * 60;
@@ -20,8 +21,13 @@ export async function registerWebSessionRoutes(
   app.post("/api/v1/auth/session", rateLimit, async (request, reply) => {
     requirePublicOrigin(request, config.REMENTUM_PUBLIC_URL);
     const input = z
-      .object({ email: z.string().trim().min(1).max(320), password: z.string().min(1).max(1000) })
+      .object({
+        email: z.string().trim().min(1).max(320),
+        password: z.string().min(1).max(1000),
+        turnstileToken: z.string().min(1).max(2048).optional(),
+      })
       .parse(request.body);
+    await requireTurnstile(config, input.turnstileToken, request.ip);
     const user = await verifyCredentials(input.email, input.password);
     if (!user) throw new DomainError("invalid_credentials", "Invalid email or password", 401);
     if (!user.emailVerifiedAt) {

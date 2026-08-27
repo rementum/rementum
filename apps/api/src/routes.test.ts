@@ -3,7 +3,7 @@ import type { AuthRepository } from "@rementum/db";
 import { hash } from "argon2";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import JSZip from "jszip";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { allAccessScopes, type ScopedActor, withAccessScopes } from "./access.js";
 import type { AppConfig } from "./config.js";
 import type { TransactionalMailer } from "./mailer.js";
@@ -17,6 +17,12 @@ const workspaceId = "00000000-0000-4000-8000-000000000003";
 const teamId = "00000000-0000-4000-8000-000000000004";
 const grantId = "grant-id";
 const token = "t".repeat(43);
+const registration = {
+  email: "New@Example.Test",
+  displayName: "New person",
+  password: "correct horse battery",
+  teamName: "Product Team",
+};
 
 function actorWith(scopes: string = allAccessScopes.join(" ")): ScopedActor {
   return withAccessScopes(
@@ -130,20 +136,25 @@ beforeEach(async () => {
 });
 
 describe("registration", () => {
-  it("reports whether public signup is open", async () => {
+  it("reports whether public signup is open and whether bot protection is configured", async () => {
     const open = await context.app.inject({ method: "GET", url: "/api/v1/auth/config" });
-    expect(open.json()).toEqual({ signupEnabled: true });
+    expect(open.json()).toEqual({ signupEnabled: true, turnstileSiteKey: null });
     const closed = await harness({ REMENTUM_ALLOW_SIGNUP: false });
     const response = await closed.app.inject({ method: "GET", url: "/api/v1/auth/config" });
-    expect(response.json()).toEqual({ signupEnabled: false });
+    expect(response.json()).toEqual({ signupEnabled: false, turnstileSiteKey: null });
+    const guarded = await harness({
+      REMENTUM_TURNSTILE_SITE_KEY: "0x4AAAAAAA-site",
+      REMENTUM_TURNSTILE_SECRET_KEY: "0x4AAAAAAA-secret",
+    });
+    const protectedConfig = await guarded.app.inject({
+      method: "GET",
+      url: "/api/v1/auth/config",
+    });
+    expect(protectedConfig.json()).toEqual({
+      signupEnabled: true,
+      turnstileSiteKey: "0x4AAAAAAA-site",
+    });
   });
-
-  const registration = {
-    email: "New@Example.Test",
-    displayName: "New person",
-    password: "correct horse battery",
-    teamName: "Product Team",
-  };
 
   it("refuses registration on an invitation-only instance", async () => {
     const { app, auth } = await harness({ REMENTUM_ALLOW_SIGNUP: false });
@@ -204,6 +215,98 @@ describe("registration", () => {
       code: "validation",
       detail: expect.stringContaining("password"),
     });
+  });
+});
+
+describe("turnstile protection", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const protectedConfig = {
+    REMENTUM_TURNSTILE_SITE_KEY: "0x4AAAAAAA-site",
+    REMENTUM_TURNSTILE_SECRET_KEY: "0x4AAAAAAA-secret",
+  };
+
+  function stubSiteverify(success: boolean) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ success }) })),
+    );
+  }
+
+  it("refuses registration without a token", async () => {
+    const { app, auth } = await harness(protectedConfig);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/register",
+      payload: registration,
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ code: "turnstile_failed" });
+    expect(auth.registerAccount).not.toHaveBeenCalled();
+  });
+
+  it("refuses registration with a token cloudflare rejects", async () => {
+    stubSiteverify(false);
+    const { app, auth } = await harness(protectedConfig);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/register",
+      payload: { ...registration, turnstileToken: "tok".repeat(10) },
+    });
+    expect(response.statusCode).toBe(403);
+    expect(auth.registerAccount).not.toHaveBeenCalled();
+  });
+
+  it("registers when the token verifies", async () => {
+    stubSiteverify(true);
+    const { app, auth } = await harness(protectedConfig);
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/register",
+      payload: { ...registration, turnstileToken: "tok".repeat(10) },
+    });
+    expect(response.statusCode).toBe(202);
+    expect(auth.registerAccount).toHaveBeenCalledOnce();
+  });
+
+  it("refuses a verification resend and a reset request without a token", async () => {
+    const { app, mailer } = await harness(protectedConfig);
+    const resend = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/resend-verification",
+      payload: { email: "person@example.test" },
+    });
+    const reset = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/forgot-password",
+      payload: { email: "person@example.test" },
+    });
+    expect(resend.statusCode).toBe(403);
+    expect(reset.statusCode).toBe(403);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it("sends both emails once a token verifies", async () => {
+    stubSiteverify(true);
+    const { app, auth, mailer } = await harness(protectedConfig);
+    vi.mocked(auth.findUserByEmail).mockResolvedValue({
+      id: userId,
+      email: "person@example.test",
+      emailVerifiedAt: null,
+    } as never);
+    const resend = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/resend-verification",
+      payload: { email: "person@example.test", turnstileToken: "tok".repeat(10) },
+    });
+    const reset = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/forgot-password",
+      payload: { email: "person@example.test", turnstileToken: "tok".repeat(10) },
+    });
+    expect(resend.statusCode).toBe(202);
+    expect(reset.statusCode).toBe(202);
+    expect(mailer.send).toHaveBeenCalledTimes(2);
   });
 });
 
