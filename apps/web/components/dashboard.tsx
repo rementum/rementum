@@ -19,6 +19,7 @@ import { ButtonLink } from "./ui/button-link";
 import { Card, CardHeader } from "./ui/card";
 import { Chip } from "./ui/chip";
 import { IconGrid, IconIndex } from "./ui/icons";
+import { Pager } from "./ui/pager";
 import { StatusPill } from "./ui/status-pill";
 
 interface Brain {
@@ -46,20 +47,52 @@ interface Write {
   createdAt: string;
 }
 
-interface BrainOverview {
-  brain: Brain;
-  writes: Write[];
+interface BrainPage {
+  items: Brain[];
+  total: number;
+  page: number;
 }
 
-const OVERVIEW_LIMIT = 12;
+const PAGE_SIZE = 12;
 
-export async function Dashboard() {
+function parsePage(value: string | undefined) {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+async function fetchBrainPage(query: string, page: number): Promise<BrainPage> {
+  const fetchAt = (target: number) =>
+    api<{ items: Brain[]; total: number }>(
+      `/api/v1/brains?${query}&limit=${PAGE_SIZE}&offset=${(target - 1) * PAGE_SIZE}`,
+    );
+  const data = await fetchAt(page);
+  // A stale URL can point past the end; land on the last page instead of an empty grid.
+  const lastPage = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
+  if (!data.items.length && data.total > 0 && page > lastPage) {
+    return { ...(await fetchAt(lastPage)), page: lastPage };
+  }
+  return { ...data, page };
+}
+
+function dashboardHref(page: number, sharedPage: number) {
+  const search = new URLSearchParams();
+  if (page > 1) search.set("page", String(page));
+  if (sharedPage > 1) search.set("sharedPage", String(sharedPage));
+  const query = search.toString();
+  return query ? `/?${query}` : "/";
+}
+
+const needsReview = (write: Write) => write.status === "pending" || write.status === "conflicted";
+
+export async function Dashboard({ page, sharedPage }: { page?: string; sharedPage?: string }) {
   const cookieStore = await cookies();
   const view = parsePref(cookieStore.get(BRAINS_VIEW_COOKIE)?.value, BRAINS_VIEWS, "card");
   const sort = parsePref(cookieStore.get(BRAINS_SORT_COOKIE)?.value, BRAINS_SORTS, "updated");
-  const { workspaces, activeTeam, activeWorkspace } = await workspaceContext();
-  const [allBrains, articleCounts] = await Promise.all([
-    api<Brain[]>("/api/v1/brains"),
+  const { activeTeam, activeWorkspace } = await workspaceContext();
+  // The unfiltered stats cover shared brains too, whose cards also show a truthful
+  // "last updated"; the workspace-filtered fetch below feeds the Articles stat tile.
+  const [shared, articleCounts] = await Promise.all([
+    fetchBrainPage(`shared=true&sort=${sort}`, parsePage(sharedPage)),
     api<BrainArticleCount[]>("/api/v1/brains/article-counts"),
   ]);
   const statsByBrain = new Map(articleCounts.map((row) => [row.brainId, row]));
@@ -68,63 +101,62 @@ export async function Dashboard() {
   // truthful "last updated", falling back to creation time for empty brains.
   const lastUpdated = (brain: Brain) =>
     statsByBrain.get(brain.id)?.latestArticleUpdatedAt ?? brain.updatedAt;
-  const workspaceIds = new Set(workspaces.map((workspace) => workspace.id));
-  const sharedBrains = allBrains.filter((brain) => !workspaceIds.has(brain.workspaceId));
   if (!activeWorkspace || !activeTeam)
-    return <NoWorkspace sharedBrains={sharedBrains} view={view} lastUpdated={lastUpdated} />;
-  const brains = allBrains.filter((brain) => brain.workspaceId === activeWorkspace.id);
-  if (!brains.length)
+    return <NoWorkspace shared={shared} view={view} lastUpdated={lastUpdated} />;
+  const [brainPage, workspaceCounts] = await Promise.all([
+    fetchBrainPage(`workspaceId=${activeWorkspace.id}&sort=${sort}`, parsePage(page)),
+    api<BrainArticleCount[]>(`/api/v1/brains/article-counts?workspaceId=${activeWorkspace.id}`),
+  ]);
+  if (!brainPage.total)
     return (
       <EmptyWorkspace
         teamName={activeTeam.name}
         workspaceName={activeWorkspace.name}
         mcpUrl={activeWorkspace.mcpUrl}
-        sharedBrains={sharedBrains}
+        shared={shared}
         view={view}
         lastUpdated={lastUpdated}
       />
     );
 
-  const byName = (a: Brain, b: Brain) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) ||
-    a.slug.localeCompare(b.slug);
-  // The overview slice (writes fetch, review queue) keeps recency semantics no
-  // matter which display sort is active.
-  const recentFirst = [...brains].sort(
-    (a, b) =>
-      new Date(lastUpdated(b)).getTime() - new Date(lastUpdated(a)).getTime() || byName(a, b),
-  );
-  const displayBrains =
-    sort === "updated"
-      ? recentFirst
-      : [...brains].sort(
-          sort === "articles"
-            ? (a, b) =>
-                (countByBrain.get(b.id) ?? 0) - (countByBrain.get(a.id) ?? 0) || byName(a, b)
-            : byName,
-        );
-  const overviews = await Promise.all(
-    recentFirst.slice(0, OVERVIEW_LIMIT).map(async (brain): Promise<BrainOverview> => {
-      const writes = await api<Write[]>(`/api/v1/brains/${brain.id}/writes`);
-      return { brain, writes };
-    }),
+  const brains = brainPage.items;
+  // The review queue keeps recency semantics no matter which display sort or page is
+  // active, so it reads the most recently updated brains — the current page when that
+  // already is the recent-first page, one extra fetch otherwise.
+  const recentFirst =
+    sort === "updated" && brainPage.page === 1
+      ? brains
+      : (
+          await api<{ items: Brain[]; total: number }>(
+            `/api/v1/brains?workspaceId=${activeWorkspace.id}&sort=updated&limit=${PAGE_SIZE}&offset=0`,
+          )
+        ).items;
+  const fanout = new Map<string, Brain>();
+  for (const brain of [...recentFirst, ...brains]) fanout.set(brain.id, brain);
+  const writesByBrain = new Map(
+    await Promise.all(
+      [...fanout.values()].map(async (brain) => {
+        const writes = await api<Write[]>(`/api/v1/brains/${brain.id}/writes`);
+        return [brain.id, writes] as const;
+      }),
+    ),
   );
 
-  const reviewQueue = overviews
-    .flatMap(({ brain, writes }) =>
-      writes
-        .filter((write) => write.status === "pending" || write.status === "conflicted")
+  const reviewQueue = recentFirst
+    .flatMap((brain) =>
+      (writesByBrain.get(brain.id) ?? [])
+        .filter(needsReview)
         .map((write) => ({ ...write, brainId: brain.id, brainName: brain.name })),
     )
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === "conflicted" ? -1 : 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  const articleTotal = brains.reduce((sum, brain) => sum + (countByBrain.get(brain.id) ?? 0), 0);
+  const articleTotal = workspaceCounts.reduce((sum, row) => sum + row.articleCount, 0);
   const pendingByBrain = new Map(
-    overviews.map(({ brain, writes }) => [
+    brains.map((brain) => [
       brain.id,
-      writes.filter((write) => write.status === "pending" || write.status === "conflicted").length,
+      (writesByBrain.get(brain.id) ?? []).filter(needsReview).length,
     ]),
   );
 
@@ -145,7 +177,7 @@ export async function Dashboard() {
             </p>
           </div>
           <dl className="flex items-stretch divide-x divide-dashed divide-line">
-            <StatTile label="Brains" value={brains.length} />
+            <StatTile label="Brains" value={brainPage.total} />
             <StatTile label="Articles" value={articleTotal} />
             <StatTile label="Awaiting review" value={reviewQueue.length} attention />
           </dl>
@@ -228,7 +260,7 @@ export async function Dashboard() {
           />
           <BrainCollection
             view={view}
-            items={displayBrains.map((brain) => {
+            items={brains.map((brain) => {
               const pending = pendingByBrain.get(brain.id) ?? 0;
               const count = countByBrain.get(brain.id) ?? 0;
               return {
@@ -247,13 +279,24 @@ export async function Dashboard() {
               };
             })}
           />
+          <Pager
+            className="mt-4"
+            page={brainPage.page}
+            pageCount={Math.ceil(brainPage.total / PAGE_SIZE)}
+            makeHref={(target) => dashboardHref(target, shared.page)}
+          />
         </section>
 
         <div className="mt-10">
           <AgentConnect workspaceName={activeWorkspace.name} mcpUrl={activeWorkspace.mcpUrl} />
         </div>
 
-        <SharedBrains brains={sharedBrains} view={view} lastUpdated={lastUpdated} />
+        <SharedBrains
+          shared={shared}
+          view={view}
+          lastUpdated={lastUpdated}
+          mainPage={brainPage.page}
+        />
       </main>
     </div>
   );
@@ -402,15 +445,17 @@ function BrainListRow({ brain, updatedAt, badge, meta }: BrainItem) {
 }
 
 function SharedBrains({
-  brains,
+  shared,
   view,
   lastUpdated,
+  mainPage = 1,
 }: {
-  brains: Brain[];
+  shared: BrainPage;
   view: BrainsView;
   lastUpdated: (brain: Brain) => string;
+  mainPage?: number;
 }) {
-  if (!brains.length) return null;
+  if (!shared.total) return null;
   return (
     <section className="mt-10" aria-labelledby="dash-shared-title">
       <SectionHead
@@ -420,11 +465,17 @@ function SharedBrains({
       />
       <BrainCollection
         view={view}
-        items={brains.map((brain) => ({
+        items={shared.items.map((brain) => ({
           brain,
           updatedAt: lastUpdated(brain),
           badge: <Chip tone="accent">Guest</Chip>,
         }))}
+      />
+      <Pager
+        className="mt-4"
+        page={shared.page}
+        pageCount={Math.ceil(shared.total / PAGE_SIZE)}
+        makeHref={(target) => dashboardHref(mainPage, target)}
       />
     </section>
   );
@@ -448,11 +499,11 @@ function EmptyShell({ kicker, children }: { kicker: string; children: React.Reac
 }
 
 function NoWorkspace({
-  sharedBrains,
+  shared,
   view,
   lastUpdated,
 }: {
-  sharedBrains: Brain[];
+  shared: BrainPage;
   view: BrainsView;
   lastUpdated: (brain: Brain) => string;
 }) {
@@ -471,7 +522,7 @@ function NoWorkspace({
           </ButtonLink>
         </div>
       </section>
-      <SharedBrains brains={sharedBrains} view={view} lastUpdated={lastUpdated} />
+      <SharedBrains shared={shared} view={view} lastUpdated={lastUpdated} />
     </EmptyShell>
   );
 }
@@ -480,14 +531,14 @@ function EmptyWorkspace({
   teamName,
   workspaceName,
   mcpUrl,
-  sharedBrains,
+  shared,
   view,
   lastUpdated,
 }: {
   teamName: string;
   workspaceName: string;
   mcpUrl: string;
-  sharedBrains: Brain[];
+  shared: BrainPage;
   view: BrainsView;
   lastUpdated: (brain: Brain) => string;
 }) {
@@ -510,7 +561,7 @@ function EmptyWorkspace({
           </ButtonLink>
         </div>
       </section>
-      <SharedBrains brains={sharedBrains} view={view} lastUpdated={lastUpdated} />
+      <SharedBrains shared={shared} view={view} lastUpdated={lastUpdated} />
     </EmptyShell>
   );
 }

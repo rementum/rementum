@@ -14,9 +14,14 @@ import { GradientText } from "../components/pui";
 import { hasSession, publicAuthConfig } from "../lib/api";
 import { GITHUB_URL } from "../lib/site";
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; sharedPage?: string }>;
+}) {
   if (!(await hasSession())) return <Landing />;
-  return <Dashboard />;
+  const { page, sharedPage } = await searchParams;
+  return <Dashboard page={page} sharedPage={sharedPage} />;
 }
 
 async function Landing() {

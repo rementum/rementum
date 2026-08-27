@@ -5,6 +5,7 @@ import { BrainNav } from "../../../components/brain-nav";
 import { InviteMemberForm } from "../../../components/invite-member-form";
 import { PrefToggle } from "../../../components/pref-toggle";
 import { Card, CardHeader } from "../../../components/ui/card";
+import { Pager } from "../../../components/ui/pager";
 import { StatusPill } from "../../../components/ui/status-pill";
 import { api } from "../../../lib/api";
 import { relativeTime } from "../../../lib/format";
@@ -13,6 +14,7 @@ import { ARTICLES_SORT_COOKIE, ARTICLES_SORTS, parsePref } from "../../../lib/pr
 interface BrainResponse {
   brain: { id: string; name: string; description: string; instructions: string };
   role: "owner" | "editor" | "commenter" | "viewer";
+  articleTotal: number;
   routingIndex: Array<{
     id: string;
     slug: string;
@@ -24,8 +26,17 @@ interface BrainResponse {
   }>;
 }
 
-export default async function BrainPage({ params }: { params: Promise<{ brainId: string }> }) {
+const PAGE_SIZE = 50;
+
+export default async function BrainPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ brainId: string }>;
+  searchParams: Promise<{ page?: string }>;
+}) {
   const { brainId } = await params;
+  const { page: pageParam } = await searchParams;
   // parsePref narrows the cookie to the closed enum before it touches the URL,
   // and the API validates the value again.
   const sort = parsePref(
@@ -33,7 +44,20 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
     ARTICLES_SORTS,
     "updated",
   );
-  const data = await api<BrainResponse>(`/api/v1/brains/${brainId}?sort=${sort}`);
+  const requested = Number(pageParam);
+  let page = Number.isInteger(requested) && requested > 0 ? requested : 1;
+  const fetchAt = (target: number) =>
+    api<BrainResponse>(
+      `/api/v1/brains/${brainId}?sort=${sort}&limit=${PAGE_SIZE}&offset=${(target - 1) * PAGE_SIZE}`,
+    );
+  let data = await fetchAt(page);
+  const pageCount = Math.max(1, Math.ceil(data.articleTotal / PAGE_SIZE));
+  // A stale URL can point past the end; land on the last page instead of an empty list.
+  if (!data.routingIndex.length && page > pageCount) {
+    page = pageCount;
+    data = await fetchAt(page);
+  }
+  const offset = (page - 1) * PAGE_SIZE;
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
       <div className="grid gap-8 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -103,7 +127,7 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
             <Card>
               <CardHeader
                 title="Current canon"
-                count={`${data.routingIndex.length} ${data.routingIndex.length === 1 ? "article" : "articles"}`}
+                count={`${data.articleTotal} ${data.articleTotal === 1 ? "article" : "articles"}`}
                 action={
                   <PrefToggle
                     cookieName={ARTICLES_SORT_COOKIE}
@@ -125,7 +149,7 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
                       key={article.id}
                     >
                       <span className="shrink-0 font-mono text-2xs tabular-nums text-ink-3">
-                        {String(index + 1).padStart(2, "0")}
+                        {String(offset + index + 1).padStart(2, "0")}
                       </span>
                       <div className="min-w-0 flex-1">
                         <h2 className="truncate text-sm font-medium text-ink">{article.title}</h2>
@@ -152,6 +176,14 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
                 </p>
               )}
             </Card>
+            <Pager
+              className="mt-4"
+              page={page}
+              pageCount={pageCount}
+              makeHref={(target) =>
+                target > 1 ? `/brains/${brainId}?page=${target}` : `/brains/${brainId}`
+              }
+            />
           </div>
         </section>
       </div>
