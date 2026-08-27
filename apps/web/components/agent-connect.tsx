@@ -14,7 +14,7 @@ const HARNESSES = [
     id: "claude",
     label: "Claude Code",
     commands: (mcpUrl: string) => [
-      "npx -y skills add yibudak/rementum --global --agent claude-code --skill '*' --yes",
+      "npx -y skills add rementum/rementum --global --agent claude-code --skill '*' --yes",
       `claude mcp add --scope user --transport http rementum ${mcpUrl}`,
       "claude mcp login rementum",
     ],
@@ -23,7 +23,7 @@ const HARNESSES = [
     id: "codex",
     label: "Codex",
     commands: (mcpUrl: string) => [
-      "npx -y skills add yibudak/rementum --global --agent codex --skill '*' --yes",
+      "npx -y skills add rementum/rementum --global --agent codex --skill '*' --yes",
       `codex mcp add rementum --url ${mcpUrl}`,
       "codex mcp login rementum",
     ],
@@ -32,7 +32,7 @@ const HARNESSES = [
     id: "opencode",
     label: "OpenCode",
     commands: (mcpUrl: string) => [
-      "npx -y skills add yibudak/rementum --global --agent opencode --skill '*' --yes",
+      "npx -y skills add rementum/rementum --global --agent opencode --skill '*' --yes",
       `opencode mcp add rementum --url ${mcpUrl}`,
       "opencode mcp auth rementum",
     ],
