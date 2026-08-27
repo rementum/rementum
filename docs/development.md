@@ -1,7 +1,7 @@
 # Development
 
 New contributors should start with
-[CONTRIBUTING.md](https://github.com/yibudak/rementum/blob/main/CONTRIBUTING.md), which covers the
+[CONTRIBUTING.md](https://github.com/rementum/rementum/blob/main/CONTRIBUTING.md), which covers the
 repository layout, commit conventions, and what a pull request is expected to pass. This page
 covers the mechanics of running the stack.
 

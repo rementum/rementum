@@ -28,7 +28,7 @@ contracts are versioned, but backward compatibility is not promised until 1.0.
 Point a domain at a Linux host with Docker Compose, open ports 80 and 443, then run:
 
 ```bash
-git clone https://github.com/yibudak/rementum.git
+git clone https://github.com/rementum/rementum.git
 cd rementum
 ./scripts/install.sh
 ```
