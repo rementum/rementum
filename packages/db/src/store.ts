@@ -1,4 +1,5 @@
 import type {
+  BrainArticleCount,
   BrainRole,
   CreateBrainInput,
   CreateTaskInput,
@@ -437,6 +438,17 @@ export class PostgresStore implements DataStore {
         ORDER BY updated_at DESC
       `;
       return rows.map(mapBrain);
+    });
+  }
+
+  async countArticlesByBrain(actor: Actor): Promise<BrainArticleCount[]> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<Array<{ brain_id: string; article_count: number }>>`
+        SELECT brain_id, COUNT(*)::int AS article_count
+        FROM articles WHERE archived_at IS NULL
+        GROUP BY brain_id
+      `;
+      return rows.map((row) => ({ brainId: row.brain_id, articleCount: row.article_count }));
     });
   }
 

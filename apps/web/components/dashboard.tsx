@@ -18,8 +18,9 @@ interface Brain {
   updatedAt: string;
 }
 
-interface BrainDetail {
-  routingIndex: Array<{ id: string }>;
+interface BrainArticleCount {
+  brainId: string;
+  articleCount: number;
 }
 
 interface Write {
@@ -34,7 +35,6 @@ interface Write {
 
 interface BrainOverview {
   brain: Brain;
-  articleCount: number;
   writes: Write[];
 }
 
@@ -42,7 +42,11 @@ const OVERVIEW_LIMIT = 12;
 
 export async function Dashboard() {
   const { workspaces, activeTeam, activeWorkspace } = await workspaceContext();
-  const allBrains = await api<Brain[]>("/api/v1/brains");
+  const [allBrains, articleCounts] = await Promise.all([
+    api<Brain[]>("/api/v1/brains"),
+    api<BrainArticleCount[]>("/api/v1/brains/article-counts"),
+  ]);
+  const countByBrain = new Map(articleCounts.map((row) => [row.brainId, row.articleCount]));
   const workspaceIds = new Set(workspaces.map((workspace) => workspace.id));
   const sharedBrains = allBrains.filter((brain) => !workspaceIds.has(brain.workspaceId));
   if (!activeWorkspace || !activeTeam) return <NoWorkspace sharedBrains={sharedBrains} />;
@@ -62,11 +66,8 @@ export async function Dashboard() {
   );
   const overviews = await Promise.all(
     recentFirst.slice(0, OVERVIEW_LIMIT).map(async (brain): Promise<BrainOverview> => {
-      const [detail, writes] = await Promise.all([
-        api<BrainDetail>(`/api/v1/brains/${brain.id}`),
-        api<Write[]>(`/api/v1/brains/${brain.id}/writes`),
-      ]);
-      return { brain, articleCount: detail.routingIndex.length, writes };
+      const writes = await api<Write[]>(`/api/v1/brains/${brain.id}/writes`);
+      return { brain, writes };
     }),
   );
 
@@ -80,7 +81,7 @@ export async function Dashboard() {
       if (a.status !== b.status) return a.status === "conflicted" ? -1 : 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  const articleTotal = overviews.reduce((sum, item) => sum + item.articleCount, 0);
+  const articleTotal = brains.reduce((sum, brain) => sum + (countByBrain.get(brain.id) ?? 0), 0);
   const pendingByBrain = new Map(
     overviews.map(({ brain, writes }) => [
       brain.id,
@@ -162,7 +163,7 @@ export async function Dashboard() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recentFirst.map((brain) => {
               const pending = pendingByBrain.get(brain.id) ?? 0;
-              const overview = overviews.find((item) => item.brain.id === brain.id);
+              const count = countByBrain.get(brain.id) ?? 0;
               return (
                 <BrainCard
                   key={brain.id}
@@ -178,11 +179,7 @@ export async function Dashboard() {
                       </Chip>
                     ) : null
                   }
-                  meta={
-                    overview
-                      ? `${overview.articleCount} ${overview.articleCount === 1 ? "article" : "articles"}`
-                      : null
-                  }
+                  meta={`${count} ${count === 1 ? "article" : "articles"}`}
                 />
               );
             })}

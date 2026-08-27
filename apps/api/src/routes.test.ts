@@ -46,6 +46,7 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
     listTeams: vi.fn(async () => [{ id: teamId }]),
     listWorkspaces: vi.fn(async () => [{ id: workspaceId, llmCompactionEnabled: false }]),
     listBrains: vi.fn(async () => [{ id: brainId }]),
+    countArticlesByBrain: vi.fn(async () => [{ brainId, articleCount: 2 }]),
     getBrain: vi.fn(async () => ({
       brain: { id: brainId, slug: "product" },
       routingIndex: [{ id: "article-id", slug: "architecture" }],
@@ -445,6 +446,24 @@ describe("authorization", () => {
     const response = await context.app.inject({ method: "GET", url: "/api/v1/brains/not-a-uuid" });
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ code: "validation" });
+    expect(context.service.getBrain).not.toHaveBeenCalled();
+  });
+
+  it("marks actor-scoped responses uncacheable", async () => {
+    const response = await context.app.inject({ method: "GET", url: "/api/v1/brains" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
+});
+
+describe("article counts", () => {
+  it("serves the counts from the static route, not the :brainId parameter", async () => {
+    const response = await context.app.inject({
+      method: "GET",
+      url: "/api/v1/brains/article-counts",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([{ brainId, articleCount: 2 }]);
     expect(context.service.getBrain).not.toHaveBeenCalled();
   });
 });

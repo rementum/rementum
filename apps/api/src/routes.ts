@@ -45,6 +45,18 @@ export async function registerApiRoutes(
     config.REMENTUM_LLM_ENABLED && config.REMENTUM_LLM_BASE_URL && config.REMENTUM_LLM_MODEL,
   );
   const authRateLimit = { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } };
+  // Every /api/v1 and /mcp response is scoped to the authenticated actor, so no cache —
+  // browser or intermediary — may reuse one across sessions. Registered here without
+  // encapsulation, the hook covers the MCP endpoint too; OAuth responses keep the
+  // headers oidc-provider sets itself.
+  app.addHook("onSend", async (request, reply) => {
+    if (
+      !reply.getHeader("cache-control") &&
+      (request.url.startsWith("/api/v1/") || request.url.startsWith("/mcp/"))
+    ) {
+      reply.header("cache-control", "no-store");
+    }
+  });
   const authorize = async (request: FastifyRequest, scope: AccessScope) =>
     requireAccessScope(await authenticate(request), scope);
 
@@ -388,6 +400,10 @@ export async function registerApiRoutes(
     return reply
       .code(201)
       .send(await service.createBrain(createBrainSchema.parse(request.body), actor));
+  });
+  // Static segment, so the router matches it ahead of the :brainId parameter below.
+  app.get("/api/v1/brains/article-counts", async (request) => {
+    return service.countArticlesByBrain(await authorize(request, "brain:read"));
   });
   app.get("/api/v1/brains/:brainId", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);

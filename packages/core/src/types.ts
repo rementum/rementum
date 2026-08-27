@@ -1,6 +1,7 @@
 import type {
   Article,
   ArticleSummary,
+  BrainArticleCount,
   BrainRole,
   CompactionState,
   CreateBrainInput,
@@ -261,6 +262,7 @@ export interface DataStore {
     id: string,
   ): Promise<BrainRecord>;
   listBrains(actor: Actor, workspaceId?: string): Promise<BrainRecord[]>;
+  countArticlesByBrain(actor: Actor): Promise<BrainArticleCount[]>;
   getBrain(id: string, actor: Actor): Promise<BrainRecord | null>;
   deleteBrain(brainId: string, confirmation: string, actor: Actor): Promise<BrainRecord>;
   isBrainCompactionEnabled(brainId: string, actor: Actor): Promise<boolean>;

@@ -287,6 +287,13 @@ export class RementumService {
     return brains.map(withoutWrappedKey);
   }
 
+  // No service-level role guard, matching listBrains without a workspace filter: the
+  // row-level policies on articles decide which brains contribute rows, and the result
+  // carries only ids and counts.
+  async countArticlesByBrain(actor: Actor) {
+    return this.store.countArticlesByBrain(actor);
+  }
+
   async getBrain(brainId: string, actor: Actor, limit = 200): Promise<BrainWithIndex> {
     requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
     const brain = await this.store.getBrain(brainId, actor);
