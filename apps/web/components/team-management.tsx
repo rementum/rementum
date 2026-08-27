@@ -134,6 +134,46 @@ export function WorkspaceCreateForm({ teamId }: { teamId: string }) {
   );
 }
 
+export function TeamDangerZone({ teamId, name }: { teamId: string; name: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function remove() {
+    const confirmation = window.prompt(
+      `Deleting this team permanently deletes all of its workspaces, brains, and notes. Type "${name}" to continue.`,
+    );
+    if (confirmation === null) return;
+    setBusy(true);
+    setError("");
+    try {
+      await bridge(`/teams/${teamId}`, "DELETE", { confirmation });
+      router.push("/teams");
+      router.refresh();
+    } catch (value) {
+      setError((value as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-ink">Delete this team</p>
+          <p className="text-xs text-ink-3">
+            Permanently removes every workspace, brain, and note in the team. This cannot be undone.
+          </p>
+        </div>
+        <button className={DANGER_BUTTON_CLASS} type="button" disabled={busy} onClick={remove}>
+          Delete team
+        </button>
+        {error ? <p className="w-full text-xs text-red">{error}</p> : null}
+      </div>
+    </Card>
+  );
+}
+
 export function WorkspaceMcpLink({ url }: { url: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2">

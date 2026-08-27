@@ -263,6 +263,41 @@ export class PostgresStore implements DataStore {
     });
   }
 
+  async deleteTeam(teamId: string, confirmation: string, actor: Actor): Promise<TeamRecord> {
+    return this.withActor(actor, async (tx) => {
+      const [team] = await tx<any[]>`SELECT * FROM teams WHERE id = ${teamId} FOR UPDATE`;
+      if (!team) throw new NotFoundError("Team");
+      const role = actor.teamRoles.get(teamId);
+      if (!role) throw new ForbiddenError();
+      if (confirmation !== team.name) {
+        throw new ConflictError("Team name confirmation does not match");
+      }
+      const [remaining] = await tx<Array<{ count: number }>>`
+        SELECT count(*)::int AS count FROM team_members
+        WHERE user_id = ${actor.userId} AND team_id <> ${teamId}
+      `;
+      // Registration creates exactly one team, and the whole web app assumes at least one
+      // exists for the signed-in user; deleting the last one would strand the account.
+      if ((remaining?.count ?? 0) < 1) {
+        throw new ConflictError("Deleting your only team would leave the account without one");
+      }
+      const workspaceRows = await tx<Array<{ id: string }>>`
+        SELECT id FROM workspaces WHERE team_id = ${teamId}
+      `;
+      const brainRows = await tx<Array<{ id: string }>>`
+        SELECT b.id FROM brains b
+        JOIN workspaces w ON w.id = b.workspace_id
+        WHERE w.team_id = ${teamId}
+      `;
+      const deleted = await tx<any[]>`DELETE FROM teams WHERE id = ${teamId} RETURNING id`;
+      if (!deleted.length) throw new NotFoundError("Team");
+      actor.teamRoles.delete(teamId);
+      for (const workspace of workspaceRows) actor.workspaceRoles.delete(workspace.id);
+      for (const brain of brainRows) actor.brainRoles.delete(brain.id);
+      return mapTeam({ ...team, role });
+    });
+  }
+
   async listTeamMembers(teamId: string, actor: Actor): Promise<TeamMemberRecord[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
@@ -406,6 +441,22 @@ export class PostgresStore implements DataStore {
         SELECT * FROM brains WHERE id = ${id} AND deleted_at IS NULL
       `;
       return row ? mapBrain(row) : null;
+    });
+  }
+
+  async deleteBrain(brainId: string, confirmation: string, actor: Actor): Promise<BrainRecord> {
+    return this.withActor(actor, async (tx) => {
+      const [brain] = await tx<any[]>`
+        SELECT * FROM brains WHERE id = ${brainId} AND deleted_at IS NULL
+      `;
+      if (!brain) throw new NotFoundError("Brain");
+      if (confirmation !== brain.name) {
+        throw new ConflictError("Brain name confirmation does not match");
+      }
+      const deleted = await tx<any[]>`DELETE FROM brains WHERE id = ${brainId} RETURNING id`;
+      if (!deleted.length) throw new NotFoundError("Brain");
+      actor.brainRoles.delete(brainId);
+      return mapBrain(brain);
     });
   }
 

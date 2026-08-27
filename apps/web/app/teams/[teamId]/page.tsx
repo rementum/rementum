@@ -1,4 +1,5 @@
 import {
+  TeamDangerZone,
   TeamManagement,
   WorkspaceCreateForm,
   WorkspaceManagement,
@@ -68,6 +69,7 @@ export default async function TeamPage({ params }: { params: Promise<{ teamId: s
           members={members}
           invitations={invitations}
         />
+        {team.role === "owner" ? <TeamDangerZone teamId={teamId} name={team.name} /> : null}
       </div>
     </main>
   );

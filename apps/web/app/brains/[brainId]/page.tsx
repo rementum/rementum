@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrainDangerZone } from "../../../components/brain-danger-zone";
 import { BrainNav } from "../../../components/brain-nav";
 import { InviteMemberForm } from "../../../components/invite-member-form";
 import { Card, CardHeader } from "../../../components/ui/card";
@@ -7,6 +8,7 @@ import { api } from "../../../lib/api";
 
 interface BrainResponse {
   brain: { id: string; name: string; description: string; instructions: string };
+  role: "owner" | "editor" | "commenter" | "viewer";
   routingIndex: Array<{
     id: string;
     slug: string;
@@ -80,6 +82,9 @@ export default async function BrainPage({ params }: { params: Promise<{ brainId:
               <InviteMemberForm brainId={brainId} />
             </div>
           </details>
+          {data.role === "owner" ? (
+            <BrainDangerZone brainId={brainId} name={data.brain.name} />
+          ) : null}
         </aside>
         <section>
           <BrainNav brainId={brainId} />
