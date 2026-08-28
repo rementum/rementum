@@ -100,6 +100,7 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     getArticleSources: vi.fn(async () => []),
     isBrainCompactionEnabled: vi.fn(async () => false),
     listRoutingIndex: vi.fn(async () => []),
+    countArticles: vi.fn(async () => 0),
     listStagedWrites: vi.fn(async () => []),
     listTasks: vi.fn(async () => []),
     listMaintenance: vi.fn(async () => []),

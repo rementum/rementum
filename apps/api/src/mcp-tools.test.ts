@@ -21,12 +21,13 @@ afterEach(async () => {
 
 function stubService(overrides: Record<string, unknown> = {}): RementumService {
   return {
-    listBrains: vi.fn(async () => []),
+    listBrains: vi.fn(async () => ({ items: [], total: 0 })),
     searchBrains: vi.fn(async () => []),
-    createBrain: vi.fn(async () => ({ brain: { id: brainId }, routingIndex: [] })),
+    createBrain: vi.fn(async () => ({ brain: { id: brainId }, routingIndex: [], articleTotal: 0 })),
     getBrain: vi.fn(async () => ({
       brain: { id: brainId, slug: "product" },
       routingIndex: [{ id: articleId, slug: "architecture", currentVersion: 2 }],
+      articleTotal: 1,
     })),
     search: vi.fn(async () => []),
     readArticle: vi.fn(async () => ({

@@ -38,11 +38,12 @@ export default async function WorkspaceActivityPage() {
       </main>
     );
   }
-  const allBrains = await api<Brain[]>("/api/v1/brains");
-  const brains = allBrains.filter((brain) => brain.workspaceId === activeWorkspace.id);
+  const { items: brains } = await api<{ items: Brain[]; total: number }>(
+    `/api/v1/brains?workspaceId=${activeWorkspace.id}&limit=${BRAIN_LIMIT}`,
+  );
   const brainName = new Map(brains.map((brain) => [brain.id, brain.name]));
   const feeds = await Promise.all(
-    brains.slice(0, BRAIN_LIMIT).map(async (brain) => {
+    brains.map(async (brain) => {
       const events = await api<Activity[]>(
         `/api/v1/brains/${brain.id}/activity?limit=50&source=mcp`,
       );

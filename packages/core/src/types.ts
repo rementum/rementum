@@ -2,6 +2,7 @@ import type {
   Article,
   ArticleSummary,
   BrainArticleCount,
+  BrainListSort,
   BrainRole,
   CompactionState,
   CreateBrainInput,
@@ -262,8 +263,18 @@ export interface DataStore {
     wrappedKey: WrappedKey,
     id: string,
   ): Promise<BrainRecord>;
-  listBrains(actor: Actor, workspaceId?: string): Promise<BrainRecord[]>;
-  countArticlesByBrain(actor: Actor): Promise<BrainArticleCount[]>;
+  listBrains(
+    actor: Actor,
+    options?: {
+      workspaceId?: string;
+      excludeWorkspaceIds?: string[];
+      sort?: BrainListSort;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ items: BrainRecord[]; total: number }>;
+  countArticlesByBrain(actor: Actor, workspaceId?: string): Promise<BrainArticleCount[]>;
+  countArticles(brainId: string, actor: Actor): Promise<number>;
   getBrain(id: string, actor: Actor): Promise<BrainRecord | null>;
   deleteBrain(brainId: string, confirmation: string, actor: Actor): Promise<BrainRecord>;
   isBrainCompactionEnabled(brainId: string, actor: Actor): Promise<boolean>;
@@ -272,6 +283,7 @@ export interface DataStore {
     actor: Actor,
     limit: number,
     sort: RoutingIndexSort,
+    offset?: number,
   ): Promise<ArticleRecord[]>;
   getArticle(id: string, actor: Actor): Promise<ArticleRecord | null>;
   getArticleBySlug(brainId: string, slug: string, actor: Actor): Promise<ArticleRecord | null>;
@@ -443,6 +455,7 @@ export interface BlobStore {
 export interface BrainWithIndex {
   brain: Omit<BrainRecord, "wrappedKey">;
   routingIndex: ArticleSummary[];
+  articleTotal: number;
   role: BrainRole;
 }
 
