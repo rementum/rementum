@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button, WibblingSpinner } from "./pui";
+import { TurnstileChallenge } from "./turnstile";
 import { Field, fieldControlClass } from "./ui/field";
 
 const apiBase = (process.env.NEXT_PUBLIC_REMENTUM_API_URL ?? "").replace(/\/$/, "");
@@ -22,15 +23,54 @@ async function request(path: string, body: Record<string, unknown>) {
   return payload;
 }
 
+/**
+ * A spent Turnstile token is single-use, so every failed submit drops the token and
+ * remounts the widget for a fresh challenge. The submit button stays locked until the
+ * challenge is solved whenever bot protection is configured.
+ */
+function useTurnstileGuard(initialSiteKey: string | null) {
+  const [siteKey, setSiteKey] = useState(initialSiteKey);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [challenge, setChallenge] = useState(0);
+  const resetTurnstile = () => {
+    setTurnstileToken("");
+    setChallenge((n) => n + 1);
+    // A null site key may be the server-render fallback from a moment the API was
+    // unreachable, while the API itself still demands a token. Re-check from the
+    // browser so a submit rejected for a missing captcha recovers its widget
+    // instead of failing identically on every retry.
+    if (!siteKey) {
+      fetch(`${apiBase}/api/v1/auth/config`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body) => {
+          if (body?.turnstileSiteKey) setSiteKey(body.turnstileSiteKey as string);
+        })
+        .catch(() => null);
+    }
+  };
+  return {
+    siteKey,
+    turnstileToken,
+    challenge,
+    onTurnstileToken: setTurnstileToken,
+    onTurnstileReset: () => setTurnstileToken(""),
+    resetTurnstile,
+    turnstileBlocked: Boolean(siteKey) && !turnstileToken,
+  };
+}
+
 export function LoginForm({
   returnTo,
   signupEnabled,
+  turnstileSiteKey,
 }: {
   returnTo: string;
   signupEnabled: boolean;
+  turnstileSiteKey: string | null;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const turnstile = useTurnstileGuard(turnstileSiteKey);
   async function submit(formData: FormData) {
     setBusy(true);
     setError("");
@@ -38,11 +78,13 @@ export function LoginForm({
       await request("/api/v1/auth/session", {
         email: formData.get("email"),
         password: formData.get("password"),
+        ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
       });
       window.location.assign(returnTo);
     } catch (value) {
       setError((value as Error).message);
       setBusy(false);
+      turnstile.resetTurnstile();
     }
   }
   return (
@@ -67,8 +109,22 @@ export function LoginForm({
           required
         />
       </Field>
+      {turnstile.siteKey ? (
+        <TurnstileChallenge
+          key={turnstile.challenge}
+          siteKey={turnstile.siteKey}
+          onToken={turnstile.onTurnstileToken}
+          onReset={turnstile.onTurnstileReset}
+        />
+      ) : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
-      <Button type="submit" variant="solid" block loading={busy}>
+      <Button
+        type="submit"
+        variant="solid"
+        block
+        loading={busy}
+        disabled={turnstile.turnstileBlocked}
+      >
         {busy ? "Signing in…" : "Sign in"}
       </Button>
       {signupEnabled ? (
@@ -86,9 +142,10 @@ export function LoginForm({
   );
 }
 
-export function RegisterForm() {
+export function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey: string | null }) {
   const [state, setState] = useState<"idle" | "busy" | "sent">("idle");
   const [error, setError] = useState("");
+  const turnstile = useTurnstileGuard(turnstileSiteKey);
   async function submit(formData: FormData) {
     setState("busy");
     setError("");
@@ -98,11 +155,13 @@ export function RegisterForm() {
         email: formData.get("email"),
         password: formData.get("password"),
         teamName: formData.get("teamName"),
+        ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
       });
       setState("sent");
     } catch (value) {
       setError((value as Error).message);
       setState("idle");
+      turnstile.resetTurnstile();
     }
   }
   if (state === "sent")
@@ -160,24 +219,45 @@ export function RegisterForm() {
           required
         />
       </Field>
+      {turnstile.siteKey ? (
+        <TurnstileChallenge
+          key={turnstile.challenge}
+          siteKey={turnstile.siteKey}
+          onToken={turnstile.onTurnstileToken}
+          onReset={turnstile.onTurnstileReset}
+        />
+      ) : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
-      <Button type="submit" variant="solid" block loading={state === "busy"}>
+      <Button
+        type="submit"
+        variant="solid"
+        block
+        loading={state === "busy"}
+        disabled={turnstile.turnstileBlocked}
+      >
         {state === "busy" ? "Creating account…" : "Create account"}
       </Button>
     </form>
   );
 }
 
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({ turnstileSiteKey }: { turnstileSiteKey: string | null }) {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const turnstile = useTurnstileGuard(turnstileSiteKey);
   async function submit(formData: FormData) {
     setError("");
     try {
-      await request("/api/v1/auth/forgot-password", { email: formData.get("email") });
+      await request("/api/v1/auth/forgot-password", {
+        email: formData.get("email"),
+        ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
+      });
       setSent(true);
+      // The form stays mounted for a re-send, and siteverify just consumed the token.
+      turnstile.resetTurnstile();
     } catch (value) {
       setError((value as Error).message);
+      turnstile.resetTurnstile();
     }
   }
   return (
@@ -192,27 +272,42 @@ export function ForgotPasswordForm() {
           required
         />
       </Field>
+      {turnstile.siteKey ? (
+        <TurnstileChallenge
+          key={turnstile.challenge}
+          siteKey={turnstile.siteKey}
+          onToken={turnstile.onTurnstileToken}
+          onReset={turnstile.onTurnstileReset}
+        />
+      ) : null}
       {sent ? (
         <p className={successBanner}>If the account exists, a reset link is on its way.</p>
       ) : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
-      <Button type="submit" variant="solid" block>
+      <Button type="submit" variant="solid" block disabled={turnstile.turnstileBlocked}>
         Send reset link
       </Button>
     </form>
   );
 }
 
-export function ResendVerificationForm() {
+export function ResendVerificationForm({ turnstileSiteKey }: { turnstileSiteKey: string | null }) {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const turnstile = useTurnstileGuard(turnstileSiteKey);
   async function submit(formData: FormData) {
     setError("");
     try {
-      await request("/api/v1/auth/resend-verification", { email: formData.get("email") });
+      await request("/api/v1/auth/resend-verification", {
+        email: formData.get("email"),
+        ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
+      });
       setSent(true);
+      // The form stays mounted for a re-send, and siteverify just consumed the token.
+      turnstile.resetTurnstile();
     } catch (value) {
       setError((value as Error).message);
+      turnstile.resetTurnstile();
     }
   }
   return (
@@ -227,11 +322,19 @@ export function ResendVerificationForm() {
           required
         />
       </Field>
+      {turnstile.siteKey ? (
+        <TurnstileChallenge
+          key={turnstile.challenge}
+          siteKey={turnstile.siteKey}
+          onToken={turnstile.onTurnstileToken}
+          onReset={turnstile.onTurnstileReset}
+        />
+      ) : null}
       {sent ? (
         <p className={successBanner}>If verification is pending, a new link is on its way.</p>
       ) : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
-      <Button type="submit" variant="solid" block>
+      <Button type="submit" variant="solid" block disabled={turnstile.turnstileBlocked}>
         Resend verification
       </Button>
     </form>

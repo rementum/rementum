@@ -13,7 +13,7 @@ export default async function LoginPage({
   const { returnTo } = await searchParams;
   const destination = safeReturnTo(returnTo);
   if (await hasSession()) redirect(destination);
-  const { signupEnabled } = await publicAuthConfig();
+  const { signupEnabled, turnstileSiteKey } = await publicAuthConfig();
   return (
     <AuthShell
       kicker="Web session"
@@ -24,7 +24,11 @@ export default async function LoginPage({
       }
       description="Open your teams and workspaces. You approve OAuth grants only when an MCP client connects."
     >
-      <LoginForm returnTo={destination} signupEnabled={signupEnabled} />
+      <LoginForm
+        returnTo={destination}
+        signupEnabled={signupEnabled}
+        turnstileSiteKey={turnstileSiteKey}
+      />
     </AuthShell>
   );
 }

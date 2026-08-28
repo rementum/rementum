@@ -31,6 +31,7 @@ import { type AccessScope, requireAccessScope, type ScopedActor } from "./access
 import type { AppConfig } from "./config.js";
 import type { TransactionalMailer } from "./mailer.js";
 import { sanitize } from "./mcp.js";
+import { requireTurnstile, turnstileTokenSchema } from "./turnstile.js";
 
 type Authenticate = (request: FastifyRequest) => Promise<ScopedActor>;
 
@@ -62,7 +63,10 @@ export async function registerApiRoutes(
   const authorize = async (request: FastifyRequest, scope: AccessScope) =>
     requireAccessScope(await authenticate(request), scope);
 
-  app.get("/api/v1/auth/config", async () => ({ signupEnabled: config.REMENTUM_ALLOW_SIGNUP }));
+  app.get("/api/v1/auth/config", async () => ({
+    signupEnabled: config.REMENTUM_ALLOW_SIGNUP,
+    turnstileSiteKey: config.REMENTUM_TURNSTILE_SITE_KEY ?? null,
+  }));
 
   app.post("/api/v1/auth/register", authRateLimit, async (request, reply) => {
     if (!config.REMENTUM_ALLOW_SIGNUP) {
@@ -74,8 +78,10 @@ export async function registerApiRoutes(
         displayName: z.string().trim().min(1).max(160),
         password: z.string().min(12).max(1000),
         teamName: z.string().trim().min(1).max(160),
+        turnstileToken: turnstileTokenSchema,
       })
       .parse(request.body);
+    await requireTurnstile(config, input.turnstileToken, request.ip);
     const email = input.email.trim().toLowerCase();
     const teamSlug = `${(slugify(input.teamName) || "team").slice(0, 105)}-${randomBytes(6).toString("hex")}`;
     const created = await authRepository.registerAccount(
@@ -109,9 +115,14 @@ export async function registerApiRoutes(
   });
 
   app.post("/api/v1/auth/resend-verification", authRateLimit, async (request, reply) => {
-    const { email } = z.object({ email: z.email() }).parse(request.body);
+    const input = z
+      .object({ email: z.email(), turnstileToken: turnstileTokenSchema })
+      .parse(request.body);
+    // Mailer availability first: a doomed request must not consume the user's
+    // single-use challenge token on a Cloudflare round trip.
     if (!mailer) throw new DomainError("email_unavailable", "Email delivery is unavailable", 503);
-    const user = await authRepository.findUserByEmail(email.trim().toLowerCase());
+    await requireTurnstile(config, input.turnstileToken, request.ip);
+    const user = await authRepository.findUserByEmail(input.email.trim().toLowerCase());
     if (user && !user.emailVerifiedAt) {
       const token = randomBytes(32).toString("base64url");
       const record = await authRepository.createAuthToken(
@@ -142,9 +153,14 @@ export async function registerApiRoutes(
   });
 
   app.post("/api/v1/auth/forgot-password", authRateLimit, async (request, reply) => {
-    const { email } = z.object({ email: z.email() }).parse(request.body);
+    const input = z
+      .object({ email: z.email(), turnstileToken: turnstileTokenSchema })
+      .parse(request.body);
+    // Mailer availability first: a doomed request must not consume the user's
+    // single-use challenge token on a Cloudflare round trip.
     if (!mailer) throw new DomainError("email_unavailable", "Email delivery is unavailable", 503);
-    const user = await authRepository.findUserByEmail(email.trim().toLowerCase());
+    await requireTurnstile(config, input.turnstileToken, request.ip);
+    const user = await authRepository.findUserByEmail(input.email.trim().toLowerCase());
     if (user) {
       const token = randomBytes(32).toString("base64url");
       const record = await authRepository.createAuthToken(

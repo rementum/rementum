@@ -5,7 +5,7 @@ Install the Rementum skills, then copy the workspace MCP URL from Rementum's **T
 Claude Code:
 
 ```bash
-npx -y skills add yibudak/rementum --global \
+npx -y skills add rementum/rementum --global \
   --agent claude-code --skill '*' --yes
 claude mcp add --scope user --transport http \
   rementum https://YOUR_HOST/mcp/workspace/WORKSPACE_UUID

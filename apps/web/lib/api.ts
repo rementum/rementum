@@ -86,7 +86,14 @@ export async function workspaceContext(): Promise<{
   };
 }
 
-export async function publicAuthConfig(): Promise<{ signupEnabled: boolean }> {
+export interface PublicAuthConfig {
+  signupEnabled: boolean;
+  turnstileSiteKey: string | null;
+}
+
+const publicAuthConfigFallback: PublicAuthConfig = { signupEnabled: false, turnstileSiteKey: null };
+
+export async function publicAuthConfig(): Promise<PublicAuthConfig> {
   const base =
     process.env.REMENTUM_API_INTERNAL_URL ??
     process.env.NEXT_PUBLIC_REMENTUM_API_URL ??
@@ -95,8 +102,14 @@ export async function publicAuthConfig(): Promise<{ signupEnabled: boolean }> {
     const response = await fetch(`${base.replace(/\/$/, "")}/api/v1/auth/config`, {
       cache: "no-store",
     });
-    return response.ok ? response.json() : { signupEnabled: false };
+    if (!response.ok) return publicAuthConfigFallback;
+    const body = (await response.json()) as Partial<PublicAuthConfig>;
+    // Normalize so an API that predates the turnstile field still matches the contract.
+    return {
+      signupEnabled: body.signupEnabled === true,
+      turnstileSiteKey: body.turnstileSiteKey ?? null,
+    };
   } catch {
-    return { signupEnabled: false };
+    return publicAuthConfigFallback;
   }
 }

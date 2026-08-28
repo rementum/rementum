@@ -1,6 +1,6 @@
 ---
 name: brain-context
-description: Load durable context from Rementum and create a project brain when none exists.
+description: Load durable project knowledge from Rementum. Use PROACTIVELY at the start of any coding, planning, debugging, or review task, before reading code, whenever the user references past work or decisions, and when no brain exists yet for the project.
 ---
 
 # Load context from Rementum
@@ -8,7 +8,8 @@ description: Load durable context from Rementum and create a project brain when 
 Use this skill when the task depends on knowledge outside the current conversation or repository,
 or when the user asks what the brain knows.
 
-1. Call `list_brains` and choose one brain from the user's words and workspace. Do not fan out.
+1. Call `search_brains` with the current project's name; fall back to `list_brains` when the search
+   finds nothing. Choose one brain from the user's words and workspace. Do not fan out.
 2. If no brain matches the current project, create one immediately from the project name and purpose.
    Omit `workspaceId` when the user has one workspace; ask only when the server reports several.
 3. Call `get_brain` and read its instructions and routing index.

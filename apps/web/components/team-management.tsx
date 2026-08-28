@@ -6,6 +6,7 @@ import { formatDate } from "../lib/format";
 import { Button } from "./pui";
 import { Card, CardHeader } from "./ui/card";
 import { Chip } from "./ui/chip";
+import { ConfirmDialog } from "./ui/confirm-dialog";
 import { CopyButton } from "./ui/copy-button";
 import { Field, fieldControlClass } from "./ui/field";
 
@@ -138,12 +139,9 @@ export function TeamDangerZone({ teamId, name }: { teamId: string; name: string 
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirming, setConfirming] = useState(false);
 
-  async function remove() {
-    const confirmation = window.prompt(
-      `Deleting this team permanently deletes all of its workspaces, brains, and notes. Type "${name}" to continue.`,
-    );
-    if (confirmation === null) return;
+  async function confirmDelete(confirmation: string) {
     setBusy(true);
     setError("");
     try {
@@ -165,11 +163,30 @@ export function TeamDangerZone({ teamId, name }: { teamId: string; name: string 
             Permanently removes every workspace, brain, and note in the team. This cannot be undone.
           </p>
         </div>
-        <button className={DANGER_BUTTON_CLASS} type="button" disabled={busy} onClick={remove}>
+        <button
+          className={DANGER_BUTTON_CLASS}
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setError("");
+            setConfirming(true);
+          }}
+        >
           Delete team
         </button>
         {error ? <p className="w-full text-xs text-red">{error}</p> : null}
       </div>
+      <ConfirmDialog
+        open={confirming}
+        title="Delete this team"
+        description="Permanently removes every workspace, brain, and note in the team. This cannot be undone."
+        confirmLabel="Delete team"
+        busy={busy}
+        error={error}
+        expectedName={name}
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirming(false)}
+      />
     </Card>
   );
 }
@@ -212,6 +229,8 @@ export function WorkspaceManagement({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [compacting, setCompacting] = useState(false);
 
   async function rename(formData: FormData) {
     setBusy(true);
@@ -227,15 +246,14 @@ export function WorkspaceManagement({
     }
   }
 
-  async function remove() {
-    const confirmation = window.prompt(
-      `Deleting this workspace permanently deletes all of its brains and notes. Type "${name}" to continue.`,
-    );
-    if (confirmation === null) return;
+  async function confirmDelete(confirmation: string) {
     setBusy(true);
     setError("");
     try {
       await bridge(`/workspaces/${workspaceId}`, "DELETE", { confirmation });
+      // Close eagerly: router.refresh() re-enables the confirm button before the
+      // deleted row unmounts, which would invite a doomed second delete.
+      setDeleting(false);
       router.refresh();
     } catch (value) {
       setError((value as Error).message);
@@ -260,18 +278,14 @@ export function WorkspaceManagement({
     }
   }
 
-  async function compactExisting() {
-    if (
-      !window.confirm(
-        "Queue the current version of every uncompacted article in this workspace? Each body will be sent to the configured LLM provider.",
-      )
-    )
-      return;
+  async function confirmCompact() {
     setBusy(true);
     setError("");
     setNotice("");
     try {
       const result = await bridge(`/workspaces/${workspaceId}/compactions`, "POST");
+      // Close before showing the notice, which renders behind the dialog overlay.
+      setCompacting(false);
       setNotice(`${result.queued} article${result.queued === 1 ? "" : "s"} queued.`);
       router.refresh();
     } catch (value) {
@@ -299,7 +313,15 @@ export function WorkspaceManagement({
             </button>
           ) : null}
           {canDelete ? (
-            <button className={DANGER_BUTTON_CLASS} type="button" disabled={busy} onClick={remove}>
+            <button
+              className={DANGER_BUTTON_CLASS}
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setError("");
+                setDeleting(true);
+              }}
+            >
               Delete
             </button>
           ) : null}
@@ -359,7 +381,10 @@ export function WorkspaceManagement({
                 size="sm"
                 type="button"
                 disabled={busy}
-                onClick={compactExisting}
+                onClick={() => {
+                  setError("");
+                  setCompacting(true);
+                }}
               >
                 Compact existing
               </Button>
@@ -370,6 +395,27 @@ export function WorkspaceManagement({
       <WorkspaceMcpLink url={mcpUrl} />
       {notice ? <p className="text-xs text-green">{notice}</p> : null}
       {error ? <p className="text-xs text-red">{error}</p> : null}
+      <ConfirmDialog
+        open={deleting}
+        title="Delete this workspace"
+        description="Permanently deletes all of its brains and notes. This cannot be undone."
+        confirmLabel="Delete workspace"
+        busy={busy}
+        error={error}
+        expectedName={name}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleting(false)}
+      />
+      <ConfirmDialog
+        open={compacting}
+        title="Compact existing articles"
+        description="Queue the current version of every uncompacted article in this workspace? Each body will be sent to the configured LLM provider."
+        confirmLabel="Queue compaction"
+        busy={busy}
+        error={error}
+        onConfirm={() => confirmCompact()}
+        onCancel={() => setCompacting(false)}
+      />
     </article>
   );
 }
@@ -388,6 +434,13 @@ export function TeamManagement({
   const router = useRouter();
   const [error, setError] = useState("");
   const [inviteUrl, setInviteUrl] = useState("");
+  const [pendingAction, setPendingAction] = useState<
+    | { kind: "remove"; userId: string; memberName: string }
+    | { kind: "revoke"; invitationId: string; email: string }
+    | null
+  >(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
   const canManage = currentRole === "owner" || currentRole === "admin";
 
   async function invite(formData: FormData) {
@@ -416,31 +469,46 @@ export function TeamManagement({
     }
   }
 
-  async function remove(userId: string) {
-    setError("");
+  async function removeMember(userId: string) {
+    setActionBusy(true);
+    setActionError("");
     try {
       await bridge(`/teams/${teamId}/members/${userId}`, "DELETE");
+      // router.refresh() keeps client state, so the dialog must close itself.
+      setPendingAction(null);
+      router.refresh();
+    } catch (value) {
+      setActionError((value as Error).message);
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function resendInvitation(id: string) {
+    setError("");
+    try {
+      const payload = await bridge(`/team-invitations/${id}/resend`, "POST");
+      setInviteUrl(payload.acceptanceUrl);
+      if (!payload.emailSent)
+        setError("Resend could not deliver the email. Share the new link manually.");
       router.refresh();
     } catch (value) {
       setError((value as Error).message);
     }
   }
 
-  async function invitationAction(id: string, action: "resend" | "revoke") {
-    setError("");
+  async function revokeInvitation(id: string) {
+    setActionBusy(true);
+    setActionError("");
     try {
-      const payload = await bridge(
-        `/team-invitations/${id}${action === "resend" ? "/resend" : ""}`,
-        action === "resend" ? "POST" : "DELETE",
-      );
-      if (action === "resend") {
-        setInviteUrl(payload.acceptanceUrl);
-        if (!payload.emailSent)
-          setError("Resend could not deliver the email. Share the new link manually.");
-      }
+      await bridge(`/team-invitations/${id}`, "DELETE");
+      // router.refresh() keeps client state, so the dialog must close itself.
+      setPendingAction(null);
       router.refresh();
     } catch (value) {
-      setError((value as Error).message);
+      setActionError((value as Error).message);
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -517,7 +585,14 @@ export function TeamManagement({
                   <button
                     className={DANGER_BUTTON_CLASS}
                     type="button"
-                    onClick={() => remove(member.userId)}
+                    onClick={() => {
+                      setActionError("");
+                      setPendingAction({
+                        kind: "remove",
+                        userId: member.userId,
+                        memberName: member.displayName || member.email,
+                      });
+                    }}
                   >
                     Remove
                   </button>
@@ -526,7 +601,14 @@ export function TeamManagement({
                 <button
                   className={DANGER_BUTTON_CLASS}
                   type="button"
-                  onClick={() => remove(member.userId)}
+                  onClick={() => {
+                    setActionError("");
+                    setPendingAction({
+                      kind: "remove",
+                      userId: member.userId,
+                      memberName: member.displayName || member.email,
+                    });
+                  }}
                 >
                   Remove
                 </button>
@@ -558,14 +640,21 @@ export function TeamManagement({
                   <button
                     className={GHOST_BUTTON_CLASS}
                     type="button"
-                    onClick={() => invitationAction(invitation.id, "resend")}
+                    onClick={() => resendInvitation(invitation.id)}
                   >
                     Resend
                   </button>
                   <button
                     className={DANGER_BUTTON_CLASS}
                     type="button"
-                    onClick={() => invitationAction(invitation.id, "revoke")}
+                    onClick={() => {
+                      setActionError("");
+                      setPendingAction({
+                        kind: "revoke",
+                        invitationId: invitation.id,
+                        email: invitation.email,
+                      });
+                    }}
                   >
                     Revoke
                   </button>
@@ -578,6 +667,39 @@ export function TeamManagement({
           </div>
         </Card>
       ) : null}
+
+      <ConfirmDialog
+        open={pendingAction?.kind === "remove"}
+        title="Remove member"
+        description={
+          pendingAction?.kind === "remove"
+            ? `Remove ${pendingAction.memberName} from this team? They will lose access to all of its workspaces and brains.`
+            : ""
+        }
+        confirmLabel="Remove member"
+        busy={actionBusy}
+        error={actionError}
+        onConfirm={() => {
+          if (pendingAction?.kind === "remove") void removeMember(pendingAction.userId);
+        }}
+        onCancel={() => setPendingAction(null)}
+      />
+      <ConfirmDialog
+        open={pendingAction?.kind === "revoke"}
+        title="Revoke invitation"
+        description={
+          pendingAction?.kind === "revoke"
+            ? `Revoke the pending invitation for ${pendingAction.email}? The acceptance link will stop working.`
+            : ""
+        }
+        confirmLabel="Revoke invitation"
+        busy={actionBusy}
+        error={actionError}
+        onConfirm={() => {
+          if (pendingAction?.kind === "revoke") void revokeInvitation(pendingAction.invitationId);
+        }}
+        onCancel={() => setPendingAction(null)}
+      />
     </>
   );
 }

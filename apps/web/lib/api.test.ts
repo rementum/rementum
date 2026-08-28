@@ -153,19 +153,38 @@ describe("workspaceContext", () => {
 });
 
 describe("publicAuthConfig", () => {
-  it("reads the signup flag without a session", async () => {
-    fetchMock.mockResolvedValueOnce(respond(200, { signupEnabled: true }));
-    await expect(publicAuthConfig()).resolves.toEqual({ signupEnabled: true });
+  it("reads the signup flag and the turnstile site key without a session", async () => {
+    fetchMock.mockResolvedValueOnce(
+      respond(200, { signupEnabled: true, turnstileSiteKey: "0x4AAAAAAA-site" }),
+    );
+    await expect(publicAuthConfig()).resolves.toEqual({
+      signupEnabled: true,
+      turnstileSiteKey: "0x4AAAAAAA-site",
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       "http://api:8787/api/v1/auth/config",
       expect.objectContaining({ cache: "no-store" }),
     );
   });
 
-  it("closes signup when the API cannot be reached or refuses", async () => {
+  it("treats a missing site key as bot protection being off", async () => {
+    fetchMock.mockResolvedValueOnce(respond(200, { signupEnabled: true }));
+    await expect(publicAuthConfig()).resolves.toEqual({
+      signupEnabled: true,
+      turnstileSiteKey: null,
+    });
+  });
+
+  it("closes signup and bot protection when the API cannot be reached or refuses", async () => {
     fetchMock.mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
-    await expect(publicAuthConfig()).resolves.toEqual({ signupEnabled: false });
+    await expect(publicAuthConfig()).resolves.toEqual({
+      signupEnabled: false,
+      turnstileSiteKey: null,
+    });
     fetchMock.mockResolvedValueOnce(respond(500, "internal"));
-    await expect(publicAuthConfig()).resolves.toEqual({ signupEnabled: false });
+    await expect(publicAuthConfig()).resolves.toEqual({
+      signupEnabled: false,
+      turnstileSiteKey: null,
+    });
   });
 });

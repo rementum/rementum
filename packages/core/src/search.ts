@@ -35,6 +35,42 @@ export function exactTermScore(query: string, value: string): number {
   return terms.filter((term) => haystack.has(term)).length / terms.length;
 }
 
+// Prefix matching lets an agent find a brain from a partial project name ("remen" → "rementum")
+// without a database round trip; brain metadata is small enough to rank in memory.
+export function prefixTermScore(query: string, value: string): number {
+  const terms = tokenize(query);
+  if (!terms.length) return 0;
+  const haystack = tokenize(value);
+  const matched = terms.filter((term) =>
+    haystack.some((token) => token === term || token.startsWith(term)),
+  );
+  return matched.length / terms.length;
+}
+
+export interface BrainSearchFields {
+  slug: string;
+  name: string;
+  description: string;
+}
+
+export function rankBrains<T extends BrainSearchFields>(
+  brains: ReadonlyArray<T>,
+  query: string,
+  limit: number,
+): T[] {
+  return brains
+    .map((brain) => ({
+      brain,
+      score:
+        3 * prefixTermScore(query, `${brain.slug} ${brain.name}`) +
+        prefixTermScore(query, brain.description),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.brain.name.localeCompare(b.brain.name))
+    .slice(0, limit)
+    .map((entry) => entry.brain);
+}
+
 export function tokenize(value: string): string[] {
   return value
     .normalize("NFKC")

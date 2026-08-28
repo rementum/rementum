@@ -1,8 +1,8 @@
 site_name: Rementum
 site_description: Self-hosted, versioned memory for AI agents
-site_url: https://yibudak.github.io/rementum/
-repo_url: https://github.com/yibudak/rementum
-repo_name: yibudak/rementum
+site_url: https://rementum.dev/
+repo_url: https://github.com/rementum/rementum
+repo_name: rementum/rementum
 edit_uri: edit/main/docs/
 copyright: Copyright &copy; Rementum contributors
 

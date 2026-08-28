@@ -1,6 +1,6 @@
 ---
 name: brain-import
-description: Scope and import Markdown or an Obsidian vault into Rementum without creating duplicates or silently promoting content.
+description: Scope and import Markdown or an Obsidian vault into Rementum without creating duplicates or silently promoting content. Use when the user asks to import, migrate, or bulk-load notes, docs, or an existing knowledge base into a brain.
 ---
 
 # Import Markdown knowledge

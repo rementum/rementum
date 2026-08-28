@@ -8,6 +8,7 @@ import type {
   PromoteWriteInput,
   RoutingIndexSort,
   SearchArticlesInput,
+  SearchBrainsInput,
   StageWriteInput,
   Task,
   UpdateWorkspaceInput,
@@ -31,6 +32,7 @@ import {
 } from "./errors.js";
 import { LocalArticleGenerator } from "./local-summary.js";
 import { slugify, splitMarkdownByHeading } from "./markdown.js";
+import { rankBrains } from "./search.js";
 import type {
   Actor,
   ArticleGenerator,
@@ -310,6 +312,13 @@ export class RementumService {
       ...(offset !== undefined ? { offset } : {}),
     });
     return { items: items.map(withoutWrappedKey), total };
+  }
+
+  async searchBrains(input: SearchBrainsInput, actor: Actor) {
+    const { items } = await this.listBrains(actor, {
+      ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+    });
+    return rankBrains(items, input.query, input.limit);
   }
 
   // No service-level role guard when unfiltered, matching listBrains without a workspace

@@ -2,7 +2,7 @@ import cookie from "@fastify/cookie";
 import { hashContent } from "@rementum/core";
 import type { AuthRepository } from "@rementum/db";
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from "fastify";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppConfig } from "./config.js";
 import { registerProblemDetails } from "./problems.js";
 import { registerWebSessionRoutes, WEB_SESSION_COOKIE } from "./web-session.js";
@@ -16,7 +16,8 @@ interface Harness {
   verifyCredentials: ReturnType<typeof vi.fn>;
 }
 
-async function harness(publicUrlOverride = publicUrl): Promise<Harness> {
+async function harness(configOverride: Partial<AppConfig> = {}): Promise<Harness> {
+  const publicUrlOverride = configOverride.REMENTUM_PUBLIC_URL ?? publicUrl;
   const app = Fastify();
   await app.register(cookie);
   const auth = {
@@ -34,6 +35,7 @@ async function harness(publicUrlOverride = publicUrl): Promise<Harness> {
     auth,
     verifyCredentials as never,
     {
+      ...configOverride,
       REMENTUM_PUBLIC_URL: publicUrlOverride,
     } as AppConfig,
   );
@@ -75,7 +77,7 @@ describe("sign in", () => {
   });
 
   it("leaves the cookie insecure on a plain-HTTP instance", async () => {
-    const plain = await harness("http://localhost");
+    const plain = await harness({ REMENTUM_PUBLIC_URL: "http://localhost" });
     const response = await plain.app.inject({
       method: "POST",
       url: "/api/v1/auth/session",
@@ -122,6 +124,66 @@ describe("sign in", () => {
     const response = await signIn({ email: "person@example.test", password: "x".repeat(1001) });
     expect(response.statusCode).toBe(400);
     expect(context.verifyCredentials).not.toHaveBeenCalled();
+  });
+});
+
+describe("turnstile protection", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const protectedConfig = {
+    REMENTUM_TURNSTILE_SITE_KEY: "0x4AAAAAAA-site",
+    REMENTUM_TURNSTILE_SECRET_KEY: "0x4AAAAAAA-secret",
+  };
+
+  function stubSiteverify(success: boolean) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ success }) })),
+    );
+  }
+
+  async function guardedSignIn(
+    payload: Record<string, unknown>,
+  ): Promise<{ response: LightMyRequestResponse; guarded: Harness }> {
+    const guarded = await harness(protectedConfig);
+    const response = await guarded.app.inject({
+      method: "POST",
+      url: "/api/v1/auth/session",
+      headers: { origin: publicUrl },
+      payload,
+    });
+    return { response, guarded };
+  }
+
+  it("does not touch cloudflare when turnstile is not configured", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect((await signIn()).statusCode).toBe(204);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a sign-in without a token", async () => {
+    const { response, guarded } = await guardedSignIn(credentials);
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ code: "turnstile_failed" });
+    expect(guarded.verifyCredentials).not.toHaveBeenCalled();
+  });
+
+  it("refuses a sign-in with a token cloudflare rejects", async () => {
+    stubSiteverify(false);
+    const { response, guarded } = await guardedSignIn({
+      ...credentials,
+      turnstileToken: "tok".repeat(10),
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ code: "turnstile_failed" });
+    expect(guarded.verifyCredentials).not.toHaveBeenCalled();
+  });
+
+  it("signs in when the token verifies", async () => {
+    stubSiteverify(true);
+    const { response } = await guardedSignIn({ ...credentials, turnstileToken: "tok".repeat(10) });
+    expect(response.statusCode).toBe(204);
   });
 });
 

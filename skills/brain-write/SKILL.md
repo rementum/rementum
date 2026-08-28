@@ -1,6 +1,6 @@
 ---
 name: brain-write
-description: Record a durable decision, correction, plan, or gotcha in Rementum through the staged write protocol.
+description: Record a durable conclusion in Rementum through the staged write protocol. Use when a decision is made, a root cause is found, a convention is set, a fact is verified, or a gotcha is discovered, and before ending a session that produced any of these.
 ---
 
 # Write durable knowledge

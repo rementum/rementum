@@ -22,6 +22,7 @@ afterEach(async () => {
 function stubService(overrides: Record<string, unknown> = {}): RementumService {
   return {
     listBrains: vi.fn(async () => ({ items: [], total: 0 })),
+    searchBrains: vi.fn(async () => []),
     createBrain: vi.fn(async () => ({ brain: { id: brainId }, routingIndex: [], articleTotal: 0 })),
     getBrain: vi.fn(async () => ({
       brain: { id: brainId, slug: "product" },
@@ -93,6 +94,12 @@ interface ToolCase {
 
 const cases: ToolCase[] = [
   { tool: "list_brains", scope: "brain:read", args: {}, method: "listBrains" },
+  {
+    tool: "search_brains",
+    scope: "brain:read",
+    args: { query: "product" },
+    method: "searchBrains",
+  },
   {
     tool: "get_brain",
     scope: "brain:read",
