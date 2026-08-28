@@ -34,6 +34,11 @@ export async function buildOauthRuntime(
   const configuration: Configuration = {
     adapter: (name) => new OidcPostgresAdapter(name, database.sql) as any,
     jwks: privateJwks as any,
+    clientDefaults: {
+      // MCP clients are installed/native applications. Cursor registers its custom-scheme,
+      // hosted, and loopback callbacks together and relies on PKCE instead of a client secret.
+      application_type: "native",
+    },
     cookies: {
       keys: config.REMENTUM_COOKIE_KEYS.split(",").map((key) => key.trim()),
       long: {

@@ -12,7 +12,12 @@ const integration = databaseUrl ? describe : describe.skip;
 
 const host = "rementum.example.test";
 const publicUrl = `http://${host}`;
-const redirectUri = "http://client.example.test/callback";
+const redirectUri = "cursor://anysphere.cursor-mcp/oauth/callback";
+const cursorRedirectUris = [
+  redirectUri,
+  "https://www.cursor.com/agents/mcp/oauth/callback",
+  "http://localhost:8787/callback",
+];
 const password = "correct horse battery staple";
 
 /** Accumulates Set-Cookie across a redirect chain the way a browser would. */
@@ -98,13 +103,14 @@ integration("OAuth authorization code flow", () => {
         headers: { host, "x-forwarded-proto": "http", "content-type": "application/json" },
         payload: {
           client_name: "Test agent",
-          redirect_uris: [redirectUri],
+          redirect_uris: cursorRedirectUris,
           grant_types: ["authorization_code", "refresh_token"],
           response_types: ["code"],
           token_endpoint_auth_method: "none",
         },
       });
       expect(registration.statusCode).toBe(201);
+      expect(registration.json().application_type).toBe("native");
       const clientId = registration.json().client_id;
 
       const resource = `${publicUrl}/mcp/workspace/${account.workspaceId}`;
@@ -174,7 +180,7 @@ integration("OAuth authorization code flow", () => {
       const issued = await visit("GET", String(confirmed.headers.location));
       expect(issued.statusCode).toBe(303);
       const callback = new URL(String(issued.headers.location));
-      expect(callback.origin + callback.pathname).toBe(redirectUri);
+      expect(`${callback.protocol}//${callback.host}${callback.pathname}`).toBe(redirectUri);
       expect(callback.searchParams.get("state")).toBe(`state-${suffix}`);
       const code = callback.searchParams.get("code");
       expect(code).toBeTruthy();
