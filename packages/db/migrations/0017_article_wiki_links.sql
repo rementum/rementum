@@ -52,6 +52,11 @@ RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
 DECLARE
   claimed_by uuid;
 BEGIN
+  -- brain_id is immutable: the registry PK is (brain_id, slug), so a brain move would
+  -- orphan the old row and violate the composite FK. Keep the invariant explicit.
+  IF TG_OP = 'UPDATE' AND NEW.brain_id IS DISTINCT FROM OLD.brain_id THEN
+    RAISE EXCEPTION 'Article brain_id is immutable' USING ERRCODE = '23514';
+  END IF;
   IF TG_OP = 'INSERT' THEN
     INSERT INTO article_slug_registry (brain_id, slug, article_id, is_current)
     VALUES (NEW.brain_id, NEW.slug, NEW.id, true)
@@ -63,6 +68,8 @@ BEGIN
     VALUES (NEW.brain_id, NEW.slug, NEW.id, true)
     ON CONFLICT (brain_id, slug) DO NOTHING;
   ELSE
+    -- Trigger is `AFTER UPDATE OF slug`, so this branch is dead for slug-only
+    -- updates, but keep it for direct function calls and future trigger changes.
     RETURN NEW;
   END IF;
 
@@ -73,8 +80,11 @@ BEGIN
     RAISE EXCEPTION 'Article slug or alias % is already claimed', NEW.slug
       USING ERRCODE = '23505';
   END IF;
+  -- No-op when is_current already true; kept to repair a stale flag without a
+  -- separate UPDATE inside the ELSIF branch.
   UPDATE article_slug_registry SET is_current = true
-  WHERE brain_id = NEW.brain_id AND slug = NEW.slug AND article_id = NEW.id;
+  WHERE brain_id = NEW.brain_id AND slug = NEW.slug AND article_id = NEW.id
+    AND NOT is_current;
 
   RETURN NEW;
 END $$;
@@ -114,13 +124,15 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   JOIN article_versions version
     ON version.article_id = article.id AND version.version = article.current_version
   JOIN brains brain ON brain.id = article.brain_id AND brain.deleted_at IS NULL
-  JOIN LATERAL (
+  LEFT JOIN LATERAL (
     SELECT user_id FROM brain_members
-    WHERE brain_id = brain.id AND role = 'owner'
-    ORDER BY created_at LIMIT 1
+    WHERE brain_id = brain.id
+    ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END, created_at
+    LIMIT 1
   ) member ON true
   WHERE article.archived_at IS NULL
     AND article.wiki_links_body_hash IS DISTINCT FROM version.body_hash
+    AND member.user_id IS NOT NULL
   ORDER BY article.updated_at
   LIMIT max_rows
 $$;

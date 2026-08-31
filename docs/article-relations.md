@@ -49,13 +49,15 @@ relations intact.
 
 ## Graph view
 
-Open **Graph** from a brain to load its complete article and relation graph. Search accepts titles,
+Open **Graph** from a brain to load its article and relation graph. Search accepts titles,
 current slugs, and aliases. Selecting a node highlights outgoing paths in green, incoming paths in
 amber, and fades unrelated topology. The inspector and all-articles list provide the same navigation
 without requiring pointer interaction with the canvas.
 
-The graph intentionally has no pagination or server-side cap. Very large brains therefore transfer
-all relation metadata when this view opens.
+`GET /api/v1/brains/:brainId/graph` is bounded to `limit` nodes (query param, 1–5000, default 2000)
+to keep the JSON and browser layout from OOM on very large brains. A truncated response includes
+`truncated: true` and `totalNodes` and keeps only edges whose endpoints are in the returned node set.
+Request a larger `limit` with an explicit confirmation for the full topology.
 
 ## Import and export
 

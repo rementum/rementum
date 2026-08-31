@@ -409,14 +409,19 @@ export class RementumService {
     };
   }
 
-  async getArticleGraph(brainId: string, actor: Actor) {
+  async getArticleGraph(brainId: string, actor: Actor, limit?: number) {
     requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
-    const graph = await this.store.getArticleGraph(brainId, actor);
+    const graph = await this.store.getArticleGraph(brainId, actor, limit);
     await this.store.audit(actor, "brain.graph_read", `brain:${brainId}`, {
       nodes: graph.nodes.length,
       edges: graph.edges.length,
     });
     return graph;
+  }
+
+  async getArticleBySlug(brainId: string, slug: string, actor: Actor) {
+    requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
+    return this.store.getArticleBySlug(brainId, slug, actor);
   }
 
   /**

@@ -142,12 +142,35 @@ function tokenWasEscapedInSource(
 ): boolean {
   const start = node.position?.start.offset;
   const end = node.position?.end.offset;
-  if (start === undefined || end === undefined) return false;
+  if (start === undefined || end === undefined) {
+    let slashes = 0;
+    for (let index = valueOffset - 1; index >= 0 && node.value?.[index] === "\\"; index -= 1)
+      slashes += 1;
+    return slashes % 2 === 1;
+  }
   const raw = source.slice(start, end);
-  const rawIndex = raw.indexOf(token, Math.max(0, valueOffset - 1));
-  if (rawIndex < 0) return false;
+  // `valueOffset` is the token start inside `node.value`. The source slice `raw`
+  // may differ by stripped escape slashes, and duplicate targets make a naive
+  // `indexOf(token, valueOffset-1)` ambiguous. Find all occurrences and pick the
+  // one closest to the expected offset, then count preceding backslashes.
+  const indices: number[] = [];
+  let idx = raw.indexOf(token);
+  while (idx !== -1) {
+    indices.push(idx);
+    idx = raw.indexOf(token, idx + 1);
+  }
+  if (!indices.length) return false;
+  let best = indices[0] as number;
+  let bestDist = Math.abs(best - valueOffset);
+  for (const cand of indices) {
+    const dist = Math.abs(cand - valueOffset);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = cand;
+    }
+  }
   let slashes = 0;
-  for (let index = rawIndex - 1; index >= 0 && raw[index] === "\\"; index -= 1) slashes += 1;
+  for (let index = best - 1; index >= 0 && raw[index] === "\\"; index -= 1) slashes += 1;
   return slashes % 2 === 1;
 }
 

@@ -108,13 +108,21 @@ export function GraphShell({ graph }: { graph: ArticleGraph }) {
   return (
     <section className="overflow-hidden rounded-card bg-surface shadow-card">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-dashed border-line px-4 py-3">
-        <Stat value={graph.nodes.length} label="articles" />
+        <Stat
+          value={graph.totalNodes ?? graph.nodes.length}
+          label={graph.truncated ? "articles (total)" : "articles"}
+        />
+        {graph.truncated ? <Stat value={graph.nodes.length} label="shown" /> : null}
         <Stat value={graph.edges.length} label="relations" />
         <Stat
           value={graph.edges.filter((edge) => edge.toArticleId === null).length}
           label="unresolved"
         />
-        {graph.pendingRelationIndexes ? (
+        {graph.truncated ? (
+          <span className="ml-auto rounded-control border border-orange/30 bg-orange-tint px-2.5 py-1 font-mono text-2xs text-orange">
+            Truncated to {graph.nodes.length} of {graph.totalNodes} — add ?limit=5000 for full graph
+          </span>
+        ) : graph.pendingRelationIndexes ? (
           <span className="ml-auto rounded-control border border-orange/30 bg-orange-tint px-2.5 py-1 font-mono text-2xs text-orange">
             {graph.pendingRelationIndexes} awaiting body-link indexing
           </span>
@@ -250,11 +258,16 @@ function GraphController({
 
   useEffect(() => {
     const renderedGraph = sigma.getGraph();
-    const outgoing = focusId ? new Set(renderedGraph.outNeighbors(focusId)) : new Set<string>();
-    const incoming = focusId ? new Set(renderedGraph.inNeighbors(focusId)) : new Set<string>();
+    const hasFocus = Boolean(focusId && renderedGraph.hasNode(focusId as string));
+    const outgoing = hasFocus
+      ? new Set(renderedGraph.outNeighbors(focusId as string))
+      : new Set<string>();
+    const incoming = hasFocus
+      ? new Set(renderedGraph.inNeighbors(focusId as string))
+      : new Set<string>();
     setSettings({
       nodeReducer: (node, data) => {
-        if (!focusId) return data;
+        if (!hasFocus) return data;
         if (node === focusId) {
           return {
             ...data,
@@ -274,7 +287,7 @@ function GraphController({
         return { ...data, color: palette.nodeMuted, label: "", size: data.size * 0.72 };
       },
       edgeReducer: (_edge, data) => {
-        if (!focusId) return data;
+        if (!hasFocus) return data;
         if (data.source === focusId) {
           return { ...data, color: palette.outbound, size: 2.2, zIndex: 2 };
         }
@@ -288,8 +301,16 @@ function GraphController({
   }, [focusId, palette, setSettings, sigma]);
 
   useEffect(() => {
-    if (selectedId) gotoNode(selectedId, { duration: prefersReducedMotion() ? 0 : 280 });
-  }, [gotoNode, selectedId]);
+    if (selectedId) {
+      try {
+        const g = sigma.getGraph();
+        if (!g.hasNode(selectedId)) return;
+      } catch {
+        return;
+      }
+      gotoNode(selectedId, { duration: prefersReducedMotion() ? 0 : 280 });
+    }
+  }, [gotoNode, selectedId, sigma]);
 
   return null;
 }

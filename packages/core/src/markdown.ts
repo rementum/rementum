@@ -131,7 +131,7 @@ function visitMarkdownTokens(value: unknown, targets: Set<string>, seen: WeakSet
     return;
   }
   const token = value as Record<string, unknown>;
-  if (["code", "codespan", "link", "image"].includes(String(token.type ?? ""))) return;
+  if (["code", "codespan", "link", "image", "html"].includes(String(token.type ?? ""))) return;
   if (token.type === "text") {
     const text = typeof token.raw === "string" ? token.raw : token.text;
     if (typeof text === "string") {

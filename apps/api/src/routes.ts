@@ -440,7 +440,13 @@ export async function registerApiRoutes(
   });
   app.get("/api/v1/brains/:brainId/graph", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
-    return service.getArticleGraph(brainId, await authorize(request, "brain:read"));
+    const { limit } = z
+      .object({ limit: z.coerce.number().int().min(1).max(5000).optional() })
+      .parse(request.query);
+    const actor = await authorize(request, "brain:read");
+    return limit === undefined
+      ? service.getArticleGraph(brainId, actor)
+      : service.getArticleGraph(brainId, actor, limit);
   });
   app.get("/api/v1/brains/:brainId", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
@@ -679,7 +685,20 @@ export async function registerApiRoutes(
     const archiveHash = hashContent(archive).slice(0, 16);
     const writes = [];
     for (const document of inspection.documents) {
-      const existing = bySlug.get(document.slug);
+      let existing = bySlug.get(document.slug);
+      if (!existing) {
+        const viaRegistry = await service
+          .getArticleBySlug(brainId, document.slug, actor)
+          .catch(() => null);
+        if (viaRegistry) {
+          existing = {
+            id: viaRegistry.id,
+            slug: viaRegistry.slug,
+            currentVersion: viaRegistry.currentVersion,
+          } as (typeof index)[number];
+          bySlug.set(document.slug, existing);
+        }
+      }
       writes.push(
         sanitize(
           await service.stageWrite(

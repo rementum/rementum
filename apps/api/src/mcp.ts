@@ -337,6 +337,7 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
     async ({ brainId, documents }) => {
       requireAccessScope(actor, "brain:write");
       const index = (await service.getBrain(brainId, actor, 10_000)).routingIndex;
+      const bySlug = new Map(index.map((article) => [article.slug, article]));
       const writes = [];
       for (const document of documents) {
         const slug = slugify(document.title);
@@ -344,7 +345,20 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
         const aliases = [...new Set([...document.aliases.map(slugify), fileAlias])].filter(
           (alias) => alias !== slug,
         );
-        const existing = index.find((article) => article.slug === slug);
+        let existing = bySlug.get(slug);
+        if (!existing) {
+          const viaRegistry = await service
+            .getArticleBySlug(brainId, slug, actor)
+            .catch(() => null);
+          if (viaRegistry) {
+            existing = {
+              id: viaRegistry.id,
+              slug: viaRegistry.slug,
+              currentVersion: viaRegistry.currentVersion,
+            } as (typeof index)[number];
+            bySlug.set(slug, existing);
+          }
+        }
         writes.push(
           sanitize(
             await service.stageWrite(

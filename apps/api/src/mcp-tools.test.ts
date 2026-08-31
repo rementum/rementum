@@ -29,6 +29,7 @@ function stubService(overrides: Record<string, unknown> = {}): RementumService {
       routingIndex: [{ id: articleId, slug: "architecture", currentVersion: 2 }],
       articleTotal: 1,
     })),
+    getArticleBySlug: vi.fn(async () => null),
     search: vi.fn(async () => []),
     readArticle: vi.fn(async () => ({
       id: articleId,

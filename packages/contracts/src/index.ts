@@ -166,6 +166,8 @@ export const articleGraphSchema = z.object({
   nodes: z.array(articleGraphNodeSchema),
   edges: z.array(articleGraphEdgeSchema),
   pendingRelationIndexes: z.number().int().nonnegative(),
+  truncated: z.boolean().optional(),
+  totalNodes: z.number().int().nonnegative().optional(),
 });
 export type ArticleGraph = z.infer<typeof articleGraphSchema>;
 

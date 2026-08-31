@@ -814,7 +814,11 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async getArticleGraph(brainId: string, actor: Actor): Promise<ArticleGraph> {
+  async getArticleGraph(brainId: string, actor: Actor, limit?: number): Promise<ArticleGraph> {
+    const MAX_GRAPH_NODES = 5000;
+    const DEFAULT_GRAPH_NODES = 2000;
+    const effectiveLimit =
+      limit === undefined ? DEFAULT_GRAPH_NODES : Math.min(Math.max(limit, 1), MAX_GRAPH_NODES);
     return this.withActor(actor, async (tx) => {
       const nodeRows = await tx<any[]>`
         SELECT article.id, article.slug, article.title, article.summary, article.kind,
@@ -826,25 +830,41 @@ export class PostgresStore implements DataStore {
         WHERE article.brain_id = ${brainId} AND article.archived_at IS NULL
         GROUP BY article.id
         ORDER BY article.slug
+        LIMIT ${effectiveLimit + 1}
       `;
-      const manualRows = await tx<any[]>`
-        SELECT link.from_article_id, link.to_article_id, target.slug AS target_slug,
-               link.relation, 'manual' AS origin
-        FROM article_links link
-        JOIN articles source ON source.id = link.from_article_id
-        JOIN articles target ON target.id = link.to_article_id
-        WHERE source.brain_id = ${brainId}
-          AND source.archived_at IS NULL AND target.archived_at IS NULL
+      const truncated = nodeRows.length > effectiveLimit;
+      const limitedRows = truncated ? nodeRows.slice(0, effectiveLimit) : nodeRows;
+      const nodeIds = new Set(limitedRows.map((row) => row.id as string));
+      const [totalRow] = await tx<Array<{ total: string }>>`
+        SELECT count(*)::text AS total FROM articles
+        WHERE brain_id = ${brainId} AND archived_at IS NULL
       `;
-      const wikiRows = await tx<any[]>`
-        SELECT link.from_article_id,
-               CASE WHEN target.archived_at IS NULL THEN link.to_article_id ELSE NULL END AS to_article_id,
-               link.target_slug, 'wiki' AS relation, 'wiki' AS origin
-        FROM article_wiki_links link
-        JOIN articles source ON source.id = link.from_article_id
-        LEFT JOIN articles target ON target.id = link.to_article_id
-        WHERE link.brain_id = ${brainId} AND source.archived_at IS NULL
-      `;
+      const totalNodes = Number(totalRow?.total ?? limitedRows.length);
+      const manualRows = nodeIds.size
+        ? await tx<any[]>`
+            SELECT link.from_article_id, link.to_article_id, target.slug AS target_slug,
+                   link.relation, 'manual' AS origin
+            FROM article_links link
+            JOIN articles source ON source.id = link.from_article_id
+            JOIN articles target ON target.id = link.to_article_id
+            WHERE source.brain_id = ${brainId}
+              AND source.archived_at IS NULL AND target.archived_at IS NULL
+              AND link.from_article_id = ANY(${[...nodeIds]}::uuid[])
+              AND link.to_article_id = ANY(${[...nodeIds]}::uuid[])
+          `
+        : [];
+      const wikiRows = nodeIds.size
+        ? await tx<any[]>`
+            SELECT link.from_article_id,
+                   CASE WHEN target.archived_at IS NULL THEN link.to_article_id ELSE NULL END AS to_article_id,
+                   link.target_slug, 'wiki' AS relation, 'wiki' AS origin
+            FROM article_wiki_links link
+            JOIN articles source ON source.id = link.from_article_id
+            LEFT JOIN articles target ON target.id = link.to_article_id
+            WHERE link.brain_id = ${brainId} AND source.archived_at IS NULL
+              AND link.from_article_id = ANY(${[...nodeIds]}::uuid[])
+          `
+        : [];
       const [pending] = await tx<Array<{ count: string }>>`
         SELECT count(*)::text AS count
         FROM articles article
@@ -855,7 +875,7 @@ export class PostgresStore implements DataStore {
       `;
       return {
         brainId,
-        nodes: nodeRows.map((row) => ({
+        nodes: limitedRows.map((row) => ({
           id: row.id,
           slug: row.slug,
           title: row.title,
@@ -865,14 +885,20 @@ export class PostgresStore implements DataStore {
           updatedAt: asDate(row.updated_at).toISOString(),
           aliases: row.aliases ?? [],
         })),
-        edges: [...manualRows, ...wikiRows].map((row) => ({
-          fromArticleId: row.from_article_id,
-          toArticleId: row.to_article_id ?? null,
-          targetSlug: row.target_slug,
-          relation: row.relation,
-          origin: row.origin,
-        })),
+        edges: [...manualRows, ...wikiRows]
+          .filter((row) => {
+            const toId = row.to_article_id as string | null;
+            return !toId || nodeIds.has(toId);
+          })
+          .map((row) => ({
+            fromArticleId: row.from_article_id,
+            toArticleId: row.to_article_id ?? null,
+            targetSlug: row.target_slug,
+            relation: row.relation,
+            origin: row.origin,
+          })),
         pendingRelationIndexes: Number(pending?.count ?? 0),
+        ...(truncated || totalNodes > effectiveLimit ? { truncated: true, totalNodes } : {}),
       };
     });
   }
@@ -1137,10 +1163,27 @@ export class PostgresStore implements DataStore {
           article_id: write.articleId,
           is_current: false,
         }));
-        await tx`
-          INSERT INTO article_slug_registry ${tx(values, "brain_id", "slug", "article_id", "is_current")}
+        const helper = tx(values, "brain_id", "slug", "article_id", "is_current");
+        const inserted = await tx<Array<{ slug: string }>>`
+          INSERT INTO article_slug_registry ${helper}
           ON CONFLICT (brain_id, slug) DO NOTHING
+          RETURNING slug
         `;
+        if (inserted.length !== aliases.length) {
+          const insertedSet = new Set(inserted.map((row) => row.slug));
+          const missing = aliases.filter((slug) => !insertedSet.has(slug));
+          const conflicts = missing.length
+            ? await tx<Array<{ slug: string }>>`
+                SELECT slug FROM article_slug_registry
+                WHERE brain_id = ${write.brainId} AND slug = ANY(${missing}::text[])
+                  AND article_id <> ${write.articleId}
+              `
+            : [];
+          if (conflicts.length) {
+            await tx`UPDATE staged_writes SET status = 'conflicted', updated_at = now() WHERE id = ${write.id}`;
+            return { kind: "slug_conflict" as const, slugs: conflicts.map((row) => row.slug) };
+          }
+        }
       }
 
       const [versionRow] = await tx<any[]>`

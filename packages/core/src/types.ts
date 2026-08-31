@@ -308,7 +308,7 @@ export interface DataStore {
   listArticleVersions(articleId: string, actor: Actor): Promise<VersionRecord[]>;
   /** Null when the article is not visible; throws when its brain or version is missing. */
   readArticleBundle(articleId: string, actor: Actor): Promise<ArticleBundle | null>;
-  getArticleGraph(brainId: string, actor: Actor): Promise<ArticleGraph>;
+  getArticleGraph(brainId: string, actor: Actor, limit?: number): Promise<ArticleGraph>;
   listCurrentVersions(brainId: string, actor: Actor, limit: number): Promise<ExportedVersion[]>;
   verifyArticle(articleId: string, reviewAfter: Date | null, actor: Actor): Promise<ArticleRecord>;
   setArticleLinks(
