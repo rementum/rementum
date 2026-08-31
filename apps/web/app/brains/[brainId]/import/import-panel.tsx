@@ -10,6 +10,7 @@ interface Preview {
   files: Array<{
     path: string;
     title: string;
+    aliases: string[];
     suggestedKind: string;
     bytes: number;
     warnings: string[];
@@ -105,6 +106,11 @@ export function ImportPanel({ brainId }: { brainId: string }) {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-ink">{item.title}</p>
                     <p className="truncate font-mono text-2xs text-ink-3">{item.path}</p>
+                    {item.aliases.length ? (
+                      <p className="mt-0.5 truncate font-mono text-2xs text-ink-3">
+                        aliases: {item.aliases.join(", ")}
+                      </p>
+                    ) : null}
                   </div>
                   <span
                     className={`shrink-0 font-mono text-2xs ${

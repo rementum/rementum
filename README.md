@@ -7,7 +7,8 @@ ChatGPT, Codex, Cursor, and any remote MCP client one versioned, auditable body 
 
 The product is deliberately agent-first:
 
-- Knowledge lives in linked Markdown articles with a compact routing index.
+- Knowledge lives in linked Markdown articles with a compact routing index, backlinks, stable slug
+  aliases, and an interactive relation graph.
 - Every canonical change is staged, versioned, attributed, and conflict checked.
 - Article bodies are encrypted with a per-brain key.
 - Rementum creates a one-sentence routing summary locally. Workspace owners can opt into deferred

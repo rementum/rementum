@@ -1,3 +1,4 @@
+import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
@@ -290,7 +291,8 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
     "set_article_links",
     {
       title: "Replace article links",
-      description: "Replaces the outgoing links of an article. Targets must be in the same brain.",
+      description:
+        "Replaces the manual outgoing links of an article. Body-derived [[wiki links]] are managed automatically and are not changed. Targets must be in the same brain.",
       inputSchema: {
         articleId: z.uuid(),
         links: z
@@ -324,6 +326,7 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
               body: z.string().min(1).max(2_000_000),
               kind: z.enum(["canonical", "log"]).default("canonical"),
               keywords: z.array(z.string()).max(40).default([]),
+              aliases: z.array(z.string().min(1).max(240)).max(100).default([]),
             }),
           )
           .min(1)
@@ -337,6 +340,10 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
       const writes = [];
       for (const document of documents) {
         const slug = slugify(document.title);
+        const fileAlias = slugify(path.basename(document.path, path.extname(document.path)));
+        const aliases = [...new Set([...document.aliases.map(slugify), fileAlias])].filter(
+          (alias) => alias !== slug,
+        );
         const existing = index.find((article) => article.slug === slug);
         writes.push(
           sanitize(
@@ -350,6 +357,7 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
                 body: document.body,
                 kind: document.kind,
                 keywords: document.keywords,
+                aliases,
                 baseVersion: existing?.currentVersion,
                 changeSummary: `import: ${document.path}`,
                 sources: [
@@ -392,7 +400,7 @@ export function createMcpServer(service: RementumService, actor: ScopedActor): M
         files.push({
           path: `${article.slug}.md`,
           version: article.currentVersion,
-          content: article.body,
+          content: `---\ntitle: ${JSON.stringify(article.title)}\nsummary: ${JSON.stringify(article.summary)}\naliases: ${JSON.stringify(article.aliases)}\nkind: ${article.kind}\nversion: ${article.currentVersion}\n---\n\n${article.body}\n`,
         });
       }
       return publicResult({

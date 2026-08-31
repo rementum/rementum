@@ -10,6 +10,7 @@ interface Article {
   body: string;
   kind: "canonical" | "log";
   keywords: string[];
+  aliases: string[];
   currentVersion: number;
 }
 

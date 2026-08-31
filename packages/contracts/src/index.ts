@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./wiki-links.js";
+
 export const idSchema = z.uuid();
 export const slugSchema = z
   .string()
@@ -66,6 +68,35 @@ export const sourceSchema = z.object({
 });
 export type SourceInput = z.infer<typeof sourceSchema>;
 
+export const articleRelationOriginSchema = z.enum(["wiki", "manual"]);
+export type ArticleRelationOrigin = z.infer<typeof articleRelationOriginSchema>;
+
+export const resolvedArticleLinkSchema = z.object({
+  articleId: idSchema,
+  slug: slugSchema,
+  title: z.string(),
+  targetSlug: slugSchema,
+  relation: z.string(),
+  origin: articleRelationOriginSchema,
+});
+export type ResolvedArticleLink = z.infer<typeof resolvedArticleLinkSchema>;
+
+export const articleBacklinkSchema = z.object({
+  articleId: idSchema,
+  slug: slugSchema,
+  title: z.string(),
+  targetSlug: slugSchema,
+  relation: z.string(),
+  origin: articleRelationOriginSchema,
+});
+export type ArticleBacklink = z.infer<typeof articleBacklinkSchema>;
+
+export const unresolvedArticleLinkSchema = z.object({
+  targetSlug: slugSchema,
+  relation: z.literal("wiki"),
+});
+export type UnresolvedArticleLink = z.infer<typeof unresolvedArticleLinkSchema>;
+
 export const articleSummarySchema = z.object({
   id: idSchema,
   brainId: idSchema,
@@ -82,13 +113,11 @@ export type ArticleSummary = z.infer<typeof articleSummarySchema>;
 
 export const articleSchema = articleSummarySchema.extend({
   body: z.string(),
-  links: z.array(
-    z.object({
-      articleId: idSchema,
-      slug: slugSchema,
-      relation: z.string(),
-    }),
-  ),
+  aliases: z.array(slugSchema),
+  links: z.array(resolvedArticleLinkSchema),
+  backlinks: z.array(articleBacklinkSchema),
+  unresolvedLinks: z.array(unresolvedArticleLinkSchema),
+  relationsIndexed: z.boolean(),
   sources: z.array(sourceSchema.extend({ id: idSchema })),
   verifiedAt: z.iso.datetime().nullable(),
   reviewAfter: z.iso.datetime().nullable(),
@@ -109,6 +138,36 @@ export const articleSchema = articleSummarySchema.extend({
   }),
 });
 export type Article = z.infer<typeof articleSchema>;
+
+export const articleGraphNodeSchema = articleSummarySchema
+  .pick({
+    id: true,
+    slug: true,
+    title: true,
+    summary: true,
+    kind: true,
+    freshness: true,
+    updatedAt: true,
+  })
+  .extend({ aliases: z.array(slugSchema) });
+export type ArticleGraphNode = z.infer<typeof articleGraphNodeSchema>;
+
+export const articleGraphEdgeSchema = z.object({
+  fromArticleId: idSchema,
+  toArticleId: idSchema.nullable(),
+  targetSlug: slugSchema,
+  relation: z.string(),
+  origin: articleRelationOriginSchema,
+});
+export type ArticleGraphEdge = z.infer<typeof articleGraphEdgeSchema>;
+
+export const articleGraphSchema = z.object({
+  brainId: idSchema,
+  nodes: z.array(articleGraphNodeSchema),
+  edges: z.array(articleGraphEdgeSchema),
+  pendingRelationIndexes: z.number().int().nonnegative(),
+});
+export type ArticleGraph = z.infer<typeof articleGraphSchema>;
 
 export const createBrainSchema = z.object({
   workspaceId: idSchema.optional(),
@@ -190,6 +249,7 @@ export const stageWriteSchema = z
     keywords: z.array(z.string().min(1).max(80)).max(40).default([]),
     kind: articleKindSchema.default("canonical"),
     body: z.string().min(1).max(2_000_000),
+    aliases: z.array(slugSchema).max(100).default([]),
     baseVersion: z.number().int().positive().optional(),
     changeSummary: z.string().min(1).max(500),
     sources: z.array(sourceSchema).max(100).default([]),
@@ -277,6 +337,7 @@ export const importPreviewSchema = z.object({
       path: z.string(),
       title: z.string(),
       suggestedSlug: slugSchema,
+      aliases: z.array(slugSchema),
       suggestedKind: articleKindSchema,
       bytes: z.number().int().nonnegative(),
       links: z.array(z.string()),

@@ -54,6 +54,7 @@ integration("brain and team deletion", () => {
           slug: `only-article-${suffix}`,
           title: "Only article",
           keywords: [],
+          aliases: [],
           kind: "canonical",
           body: "This body must become unreadable once the brain is deleted.",
           changeSummary: "Create the only article",

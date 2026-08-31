@@ -23,7 +23,10 @@ describe("Markdown archive inspection", () => {
     );
     expect(inspection.documents).toHaveLength(2);
     expect(inspection.documents.find((doc) => doc.path.startsWith("Daily"))?.kind).toBe("log");
-    expect(inspection.preview.unresolvedLinks).toEqual(["Decision"]);
+    expect(inspection.preview.unresolvedLinks).toEqual(["decision"]);
+    expect(
+      inspection.documents.find((doc) => doc.path === "Topics/Architecture.md")?.aliases,
+    ).toEqual(["architecture"]);
   });
 
   it("rejects unsafe paths", async () => {

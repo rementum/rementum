@@ -131,6 +131,18 @@ async function runPass() {
   const brains = await database.sql<Array<{ brain_id: string; owner_id: string }>>`
     SELECT * FROM owl_worker_brains()
   `;
+  const unindexedRelations = await database.sql<Array<{ article_id: string; owner_id: string }>>`
+    SELECT * FROM owl_worker_unindexed_wiki_links(100)
+  `;
+  for (const article of unindexedRelations) {
+    try {
+      await service.reindexArticleRelations(article.article_id, await actorFor(article.owner_id));
+    } catch (error) {
+      process.stderr.write(
+        `Relation indexing ${article.article_id} failed: ${(error as Error).message}\n`,
+      );
+    }
+  }
   for (const brain of brains) {
     await service.scanMaintenance(brain.brain_id, await actorFor(brain.owner_id));
   }
@@ -167,7 +179,7 @@ async function runPass() {
     }
   }
   process.stdout.write(
-    `${new Date().toISOString()} maintenance pass: ${brains.length} brains, ${missing.length} index candidates, ${failed.length} compaction retries, ${Date.now() - started}ms\n`,
+    `${new Date().toISOString()} maintenance pass: ${brains.length} brains, ${unindexedRelations.length} relation candidates, ${missing.length} index candidates, ${failed.length} compaction retries, ${Date.now() - started}ms\n`,
   );
 }
 

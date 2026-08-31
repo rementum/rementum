@@ -31,7 +31,7 @@ import {
   NotFoundError,
 } from "./errors.js";
 import { LocalArticleGenerator } from "./local-summary.js";
-import { slugify, splitMarkdownByHeading } from "./markdown.js";
+import { extractWikiLinks, slugify, splitMarkdownByHeading } from "./markdown.js";
 import { rankBrains } from "./search.js";
 import type {
   Actor,
@@ -370,7 +370,18 @@ export class RementumService {
     // context, and opening it separately for each was most of the cost of a read.
     const bundle = await this.store.readArticleBundle(articleId, actor);
     if (!bundle) throw new NotFoundError("Article");
-    const { article, brain, version, links, sources, compactionEnabled } = bundle;
+    const {
+      article,
+      brain,
+      version,
+      aliases,
+      links,
+      backlinks,
+      unresolvedLinks,
+      relationsIndexed,
+      sources,
+      compactionEnabled,
+    } = bundle;
     requireBrainRole(actor, article.brainId, ["owner", "editor", "commenter", "viewer"]);
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
     const body = decrypt(version.body, key, version.bodyAad).toString("utf8");
@@ -380,7 +391,11 @@ export class RementumService {
     return {
       ...toSummary(article),
       body,
+      aliases,
       links,
+      backlinks,
+      unresolvedLinks,
+      relationsIndexed,
       sources,
       verifiedAt: article.verifiedAt?.toISOString() ?? null,
       reviewAfter: article.reviewAfter?.toISOString() ?? null,
@@ -392,6 +407,16 @@ export class RementumService {
         createdAt: version.createdAt.toISOString(),
       },
     };
+  }
+
+  async getArticleGraph(brainId: string, actor: Actor) {
+    requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
+    const graph = await this.store.getArticleGraph(brainId, actor);
+    await this.store.audit(actor, "brain.graph_read", `brain:${brainId}`, {
+      nodes: graph.nodes.length,
+      edges: graph.edges.length,
+    });
+    return graph;
   }
 
   /**
@@ -417,6 +442,7 @@ export class RementumService {
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
     const articles = versions.map((version) => ({
       slug: version.slug,
+      aliases: version.slugAliases,
       title: version.title,
       summary: version.summary,
       kind: version.kind,
@@ -527,7 +553,16 @@ export class RementumService {
     if (input.decision === "override" && write.stagedBy === actor.userId) {
       throw new ForbiddenError("The staging actor cannot approve their own override");
     }
-    const result = await this.store.promoteStagedWrite(input, actor, this.llmAvailable);
+    const brain = await this.store.getBrain(write.brainId, actor);
+    if (!brain) throw new NotFoundError("Brain");
+    const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
+    const body = decrypt(write.body, key, write.bodyAad).toString("utf8");
+    const result = await this.store.promoteStagedWrite(
+      input,
+      actor,
+      this.llmAvailable,
+      extractWikiLinks(body),
+    );
     await this.store.audit(actor, "write.promoted", `write:${write.id}`, {
       version: result.version.version,
       decision: input.decision,
@@ -752,6 +787,20 @@ export class RementumService {
     return { ok: true, articleId, version: article.currentVersion };
   }
 
+  async reindexArticleRelations(articleId: string, actor: Actor) {
+    const bundle = await this.store.readArticleBundle(articleId, actor);
+    if (!bundle) throw new NotFoundError("Article");
+    requireBrainRole(actor, bundle.article.brainId, ["owner", "editor"]);
+    const key = unwrapDataKey(bundle.brain.wrappedKey, this.masterKey, bundle.brain.id);
+    const body = decrypt(bundle.version.body, key, bundle.version.bodyAad).toString("utf8");
+    return this.store.replaceArticleWikiLinks(
+      articleId,
+      bundle.version.bodyHash,
+      extractWikiLinks(body),
+      actor,
+    );
+  }
+
   async compactClaimedJob(claim: ClaimedCompactionJob, actor: Actor) {
     if (!this.compactionGenerator) throw new LlmUnavailableError();
     const job = await this.store.getCompactionJob(claim.jobId, actor);
@@ -785,6 +834,7 @@ export class RementumService {
       generated,
       encrypted,
       hashContent(generated.body),
+      extractWikiLinks(generated.body),
       actor,
     );
     if (!result) return null;

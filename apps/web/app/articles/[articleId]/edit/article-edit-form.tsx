@@ -13,6 +13,7 @@ interface Article {
   body: string;
   kind: "canonical" | "log";
   keywords: string[];
+  aliases: string[];
   currentVersion: number;
 }
 
@@ -36,6 +37,7 @@ export function ArticleEditForm({ article }: { article: Article }) {
           .split(",")
           .map((value) => value.trim())
           .filter(Boolean),
+        aliases: article.aliases,
         kind: article.kind,
         body: formData.get("body"),
         baseVersion: article.currentVersion,

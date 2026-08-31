@@ -168,10 +168,12 @@ export const articles = pgTable(
     compactionAttempts: integer("compaction_attempts").notNull().default(0),
     compactionError: text("compaction_error"),
     compactedAt: timestamp("compacted_at", { withTimezone: true }),
+    wikiLinksBodyHash: text("wiki_links_body_hash"),
     searchDocument: customType<{ data: string }>({ dataType: () => "tsvector" })("search_document"),
   },
   (table) => [
     uniqueIndex("articles_brain_slug_uq").on(table.brainId, table.slug),
+    uniqueIndex("articles_brain_id_id_uq").on(table.brainId, table.id),
     index("articles_search_idx").using("gin", table.searchDocument),
   ],
 );
@@ -255,6 +257,7 @@ export const stagedWrites = pgTable(
     title: text("title").notNull(),
     summary: text("summary").notNull(),
     keywords: text("keywords").array().notNull().default(sql`'{}'::text[]`),
+    slugAliases: text("slug_aliases").array().notNull().default(sql`'{}'::text[]`),
     kind: articleKind("kind").notNull(),
     baseVersion: integer("base_version"),
     bodyCiphertext: bytea("body_ciphertext").notNull(),
@@ -284,6 +287,62 @@ export const stagedWrites = pgTable(
       .on(table.stagedBy, table.idempotencyKey)
       .where(sql`${table.idempotencyKey} is not null`),
     index("staged_writes_brain_status_idx").on(table.brainId, table.status),
+  ],
+);
+
+export const articleSlugRegistry = pgTable(
+  "article_slug_registry",
+  {
+    brainId: uuid("brain_id")
+      .notNull()
+      .references(() => brains.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    articleId: uuid("article_id").notNull(),
+    isCurrent: boolean("is_current").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.brainId, table.slug] }),
+    foreignKey({
+      columns: [table.brainId, table.articleId],
+      foreignColumns: [articles.brainId, articles.id],
+      name: "article_slug_registry_brain_article_fkey",
+    }).onDelete("cascade"),
+    uniqueIndex("article_slug_registry_current_uq")
+      .on(table.articleId)
+      .where(sql`${table.isCurrent}`),
+    index("article_slug_registry_article_idx").on(table.articleId),
+  ],
+);
+
+export const articleWikiLinks = pgTable(
+  "article_wiki_links",
+  {
+    brainId: uuid("brain_id")
+      .notNull()
+      .references(() => brains.id, { onDelete: "cascade" }),
+    fromArticleId: uuid("from_article_id").notNull(),
+    targetSlug: text("target_slug").notNull(),
+    toArticleId: uuid("to_article_id").references(() => articles.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.fromArticleId, table.targetSlug] }),
+    foreignKey({
+      columns: [table.brainId, table.fromArticleId],
+      foreignColumns: [articles.brainId, articles.id],
+      name: "article_wiki_links_brain_source_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.brainId, table.toArticleId],
+      foreignColumns: [articles.brainId, articles.id],
+      name: "article_wiki_links_brain_target_fkey",
+    }),
+    index("article_wiki_links_target_idx").on(table.brainId, table.toArticleId),
+    index("article_wiki_links_unresolved_idx")
+      .on(table.brainId, table.targetSlug)
+      .where(sql`${table.toArticleId} is null`),
   ],
 );
 

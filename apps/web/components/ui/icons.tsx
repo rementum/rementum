@@ -72,6 +72,17 @@ export function IconGrid(props: IconProps) {
   );
 }
 
+export function IconGraph(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="3.5" cy="8" r="1.5" />
+      <circle cx="11.75" cy="3.75" r="1.5" />
+      <circle cx="11.75" cy="12.25" r="1.5" />
+      <path d="m4.9 7.3 5.5-2.8M4.9 8.7l5.5 2.8M11.75 5.25v5.5" />
+    </Icon>
+  );
+}
+
 export function IconWrites(props: IconProps) {
   return (
     <Icon {...props}>

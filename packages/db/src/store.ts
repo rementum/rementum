@@ -1,4 +1,5 @@
 import {
+  type ArticleGraph,
   type BrainArticleCount,
   type BrainListSort,
   type BrainRole,
@@ -6,6 +7,7 @@ import {
   type CreateTaskInput,
   type MaintenanceCandidate,
   type PromoteWriteInput,
+  type ResolvedArticleLink,
   type RoutingIndexSort,
   type SearchArticlesInput,
   type SourceInput,
@@ -566,8 +568,10 @@ export class PostgresStore implements DataStore {
   ): Promise<ArticleRecord | null> {
     return this.withActor(actor, async (tx) => {
       const [row] = await tx<any[]>`
-        SELECT * FROM articles
-        WHERE brain_id = ${brainId} AND slug = ${slug} AND archived_at IS NULL
+        SELECT article.* FROM article_slug_registry registry
+        JOIN articles article ON article.id = registry.article_id
+        WHERE registry.brain_id = ${brainId} AND registry.slug = ${slug}
+          AND article.archived_at IS NULL
       `;
       return row ? mapArticle(row) : null;
     });
@@ -612,6 +616,9 @@ export class PostgresStore implements DataStore {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
         SELECT a.id, a.slug, a.title, a.summary, a.kind, a.current_version,
+               coalesce((SELECT array_agg(registry.slug ORDER BY registry.slug)
+                 FROM article_slug_registry registry
+                 WHERE registry.article_id = a.id AND NOT registry.is_current), '{}') AS slug_aliases,
                av.body_ciphertext, av.body_nonce, av.body_tag, av.cipher_version, av.body_aad
         FROM articles a
         JOIN article_versions av
@@ -623,6 +630,7 @@ export class PostgresStore implements DataStore {
       return rows.map((row) => ({
         articleId: row.id as string,
         slug: row.slug as string,
+        slugAliases: (row.slug_aliases ?? []) as string[],
         title: row.title as string,
         summary: row.summary as string,
         kind: row.kind as string,
@@ -642,22 +650,29 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async getArticleLinks(
-    articleId: string,
-    actor: Actor,
-  ): Promise<Array<{ articleId: string; slug: string; relation: string }>> {
+  async getArticleLinks(articleId: string, actor: Actor): Promise<ResolvedArticleLink[]> {
     return this.withActor(actor, async (tx) => {
-      const rows = await tx<Array<{ article_id: string; slug: string; relation: string }>>`
-        SELECT target.id AS article_id, target.slug, links.relation
+      const rows = await tx<any[]>`
+        SELECT target.id AS article_id, target.slug, target.title, target.slug AS target_slug,
+               links.relation, 'manual' AS origin
         FROM article_links links
         JOIN articles target ON target.id = links.to_article_id
         WHERE links.from_article_id = ${articleId} AND target.archived_at IS NULL
-        ORDER BY target.slug
+        UNION ALL
+        SELECT target.id AS article_id, target.slug, target.title, links.target_slug,
+               'wiki' AS relation, 'wiki' AS origin
+        FROM article_wiki_links links
+        JOIN articles target ON target.id = links.to_article_id
+        WHERE links.from_article_id = ${articleId} AND target.archived_at IS NULL
+        ORDER BY slug, relation, origin
       `;
       return rows.map((row) => ({
         articleId: row.article_id,
         slug: row.slug,
+        title: row.title,
+        targetSlug: row.target_slug,
         relation: row.relation,
+        origin: row.origin,
       }));
     });
   }
@@ -710,12 +725,46 @@ export class PostgresStore implements DataStore {
       `;
       if (!versionRow) throw new NotFoundError("Article version");
       const version = mapVersion(versionRow);
-      const linkRows = await tx<Array<{ article_id: string; slug: string; relation: string }>>`
-        SELECT target.id AS article_id, target.slug, links.relation
+      const aliasRows = await tx<Array<{ slug: string }>>`
+        SELECT slug FROM article_slug_registry
+        WHERE article_id = ${articleId} AND NOT is_current
+        ORDER BY slug
+      `;
+      const linkRows = await tx<any[]>`
+        SELECT target.id AS article_id, target.slug, target.title, target.slug AS target_slug,
+               links.relation, 'manual' AS origin
         FROM article_links links
         JOIN articles target ON target.id = links.to_article_id
         WHERE links.from_article_id = ${articleId} AND target.archived_at IS NULL
-        ORDER BY target.slug
+        UNION ALL
+        SELECT target.id AS article_id, target.slug, target.title, links.target_slug,
+               'wiki' AS relation, 'wiki' AS origin
+        FROM article_wiki_links links
+        JOIN articles target ON target.id = links.to_article_id
+        WHERE links.from_article_id = ${articleId} AND target.archived_at IS NULL
+        ORDER BY slug, relation, origin
+      `;
+      const backlinkRows = await tx<any[]>`
+        SELECT source.id AS article_id, source.slug, source.title, target.slug AS target_slug,
+               links.relation, 'manual' AS origin
+        FROM article_links links
+        JOIN articles source ON source.id = links.from_article_id
+        JOIN articles target ON target.id = links.to_article_id
+        WHERE links.to_article_id = ${articleId} AND source.archived_at IS NULL
+        UNION ALL
+        SELECT source.id AS article_id, source.slug, source.title, links.target_slug,
+               'wiki' AS relation, 'wiki' AS origin
+        FROM article_wiki_links links
+        JOIN articles source ON source.id = links.from_article_id
+        WHERE links.to_article_id = ${articleId} AND source.archived_at IS NULL
+        ORDER BY slug, relation, origin
+      `;
+      const unresolvedRows = await tx<Array<{ target_slug: string }>>`
+        SELECT link.target_slug FROM article_wiki_links link
+        LEFT JOIN articles target ON target.id = link.to_article_id
+        WHERE link.from_article_id = ${articleId}
+          AND (link.to_article_id IS NULL OR target.archived_at IS NOT NULL)
+        ORDER BY link.target_slug
       `;
       const sourceRows = await tx<any[]>`
         SELECT s.* FROM article_sources ars
@@ -730,11 +779,28 @@ export class PostgresStore implements DataStore {
         article,
         brain: mapBrain(brainRow),
         version,
+        aliases: aliasRows.map((row) => row.slug),
         links: linkRows.map((row) => ({
           articleId: row.article_id,
           slug: row.slug,
+          title: row.title,
+          targetSlug: row.target_slug,
           relation: row.relation,
+          origin: row.origin,
         })),
+        backlinks: backlinkRows.map((row) => ({
+          articleId: row.article_id,
+          slug: row.slug,
+          title: row.title,
+          targetSlug: row.target_slug,
+          relation: row.relation,
+          origin: row.origin,
+        })),
+        unresolvedLinks: unresolvedRows.map((row) => ({
+          targetSlug: row.target_slug,
+          relation: "wiki" as const,
+        })),
+        relationsIndexed: articleRow.wiki_links_body_hash === version.bodyHash,
         sources: sourceRows.map((row) => ({
           id: row.id as string,
           kind: row.kind,
@@ -744,6 +810,69 @@ export class PostgresStore implements DataStore {
           metadata: row.metadata ?? {},
         })),
         compactionEnabled: enabled?.enabled ?? false,
+      };
+    });
+  }
+
+  async getArticleGraph(brainId: string, actor: Actor): Promise<ArticleGraph> {
+    return this.withActor(actor, async (tx) => {
+      const nodeRows = await tx<any[]>`
+        SELECT article.id, article.slug, article.title, article.summary, article.kind,
+               article.freshness, article.updated_at,
+               coalesce(array_agg(registry.slug ORDER BY registry.slug)
+                 FILTER (WHERE NOT registry.is_current), '{}') AS aliases
+        FROM articles article
+        LEFT JOIN article_slug_registry registry ON registry.article_id = article.id
+        WHERE article.brain_id = ${brainId} AND article.archived_at IS NULL
+        GROUP BY article.id
+        ORDER BY article.slug
+      `;
+      const manualRows = await tx<any[]>`
+        SELECT link.from_article_id, link.to_article_id, target.slug AS target_slug,
+               link.relation, 'manual' AS origin
+        FROM article_links link
+        JOIN articles source ON source.id = link.from_article_id
+        JOIN articles target ON target.id = link.to_article_id
+        WHERE source.brain_id = ${brainId}
+          AND source.archived_at IS NULL AND target.archived_at IS NULL
+      `;
+      const wikiRows = await tx<any[]>`
+        SELECT link.from_article_id,
+               CASE WHEN target.archived_at IS NULL THEN link.to_article_id ELSE NULL END AS to_article_id,
+               link.target_slug, 'wiki' AS relation, 'wiki' AS origin
+        FROM article_wiki_links link
+        JOIN articles source ON source.id = link.from_article_id
+        LEFT JOIN articles target ON target.id = link.to_article_id
+        WHERE link.brain_id = ${brainId} AND source.archived_at IS NULL
+      `;
+      const [pending] = await tx<Array<{ count: string }>>`
+        SELECT count(*)::text AS count
+        FROM articles article
+        JOIN article_versions version
+          ON version.article_id = article.id AND version.version = article.current_version
+        WHERE article.brain_id = ${brainId} AND article.archived_at IS NULL
+          AND article.wiki_links_body_hash IS DISTINCT FROM version.body_hash
+      `;
+      return {
+        brainId,
+        nodes: nodeRows.map((row) => ({
+          id: row.id,
+          slug: row.slug,
+          title: row.title,
+          summary: row.summary,
+          kind: row.kind,
+          freshness: row.freshness,
+          updatedAt: asDate(row.updated_at).toISOString(),
+          aliases: row.aliases ?? [],
+        })),
+        edges: [...manualRows, ...wikiRows].map((row) => ({
+          fromArticleId: row.from_article_id,
+          toArticleId: row.to_article_id ?? null,
+          targetSlug: row.target_slug,
+          relation: row.relation,
+          origin: row.origin,
+        })),
+        pendingRelationIndexes: Number(pending?.count ?? 0),
       };
     });
   }
@@ -826,13 +955,13 @@ export class PostgresStore implements DataStore {
       const [row] = await tx<any[]>`
         INSERT INTO staged_writes (
           id, brain_id, article_id, operation, slug, title, summary, keywords, kind,
-          base_version, body_ciphertext, body_nonce, body_tag, cipher_version, body_aad,
+          slug_aliases, base_version, body_ciphertext, body_nonce, body_tag, cipher_version, body_aad,
           body_hash, change_summary, sources, potential_conflicts, acknowledged_conflicts,
           staged_by, staged_client_id, idempotency_key
         ) VALUES (
           ${writeId}, ${input.brainId}, ${targetArticleId}, ${input.operation}, ${input.slug},
           ${input.title}, ${input.summary}, ${input.keywords}, ${input.kind},
-          ${input.baseVersion ?? null}, ${decode(encrypted.ciphertext)}, ${decode(encrypted.nonce)},
+          ${input.aliases}, ${input.baseVersion ?? null}, ${decode(encrypted.ciphertext)}, ${decode(encrypted.nonce)},
           ${decode(encrypted.tag)}, ${encrypted.version}, ${bodyAad}, ${bodyHash},
           ${input.changeSummary}, ${JSON.stringify(input.sources)}::jsonb,
           ${JSON.stringify(potentialConflicts)}::jsonb,
@@ -895,6 +1024,7 @@ export class PostgresStore implements DataStore {
     input: PromoteWriteInput,
     actor: Actor,
     llmAvailable: boolean,
+    wikiLinks: string[],
   ): Promise<{ write: StagedWriteRecord; article: ArticleRecord; version: VersionRecord }> {
     const outcome = await this.withActor(actor, async (tx) => {
       const [rawWrite] = await tx<any[]>`
@@ -902,6 +1032,7 @@ export class PostgresStore implements DataStore {
       `;
       if (!rawWrite) throw new NotFoundError("Staged write");
       const write = mapWrite(rawWrite);
+      if (!write.articleId) throw new Error("Staged write is missing its reserved article id");
       if (write.status === "promoted") {
         const [articleRow] = await tx<any[]>`SELECT * FROM articles WHERE id = ${write.articleId}`;
         const [versionRow] = await tx<any[]>`
@@ -928,8 +1059,20 @@ export class PostgresStore implements DataStore {
         FROM brains brain
         JOIN workspaces workspace ON workspace.id = brain.workspace_id
         WHERE brain.id = ${write.brainId}
+        FOR UPDATE OF brain
       `;
       if (!workspace) throw new NotFoundError("Workspace");
+      const claimedSlugs = [...new Set([write.slug, ...write.slugAliases])];
+      const slugConflicts = await tx<Array<{ slug: string }>>`
+        SELECT slug FROM article_slug_registry
+        WHERE brain_id = ${write.brainId} AND slug = ANY(${claimedSlugs}::text[])
+          AND article_id <> ${write.articleId}
+        ORDER BY slug
+      `;
+      if (slugConflicts.length) {
+        await tx`UPDATE staged_writes SET status = 'conflicted', updated_at = now() WHERE id = ${write.id}`;
+        return { kind: "slug_conflict" as const, slugs: slugConflicts.map((row) => row.slug) };
+      }
       const queueCompaction = workspace.llm_compaction_enabled && llmAvailable;
       const compactionStatus = queueCompaction
         ? "queued"
@@ -986,6 +1129,20 @@ export class PostgresStore implements DataStore {
         `;
       }
 
+      const aliases = [...new Set(write.slugAliases)].filter((slug) => slug !== write.slug);
+      if (aliases.length) {
+        const values = aliases.map((slug) => ({
+          brain_id: write.brainId,
+          slug,
+          article_id: write.articleId,
+          is_current: false,
+        }));
+        await tx`
+          INSERT INTO article_slug_registry ${tx(values, "brain_id", "slug", "article_id", "is_current")}
+          ON CONFLICT (brain_id, slug) DO NOTHING
+        `;
+      }
+
       const [versionRow] = await tx<any[]>`
         INSERT INTO article_versions (
           brain_id, article_id, version, body_ciphertext, body_nonce, body_tag, cipher_version,
@@ -998,6 +1155,7 @@ export class PostgresStore implements DataStore {
           ${actor.userId}, ${actor.clientId}
         ) RETURNING *
       `;
+      await replaceWikiLinksInTx(tx, write.brainId, write.articleId, write.bodyHash, wikiLinks);
       if (queueCompaction) {
         await tx`
           INSERT INTO article_compaction_jobs (
@@ -1031,7 +1189,33 @@ export class PostgresStore implements DataStore {
         currentVersion: outcome.currentVersion,
       });
     }
+    if (outcome.kind === "slug_conflict") {
+      throw new ConflictError("An article slug or alias is already claimed", {
+        slugs: outcome.slugs,
+      });
+    }
     return outcome;
+  }
+
+  async replaceArticleWikiLinks(
+    articleId: string,
+    bodyHash: string,
+    wikiLinks: string[],
+    actor: Actor,
+  ): Promise<boolean> {
+    return this.withActor(actor, async (tx) => {
+      const [article] = await tx<Array<{ brain_id: string }>>`
+        SELECT article.brain_id FROM articles article
+        JOIN article_versions version
+          ON version.article_id = article.id AND version.version = article.current_version
+        WHERE article.id = ${articleId} AND article.archived_at IS NULL
+          AND version.body_hash = ${bodyHash}
+        FOR UPDATE OF article
+      `;
+      if (!article) return false;
+      await replaceWikiLinksInTx(tx, article.brain_id, articleId, bodyHash, wikiLinks);
+      return true;
+    });
   }
 
   async queueWorkspaceCurrentCompactions(workspaceId: string, actor: Actor): Promise<number> {
@@ -1150,6 +1334,7 @@ export class PostgresStore implements DataStore {
     generated: GeneratedArticle,
     encrypted: CipherEnvelope,
     bodyHash: string,
+    wikiLinks: string[],
     actor: Actor,
   ): Promise<{ current: boolean; articleId: string; version: number } | null> {
     return this.withActor(actor, async (tx) => {
@@ -1187,6 +1372,13 @@ export class PostgresStore implements DataStore {
             compaction_error = NULL, compacted_at = now(), updated_at = now()
           WHERE id = ${job.article_id}
         `;
+        await replaceWikiLinksInTx(
+          tx,
+          job.brain_id as string,
+          job.article_id as string,
+          bodyHash,
+          wikiLinks,
+        );
       }
       await tx`DELETE FROM article_compaction_jobs WHERE id = ${jobId}`;
       return {
@@ -1547,6 +1739,38 @@ export class PostgresStore implements DataStore {
       `;
       await tx`
         INSERT INTO maintenance_candidates (brain_id, kind, article_ids, score, detail, fingerprint)
+        SELECT link.brain_id, 'broken_link', ARRAY[source.id], NULL,
+          jsonb_build_object(
+            'targetSlug', link.target_slug,
+            'relation', 'wiki',
+            'origin', 'wiki',
+            'archivedTarget', target.archived_at IS NOT NULL
+          ),
+          'broken-wiki-link:' || source.id::text || ':' || link.target_slug
+        FROM article_wiki_links link
+        JOIN articles source ON source.id = link.from_article_id
+        LEFT JOIN articles target ON target.id = link.to_article_id
+        WHERE link.brain_id = ${brainId} AND source.archived_at IS NULL
+          AND (link.to_article_id IS NULL OR target.archived_at IS NOT NULL)
+        ON CONFLICT (brain_id, fingerprint) DO UPDATE SET
+          detail = excluded.detail, updated_at = now(), status = 'open'
+      `;
+      await tx`
+        UPDATE maintenance_candidates candidate SET status = 'resolved', updated_at = now()
+        WHERE candidate.brain_id = ${brainId} AND candidate.status = 'open'
+          AND candidate.fingerprint LIKE 'broken-wiki-link:%'
+          AND NOT EXISTS (
+            SELECT 1 FROM article_wiki_links link
+            JOIN articles source ON source.id = link.from_article_id
+            LEFT JOIN articles target ON target.id = link.to_article_id
+            WHERE link.brain_id = candidate.brain_id AND source.archived_at IS NULL
+              AND (link.to_article_id IS NULL OR target.archived_at IS NOT NULL)
+              AND candidate.fingerprint =
+                'broken-wiki-link:' || source.id::text || ':' || link.target_slug
+          )
+      `;
+      await tx`
+        INSERT INTO maintenance_candidates (brain_id, kind, article_ids, score, detail, fingerprint)
         SELECT a.brain_id, 'oversized', ARRAY[a.id], NULL,
           jsonb_build_object('encryptedBytes', octet_length(v.body_ciphertext)), 'oversized:' || a.id::text
         FROM articles a
@@ -1769,6 +1993,30 @@ export class PostgresStore implements DataStore {
   }
 }
 
+async function replaceWikiLinksInTx(
+  tx: Tx,
+  brainId: string,
+  articleId: string,
+  bodyHash: string,
+  wikiLinks: string[],
+): Promise<void> {
+  const targets = [...new Set(wikiLinks)];
+  await tx`DELETE FROM article_wiki_links WHERE from_article_id = ${articleId}`;
+  if (targets.length) {
+    await tx`
+      INSERT INTO article_wiki_links (brain_id, from_article_id, target_slug, to_article_id)
+      SELECT ${brainId}, ${articleId}, input.target_slug, registry.article_id
+      FROM unnest(${targets}::text[]) AS input(target_slug)
+      LEFT JOIN article_slug_registry registry
+        ON registry.brain_id = ${brainId} AND registry.slug = input.target_slug
+    `;
+  }
+  await tx`
+    UPDATE articles SET wiki_links_body_hash = ${bodyHash}
+    WHERE id = ${articleId} AND brain_id = ${brainId}
+  `;
+}
+
 // Every articles column except search_document. That column is a tsvector maintained by a
 // trigger for the full-text index; nothing maps it, but SELECT * shipped it on every row.
 // A routing index or a search result set carries hundreds of rows, so it was the largest
@@ -1966,6 +2214,7 @@ function mapWrite(row: any): StagedWriteRecord {
     title: row.title,
     summary: row.summary,
     keywords: row.keywords ?? [],
+    slugAliases: row.slug_aliases ?? [],
     kind: row.kind,
     baseVersion: row.base_version === null ? null : Number(row.base_version),
     body: envelopeFromRow(row),

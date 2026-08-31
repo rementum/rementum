@@ -1,5 +1,7 @@
 import type {
   Article,
+  ArticleBacklink,
+  ArticleGraph,
   ArticleSummary,
   BrainArticleCount,
   BrainListSort,
@@ -9,12 +11,14 @@ import type {
   CreateTaskInput,
   MaintenanceCandidate,
   PromoteWriteInput,
+  ResolvedArticleLink,
   RoutingIndexSort,
   SearchArticlesInput,
   SourceInput,
   StageWriteInput,
   Task,
   TeamRole,
+  UnresolvedArticleLink,
 } from "@rementum/contracts";
 import type { CipherEnvelope, WrappedKey } from "./crypto.js";
 
@@ -107,7 +111,11 @@ export interface ArticleBundle {
   article: ArticleRecord;
   brain: BrainRecord;
   version: VersionRecord;
-  links: Array<{ articleId: string; slug: string; relation: string }>;
+  aliases: string[];
+  links: ResolvedArticleLink[];
+  backlinks: ArticleBacklink[];
+  unresolvedLinks: UnresolvedArticleLink[];
+  relationsIndexed: boolean;
   sources: Array<SourceInput & { id: string }>;
   compactionEnabled: boolean;
 }
@@ -116,6 +124,7 @@ export interface ArticleBundle {
 export interface ExportedVersion {
   articleId: string;
   slug: string;
+  slugAliases: string[];
   title: string;
   summary: string;
   kind: string;
@@ -133,6 +142,7 @@ export interface StagedWriteRecord {
   title: string;
   summary: string;
   keywords: string[];
+  slugAliases: string[];
   kind: StageWriteInput["kind"];
   baseVersion: number | null;
   body: CipherEnvelope;
@@ -289,10 +299,7 @@ export interface DataStore {
   getArticleBySlug(brainId: string, slug: string, actor: Actor): Promise<ArticleRecord | null>;
   getVersion(articleId: string, version: number, actor: Actor): Promise<VersionRecord | null>;
   getCurrentVersion(articleId: string, actor: Actor): Promise<VersionRecord | null>;
-  getArticleLinks(
-    articleId: string,
-    actor: Actor,
-  ): Promise<Array<{ articleId: string; slug: string; relation: string }>>;
+  getArticleLinks(articleId: string, actor: Actor): Promise<ResolvedArticleLink[]>;
   getArticleSources(
     articleId: string,
     version: number,
@@ -301,6 +308,7 @@ export interface DataStore {
   listArticleVersions(articleId: string, actor: Actor): Promise<VersionRecord[]>;
   /** Null when the article is not visible; throws when its brain or version is missing. */
   readArticleBundle(articleId: string, actor: Actor): Promise<ArticleBundle | null>;
+  getArticleGraph(brainId: string, actor: Actor): Promise<ArticleGraph>;
   listCurrentVersions(brainId: string, actor: Actor, limit: number): Promise<ExportedVersion[]>;
   verifyArticle(articleId: string, reviewAfter: Date | null, actor: Actor): Promise<ArticleRecord>;
   setArticleLinks(
@@ -333,7 +341,14 @@ export interface DataStore {
     input: PromoteWriteInput,
     actor: Actor,
     llmAvailable: boolean,
+    wikiLinks: string[],
   ): Promise<{ write: StagedWriteRecord; article: ArticleRecord; version: VersionRecord }>;
+  replaceArticleWikiLinks(
+    articleId: string,
+    bodyHash: string,
+    wikiLinks: string[],
+    actor: Actor,
+  ): Promise<boolean>;
   queueWorkspaceCurrentCompactions(workspaceId: string, actor: Actor): Promise<number>;
   queueArticleCompaction(articleId: string, actor: Actor): Promise<ArticleRecord>;
   cancelWorkspaceCompactions(workspaceId: string, actor: Actor): Promise<string[]>;
@@ -344,6 +359,7 @@ export interface DataStore {
     generated: GeneratedArticle,
     encrypted: CipherEnvelope,
     bodyHash: string,
+    wikiLinks: string[],
     actor: Actor,
   ): Promise<{ current: boolean; articleId: string; version: number } | null>;
   failCompaction(

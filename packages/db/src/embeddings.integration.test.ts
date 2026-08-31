@@ -62,6 +62,7 @@ integration("embedding model changes", () => {
           slug: `indexed-${suffix}`,
           title: "Indexed article",
           keywords: [],
+          aliases: [],
           kind: "canonical",
           body: "A body about vector indexing.",
           changeSummary: "Create indexed article",

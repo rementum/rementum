@@ -18,6 +18,7 @@ export interface ImportDocument {
   slug: string;
   kind: ArticleKind;
   keywords: string[];
+  aliases: string[];
   body: string;
   links: string[];
   warnings: string[];
@@ -105,22 +106,29 @@ export async function inspectMarkdownArchive(
     const fallback = path.basename(safePath, path.extname(safePath));
     const parsed = parseMarkdownDocument(bytes.toString("utf8"), fallback);
     const kind = suggestKind(safePath, fallback);
+    const slug = slugify(parsed.title);
+    const aliases = [...new Set([...parsed.aliases, slugify(fallback)])].filter(
+      (alias) => alias !== slug,
+    );
     const warnings: string[] = [];
     if (!parsed.body) warnings.push("empty-body");
     if (parsed.wikiLinks.length > 100) warnings.push("many-wiki-links");
     documents.push({
       path: safePath,
       title: parsed.title,
-      slug: slugify(parsed.title),
+      slug,
       kind,
       keywords: parsed.tags,
+      aliases,
       body: parsed.body,
       links: parsed.wikiLinks,
       warnings,
       checksumInput: bytes,
     });
   }
-  const known = new Set(documents.flatMap((doc) => [doc.title.toLowerCase(), doc.slug]));
+  const known = new Set(
+    documents.flatMap((doc) => [doc.title.toLowerCase(), doc.slug, ...doc.aliases]),
+  );
   const unresolved = [
     ...new Set(
       documents.flatMap((doc) =>
@@ -136,6 +144,7 @@ export async function inspectMarkdownArchive(
         path: doc.path,
         title: doc.title,
         suggestedSlug: doc.slug,
+        aliases: doc.aliases,
         suggestedKind: doc.kind,
         bytes: doc.checksumInput.length,
         links: doc.links,

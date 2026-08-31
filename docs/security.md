@@ -24,7 +24,9 @@ PostgreSQL or the embedding service to the public network.
 - Keep provider keys and Resend keys out of source control and support logs.
 
 Rementum encrypts article content at the application layer. PostgreSQL still stores routing
-summaries, titles, links, audit metadata, and embeddings. Use encrypted disks and encrypted backups.
+summaries, titles, current and historical slug aliases, resolved and unresolved relation targets,
+audit metadata, and embeddings. A wiki target can therefore reveal terminology from an encrypted
+body. Use encrypted disks and encrypted backups.
 
 ## Article generation mode
 

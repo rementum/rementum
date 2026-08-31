@@ -60,6 +60,12 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
       routingIndex: [{ id: "article-id", slug: "architecture" }],
       articleTotal: 1,
     })),
+    getArticleGraph: vi.fn(async () => ({
+      brainId,
+      nodes: [],
+      edges: [],
+      pendingRelationIndexes: 0,
+    })),
     readArticle: vi.fn(async () => ({
       id: "article-id",
       slug: "architecture",
@@ -74,6 +80,7 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
       articles: [
         {
           slug: "architecture",
+          aliases: ["old-architecture"],
           title: "Architecture",
           summary: "How the system fits together.",
           kind: "canonical",
@@ -572,6 +579,24 @@ describe("article counts", () => {
     expect(response.json()).toEqual([
       { brainId, articleCount: 2, latestArticleUpdatedAt: "2026-08-27T10:00:00.000Z" },
     ]);
+    expect(context.service.getBrain).not.toHaveBeenCalled();
+  });
+});
+
+describe("article graph", () => {
+  it("returns the complete graph from the static brain subroute", async () => {
+    const response = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/brains/${brainId}/graph`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      brainId,
+      nodes: [],
+      edges: [],
+      pendingRelationIndexes: 0,
+    });
+    expect(context.service.getArticleGraph).toHaveBeenCalledWith(brainId, expect.anything());
     expect(context.service.getBrain).not.toHaveBeenCalled();
   });
 });

@@ -33,6 +33,10 @@ function stubService(overrides: Record<string, unknown> = {}): RementumService {
     readArticle: vi.fn(async () => ({
       id: articleId,
       slug: "architecture",
+      title: "Architecture",
+      summary: "System design.",
+      aliases: ["old-architecture"],
+      kind: "canonical",
       currentVersion: 2,
       body: "# Architecture\n",
     })),
@@ -413,7 +417,14 @@ describe("export_brain", () => {
     const response = await client.callTool({ name: "export_brain", arguments: { brainId } });
     expect(response.structuredContent).toEqual({
       brain: { id: brainId, slug: "product" },
-      files: [{ path: "architecture.md", version: 2, content: "# Architecture\n" }],
+      files: [
+        {
+          path: "architecture.md",
+          version: 2,
+          content:
+            '---\ntitle: "Architecture"\nsummary: "System design."\naliases: ["old-architecture"]\nkind: canonical\nversion: 2\n---\n\n# Architecture\n\n',
+        },
+      ],
       truncated: false,
     });
   });

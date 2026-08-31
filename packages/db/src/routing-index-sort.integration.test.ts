@@ -34,6 +34,7 @@ integration("routing index sort", () => {
           slug,
           title,
           keywords: [],
+          aliases: [],
           kind: "canonical",
           body: `Body of ${slug}.`,
           changeSummary: "Create article",

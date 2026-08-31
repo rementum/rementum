@@ -117,3 +117,8 @@ Start with these calls:
 Use `stage_write` for memory changes. Review its conflict result before you promote the pending
 write. Staging never waits for an external LLM. In opted-in workspaces, `read_article` exposes the
 deferred compaction status after promotion while the submitted body remains usable.
+
+Article bodies may use `[[slug]]`, `[[slug|label]]`, and heading-fragment variants. `read_article`
+returns resolved outgoing links, backlinks, and unresolved targets. `set_article_links` controls only
+manual relations; body-derived wiki links are synchronized automatically. See
+[Article relations](article-relations.md) for resolution and alias behavior.

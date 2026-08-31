@@ -75,6 +75,7 @@ function createInput() {
     slug: "architecture",
     title: "Architecture",
     keywords: [],
+    aliases: [],
     kind: "canonical" as const,
     body: "Canonical body",
     changeSummary: "Create architecture memory",

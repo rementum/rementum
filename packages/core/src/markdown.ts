@@ -1,4 +1,6 @@
+import { normalizeArticleSlug, tokenizeWikiLinks } from "@rementum/contracts";
 import matter from "gray-matter";
+import { Lexer } from "marked";
 
 export interface MarkdownSection {
   ordinal: number;
@@ -87,32 +89,58 @@ export function parseMarkdownDocument(value: string, fallbackTitle: string) {
     : typeof parsed.data.tags === "string"
       ? parsed.data.tags.split(/[ ,]+/).filter(Boolean)
       : [];
+  const rawAliases = Array.isArray(parsed.data.aliases)
+    ? parsed.data.aliases.filter(
+        (alias): alias is string => typeof alias === "string" && Boolean(alias.trim()),
+      )
+    : typeof parsed.data.aliases === "string" && parsed.data.aliases.trim()
+      ? [parsed.data.aliases]
+      : [];
   return {
     title,
     summary,
     tags,
-    aliases: Array.isArray(parsed.data.aliases)
-      ? parsed.data.aliases.filter((alias): alias is string => typeof alias === "string")
-      : [],
+    aliases: [...new Set(rawAliases.map(normalizeArticleSlug))],
     body: parsed.content.trim(),
     frontmatter: parsed.data,
-    wikiLinks: [...parsed.content.matchAll(/\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g)].map((match) =>
-      (match[1] ?? "").trim(),
-    ),
+    wikiLinks: extractWikiLinks(parsed.content),
   };
 }
 
 export function slugify(value: string): string {
-  const slug = value
-    .normalize("NFKD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120);
-  return slug || "untitled";
+  return normalizeArticleSlug(value);
+}
+
+/** Collects body-derived targets from prose while leaving code examples inert. */
+export function extractWikiLinks(markdown: string): string[] {
+  const targets = new Set<string>();
+  visitMarkdownTokens(Lexer.lex(markdown), targets, new WeakSet());
+  return [...targets];
 }
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function visitMarkdownTokens(value: unknown, targets: Set<string>, seen: WeakSet<object>): void {
+  if (!value || typeof value !== "object") return;
+  if (seen.has(value)) return;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    for (const item of value) visitMarkdownTokens(item, targets, seen);
+    return;
+  }
+  const token = value as Record<string, unknown>;
+  if (["code", "codespan", "link", "image"].includes(String(token.type ?? ""))) return;
+  if (token.type === "text") {
+    const text = typeof token.raw === "string" ? token.raw : token.text;
+    if (typeof text === "string") {
+      for (const link of tokenizeWikiLinks(text)) targets.add(link.targetSlug);
+    }
+    return;
+  }
+  for (const [key, nested] of Object.entries(token)) {
+    if (["raw", "text"].includes(key)) continue;
+    visitMarkdownTokens(nested, targets, seen);
+  }
 }

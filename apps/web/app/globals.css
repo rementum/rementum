@@ -12,6 +12,7 @@
 
 @import "tailwindcss" source("../");
 @import "performative-ui/styles.css" layer(components);
+@import "@react-sigma/core/lib/style.css" layer(components);
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -354,6 +355,7 @@
     font-weight: 590;
     letter-spacing: -0.035em;
     line-height: 1.15;
+    scroll-margin-top: 2rem;
   }
 
   .markdown h1 {
@@ -426,6 +428,34 @@
 
   .markdown a:hover {
     text-decoration-color: currentColor;
+  }
+
+  .markdown .wiki-link {
+    border-radius: 4px;
+    background: var(--color-accent-tint);
+    color: var(--color-accent);
+    font-weight: 560;
+    text-decoration: none;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 14%, transparent);
+    transition:
+      color 120ms ease,
+      background-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .markdown .wiki-link:hover {
+    background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  }
+
+  .markdown .wiki-link-unresolved {
+    cursor: help;
+    background: var(--color-orange-tint);
+    color: var(--color-orange);
+    text-decoration: underline dotted;
+    text-decoration-color: color-mix(in srgb, currentcolor 55%, transparent);
+    text-underline-offset: 0.18em;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-orange) 18%, transparent);
   }
 
   .markdown strong {

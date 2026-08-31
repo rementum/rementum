@@ -34,6 +34,7 @@ integration("article counts", () => {
           slug,
           title: `Article ${slug}`,
           keywords: [],
+          aliases: [],
           kind: "canonical",
           body: `Body of ${slug}.`,
           changeSummary: "Create article",

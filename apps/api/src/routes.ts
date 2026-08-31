@@ -438,6 +438,10 @@ export async function registerApiRoutes(
     const { workspaceId } = z.object({ workspaceId: z.uuid().optional() }).parse(request.query);
     return service.countArticlesByBrain(await authorize(request, "brain:read"), workspaceId);
   });
+  app.get("/api/v1/brains/:brainId/graph", async (request) => {
+    const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
+    return service.getArticleGraph(brainId, await authorize(request, "brain:read"));
+  });
   app.get("/api/v1/brains/:brainId", async (request) => {
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     const { sort, limit, offset } = z
@@ -686,6 +690,7 @@ export async function registerApiRoutes(
               slug: document.slug,
               title: document.title,
               keywords: document.keywords,
+              aliases: document.aliases,
               kind: document.kind,
               body: document.body,
               baseVersion: existing?.currentVersion,
@@ -718,7 +723,7 @@ export async function registerApiRoutes(
     const zip = new JSZip();
     const manifest: Array<{ slug: string; version: number; hash: string }> = [];
     for (const article of brain.articles) {
-      const file = `---\ntitle: ${yamlString(article.title)}\nsummary: ${yamlString(article.summary)}\nkind: ${article.kind}\nversion: ${article.version}\n---\n\n${article.body}\n`;
+      const file = `---\ntitle: ${yamlString(article.title)}\nsummary: ${yamlString(article.summary)}\naliases: ${JSON.stringify(article.aliases)}\nkind: ${article.kind}\nversion: ${article.version}\n---\n\n${article.body}\n`;
       zip.file(`${article.slug}.md`, file);
       manifest.push({
         slug: article.slug,

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseMarkdownDocument, slugify, splitMarkdownByHeading } from "./markdown.js";
+import {
+  extractWikiLinks,
+  parseMarkdownDocument,
+  slugify,
+  splitMarkdownByHeading,
+} from "./markdown.js";
 
 describe("splitMarkdownByHeading", () => {
   it("keeps the heading line with the section it introduces", () => {
@@ -81,14 +86,35 @@ describe("parseMarkdownDocument", () => {
     expect(parseMarkdownDocument("Body.", "F").tags).toEqual([]);
   });
 
-  it("collects wiki links without their display text or anchor", () => {
-    const parsed = parseMarkdownDocument("See [[architecture|the design]] and [[glossary]].", "F");
-    expect(parsed.wikiLinks).toEqual(["architecture", "glossary"]);
+  it("collects normalised wiki links without display text or anchors", () => {
+    const parsed = parseMarkdownDocument(
+      "See [[System Architecture|the design]] and [[glossary#Terms]].",
+      "F",
+    );
+    expect(parsed.wikiLinks).toEqual(["system-architecture", "glossary"]);
+  });
+
+  it("does not collect wiki syntax from code or escaped prose", () => {
+    const body = [
+      String.raw`Ignore \[[escaped]].`,
+      "",
+      "`[[inline-code]]`",
+      "",
+      "```md",
+      "[[fenced-code]]",
+      "```",
+      "",
+      "Keep [[architecture]].",
+    ].join("\n");
+    expect(extractWikiLinks(body)).toEqual(["architecture"]);
   });
 
   it("keeps only string aliases", () => {
     const parsed = parseMarkdownDocument("---\naliases:\n  - alias\n  - 7\n---\n\nBody.", "F");
     expect(parsed.aliases).toEqual(["alias"]);
+    expect(parseMarkdownDocument("---\naliases: Old Name\n---\n\nBody.", "F").aliases).toEqual([
+      "old-name",
+    ]);
   });
 });
 

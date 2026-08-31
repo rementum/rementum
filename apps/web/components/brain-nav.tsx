@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { GlideNav } from "./ui/glide";
 import {
   IconActivity,
+  IconGraph,
   IconImport,
   IconIndex,
   IconMaintenance,
@@ -15,6 +16,7 @@ export function BrainNav({ brainId }: { brainId: string }) {
   const pathname = usePathname();
   const items = [
     { label: "Index", href: `/brains/${brainId}`, icon: IconIndex },
+    { label: "Graph", href: `/brains/${brainId}/graph`, icon: IconGraph },
     { label: "Writes", href: `/brains/${brainId}/writes`, icon: IconWrites },
     { label: "Tasks", href: `/brains/${brainId}/tasks`, icon: IconTasks },
     { label: "Maintenance", href: `/brains/${brainId}/maintenance`, icon: IconMaintenance },
