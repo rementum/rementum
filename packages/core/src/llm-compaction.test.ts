@@ -101,11 +101,35 @@ describe("OpenAI-compatible article generation", () => {
     expect(requests[3]?.response_format).toMatchObject({ type: "json_schema" });
   });
 
+  it("keeps chunk digests reducible at the minimum input budget", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      requests.push(request);
+      if ("response_format" in request) return completion(generatedArticle());
+      const messages = request.messages as Array<{ content: string }>;
+      const match = /at most (\d+) characters/.exec(messages[0]?.content ?? "");
+      if (!match) throw new Error("Missing intermediate digest limit");
+      return completion("d".repeat(Number(match[1])));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generator({ maxInputChars: 8_000 }).generateArticle({
+        title: "Large",
+        body: "a".repeat(16_000),
+      }),
+    ).resolves.toMatchObject({ title: "Portable core" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const messages = requests[0]?.messages as Array<{ content: string }>;
+    expect(messages[0]?.content).toContain("at most 1500 characters");
+  });
+
   it("accepts generated fields at their exact limits", async () => {
     const article = {
       title: "t".repeat(120),
       summary: "s".repeat(300),
-      body: "b".repeat(GENERATED_BODY_MAX_CHARS),
+      body: '\\"'.repeat(GENERATED_BODY_MAX_CHARS / 2),
     };
     vi.stubGlobal(
       "fetch",
