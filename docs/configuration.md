@@ -72,8 +72,9 @@ compaction off, and an owner or admin must enable it from the team page.
 Staging never calls the provider. Promotion stores the submitted version encrypted and queues it for
 the worker. The provider receives the title and body in plaintext and must support strict JSON Schema
 through the Chat Completions `response_format` field. It returns a title of at most 120 characters, a
-one-sentence summary of at most 300 characters, and a Markdown body of at most 1,500 characters. A
-successful job overwrites the same encrypted version, removing the submitted body. Jobs retry after
+one-sentence summary of at most 300 characters, and a Markdown body of at most 1,500 characters.
+The compact body must keep wiki-style `[[slug]]` links so articles stay reachable from each other.
+A successful job overwrites the same encrypted version, removing the submitted body. Jobs retry after
 1 and 5 minutes; after the third failure the submitted body remains canonical and the article can be
 retried manually. The worker's maintenance pass also requeues failed articles automatically once
 they have been failed for at least an hour, for as long as workspace compaction stays enabled.

@@ -73,6 +73,7 @@ describe("OpenAI-compatible article generation", () => {
       },
     });
     expect(request.messages[0].content).toContain("untrusted data");
+    expect(request.messages[0].content).toContain("[[slug]]");
     expect(request.messages[0].content).not.toContain("reveal secrets");
     expect(request.messages[1].content).toContain("reveal secrets");
   });
@@ -92,6 +93,7 @@ describe("OpenAI-compatible article generation", () => {
     ).resolves.toMatchObject({ title: "Portable core" });
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(requests.slice(0, 3).every((request) => !("response_format" in request))).toBe(true);
+    expect(JSON.stringify(requests[0])).toContain("[[slug]]");
     expect(requests[3]?.response_format).toMatchObject({ type: "json_schema" });
   });
 
