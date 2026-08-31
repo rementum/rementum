@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { OpenAICompatibleArticleGenerator, splitForSummary } from "./llm-compaction.js";
+import {
+  GENERATED_BODY_MAX_CHARS,
+  MAX_COMPLETION_CHARS,
+  OpenAICompatibleArticleGenerator,
+  splitForSummary,
+} from "./llm-compaction.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -73,6 +78,7 @@ describe("OpenAI-compatible article generation", () => {
       },
     });
     expect(request.messages[0].content).toContain("untrusted data");
+    expect(request.messages[0].content).toContain("ceiling, not a target");
     expect(request.messages[0].content).toContain("[[slug]]");
     expect(request.messages[0].content).not.toContain("reveal secrets");
     expect(request.messages[1].content).toContain("reveal secrets");
@@ -97,11 +103,35 @@ describe("OpenAI-compatible article generation", () => {
     expect(requests[3]?.response_format).toMatchObject({ type: "json_schema" });
   });
 
+  it("keeps chunk digests reducible at the minimum input budget", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      requests.push(request);
+      if ("response_format" in request) return completion(generatedArticle());
+      const messages = request.messages as Array<{ content: string }>;
+      const match = /at most (\d+) characters/.exec(messages[0]?.content ?? "");
+      if (!match) throw new Error("Missing intermediate digest limit");
+      return completion("d".repeat(Number(match[1])));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generator({ maxInputChars: 8_000 }).generateArticle({
+        title: "Large",
+        body: "a".repeat(16_000),
+      }),
+    ).resolves.toMatchObject({ title: "Portable core" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const messages = requests[0]?.messages as Array<{ content: string }>;
+    expect(messages[0]?.content).toContain("at most 1500 characters");
+  });
+
   it("accepts generated fields at their exact limits", async () => {
     const article = {
       title: "t".repeat(120),
       summary: "s".repeat(300),
-      body: "b".repeat(1_500),
+      body: '\\"'.repeat(GENERATED_BODY_MAX_CHARS / 2),
     };
     vi.stubGlobal(
       "fetch",
@@ -146,7 +176,10 @@ describe("OpenAI-compatible article generation", () => {
   });
 
   it("retries once with the validation reasons, then succeeds", async () => {
-    const outputs = [generatedArticle({ body: "b".repeat(1_501) }), generatedArticle()];
+    const outputs = [
+      generatedArticle({ body: "b".repeat(GENERATED_BODY_MAX_CHARS + 1) }),
+      generatedArticle(),
+    ];
     const requests: Array<Record<string, unknown>> = [];
     const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
       requests.push(JSON.parse(String(init?.body)));
@@ -161,11 +194,13 @@ describe("OpenAI-compatible article generation", () => {
     const messages = (requests[1]?.messages ?? []) as Array<{ content: string }>;
     const system = messages[0]?.content ?? "";
     expect(system).toContain("rejected");
-    expect(system).toContain('"body" exceeds 1500 characters');
+    expect(system).toContain(`"body" exceeds ${GENERATED_BODY_MAX_CHARS} characters`);
   });
 
   it("fails with the reason after the corrective retry also misses the limits", async () => {
-    const fetchMock = vi.fn(async () => completion(generatedArticle({ body: "b".repeat(1_501) })));
+    const fetchMock = vi.fn(async () =>
+      completion(generatedArticle({ body: "b".repeat(GENERATED_BODY_MAX_CHARS + 1) })),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
@@ -173,7 +208,7 @@ describe("OpenAI-compatible article generation", () => {
     ).rejects.toMatchObject({
       code: "llm_summary_failed",
       status: 502,
-      message: expect.stringContaining('"body" exceeds 1500 characters'),
+      message: expect.stringContaining(`"body" exceeds ${GENERATED_BODY_MAX_CHARS} characters`),
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -201,10 +236,10 @@ describe("OpenAI-compatible article generation", () => {
     expect(requests[2]).not.toHaveProperty("response_format");
   });
 
-  it("rejects a model response over 10,000 characters", async () => {
+  it("rejects a model response over the completion character limit", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => completion("x".repeat(10_001))),
+      vi.fn(async () => completion("x".repeat(MAX_COMPLETION_CHARS + 1))),
     );
 
     await expect(
