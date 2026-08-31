@@ -319,6 +319,17 @@ describe("staged writes over MCP", () => {
     expect(response.structuredContent).toEqual({ id: writeId, status: "pending" });
   });
 
+  it("returns the decrypted article body from read_article", async () => {
+    const service = stubService();
+    const client = await connect(service);
+    const response = await client.callTool({ name: "read_article", arguments: { articleId } });
+    expect(response.structuredContent).toMatchObject({
+      id: articleId,
+      slug: "architecture",
+      body: "# Architecture\n",
+    });
+  });
+
   it("promotes a write and reports the resulting version", async () => {
     const service = stubService();
     const client = await connect(service);
@@ -442,6 +453,26 @@ describe("sanitize", () => {
       user: { email: "person@example.test" },
       brain: { slug: "product" },
       writes: [{ id: "nested" }],
+    });
+  });
+
+  it("drops cipher envelopes on body but keeps decrypted plaintext", () => {
+    expect(
+      sanitize({
+        id: "write-id",
+        body: { version: 1, nonce: "n", ciphertext: "c", tag: "t" },
+      }),
+    ).toEqual({ id: "write-id" });
+    expect(
+      sanitize({
+        id: articleId,
+        slug: "architecture",
+        body: "# Architecture\n\nEncrypted at rest.\n",
+      }),
+    ).toEqual({
+      id: articleId,
+      slug: "architecture",
+      body: "# Architecture\n\nEncrypted at rest.\n",
     });
   });
 

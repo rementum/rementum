@@ -645,10 +645,17 @@ export function sanitize(value: any): any {
   if (value instanceof Date) return value.toISOString();
   const output: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value)) {
-    if (["body", "bodyAad", "wrappedKey", "passwordHash"].includes(key)) continue;
+    if (isSecretField(key, child)) continue;
     output[key] = sanitize(child);
   }
   return output;
+}
+
+// Ciphertext travels as a Buffer or CipherEnvelope on `body`; readArticle puts the
+// decrypted plaintext on the same key as a string. Drop the secret shapes, keep the text.
+function isSecretField(key: string, child: unknown): boolean {
+  if (["bodyAad", "wrappedKey", "passwordHash"].includes(key)) return true;
+  return key === "body" && typeof child !== "string";
 }
 
 function defined<T extends Record<string, unknown>>(value: T): Partial<T> {
