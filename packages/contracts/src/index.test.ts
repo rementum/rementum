@@ -109,6 +109,33 @@ describe("mcpAnalyticsSchema", () => {
     expect(mcpAnalyticsSchema.parse(value)).toEqual(value);
     expect(() => mcpAnalyticsRangeSchema.parse("all")).toThrow();
   });
+
+  it("still reads usage recorded under a tool this build no longer registers", () => {
+    const legacy = {
+      scope: { workspaceId: "00000000-0000-4000-8000-000000000001", brainId: null },
+      trackingStartedAt: "2026-09-01T00:00:00.000Z",
+      generatedAt: "2026-09-01T12:00:00.000Z",
+      timeZone: "UTC",
+      range: "30d",
+      totals: { calls: 1, activeClients: 1, activeBrains: 0, articlesConsumed: 0 },
+      daily: [],
+      topClients: [],
+      topBrains: [],
+      topArticles: [],
+      topTools: [{ tool: "retired_tool", calls: 1, lastUsedAt: "2026-09-01T12:00:00.000Z" }],
+      recentCalls: [
+        {
+          id: "00000000-0000-4000-8000-000000000002",
+          tool: "retired_tool",
+          clientName: "Codex",
+          brainId: null,
+          brainName: null,
+          createdAt: "2026-09-01T12:00:00.000Z",
+        },
+      ],
+    };
+    expect(mcpAnalyticsSchema.parse(legacy)).toEqual(legacy);
+  });
 });
 
 describe("externalUrlSchema", () => {

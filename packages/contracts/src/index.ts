@@ -360,8 +360,6 @@ export const toolNames = [
 ] as const;
 export type ToolName = (typeof toolNames)[number];
 
-export const toolNameSchema = z.enum(toolNames);
-
 export const mcpAnalyticsRangeSchema = z.enum(["7d", "30d", "90d", "365d"]);
 export type McpAnalyticsRange = z.infer<typeof mcpAnalyticsRangeSchema>;
 
@@ -413,9 +411,12 @@ export const mcpAnalyticsSchema = z.object({
       lastUsedAt: z.iso.datetime(),
     }),
   ),
+  // Usage rows outlive the catalog: a tool renamed or retired in a later release still has
+  // history under its old name, and migrations are forward-only. Keep these plain strings so
+  // reading analytics never fails on a name this build no longer registers.
   topTools: z.array(
     z.object({
-      tool: toolNameSchema,
+      tool: z.string(),
       calls: z.number().int().nonnegative(),
       lastUsedAt: z.iso.datetime(),
     }),
@@ -423,7 +424,7 @@ export const mcpAnalyticsSchema = z.object({
   recentCalls: z.array(
     z.object({
       id: idSchema,
-      tool: toolNameSchema,
+      tool: z.string(),
       clientName: z.string(),
       brainId: idSchema.nullable(),
       brainName: z.string().nullable(),
