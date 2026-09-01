@@ -1730,6 +1730,9 @@ export class PostgresStore implements DataStore {
 
   async recordMcpToolCall(input: McpToolCallInput, actor: Actor): Promise<void> {
     const clientId = actor.clientId ?? "unknown-client";
+    // 8 is loadContextSchema.maxArticles, the most a single call can deliver, and the
+    // mcp_tool_calls_article_limit CHECK. Raising the tool ceiling without raising both
+    // trades a rejected insert for silently undercounted articles, so keep them in step.
     const articleIds = [...new Set(input.articleIds)].slice(0, 8);
     await this.withActor(actor, async (tx) => {
       await tx`
