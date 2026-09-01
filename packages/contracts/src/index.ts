@@ -238,6 +238,15 @@ export const searchArticlesSchema = z.object({
 });
 export type SearchArticlesInput = z.infer<typeof searchArticlesSchema>;
 
+export const loadContextSchema = z.object({
+  brainId: idSchema,
+  query: z.string().min(1).max(2000),
+  maxArticles: z.number().int().min(1).max(8).default(4),
+  maxChars: z.number().int().min(4000).max(100_000).default(24_000),
+  freshness: z.array(freshnessSchema).optional(),
+});
+export type LoadContextInput = z.infer<typeof loadContextSchema>;
+
 export const taskSchema = z.object({
   id: idSchema,
   brainId: idSchema,
@@ -320,6 +329,7 @@ export const toolNames = [
   "create_brain",
   "get_brain",
   "search_articles",
+  "load_context",
   "read_article",
   "recent_activity",
   "stage_write",

@@ -11,6 +11,61 @@ const taskId = "00000000-0000-4000-8000-000000000003";
 const writeId = "00000000-0000-4000-8000-000000000004";
 const workspaceId = "00000000-0000-4000-8000-000000000005";
 
+function articleResult(id = articleId, slug = "architecture", body = "# Architecture\n") {
+  return {
+    id,
+    brainId,
+    slug,
+    title: slug === "architecture" ? "Architecture" : slug,
+    summary: `${slug} summary.`,
+    keywords: [slug],
+    kind: "canonical" as const,
+    freshness: "current" as const,
+    currentVersion: 2,
+    updatedAt: "2026-01-02T00:00:00.000Z",
+    body,
+    links: [{ articleId, slug: "architecture", relation: "related" }],
+    sources: [],
+    verifiedAt: null,
+    reviewAfter: null,
+    compaction: {
+      enabled: false,
+      available: false,
+      status: "not_requested" as const,
+      attempts: 0,
+      error: null,
+      compactedAt: null,
+      canRetry: false,
+    },
+    provenance: {
+      actorId: "00000000-0000-4000-8000-000000000009",
+      clientId: "test-client",
+      changeSummary: "Create article",
+      createdAt: "2026-01-02T00:00:00.000Z",
+    },
+  };
+}
+
+function searchHit(id: string, slug: string, score: number) {
+  return {
+    article: {
+      id,
+      brainId,
+      slug,
+      title: slug,
+      summary: `${slug} summary.`,
+      keywords: [slug],
+      kind: "canonical" as const,
+      freshness: "current" as const,
+      currentVersion: 2,
+      updatedAt: "2026-01-02T00:00:00.000Z",
+    },
+    score,
+    sources: ["routing", "vector"],
+    excerpt: `${slug} summary.`,
+  };
+}
+
 const open: Array<{ client: Client; server: ReturnType<typeof createMcpServer> }> = [];
 
 afterEach(async () => {
@@ -54,38 +109,7 @@ function stubService(overrides: Record<string, unknown> = {}): RementumService {
       role: "owner",
     })),
     search: vi.fn(async () => []),
-    readArticle: vi.fn(async () => ({
-      id: articleId,
-      brainId,
-      slug: "architecture",
-      title: "Architecture",
-      summary: "System design.",
-      keywords: ["architecture"],
-      kind: "canonical",
-      freshness: "current",
-      currentVersion: 2,
-      updatedAt: "2026-01-02T00:00:00.000Z",
-      body: "# Architecture\n",
-      links: [{ articleId, slug: "architecture", relation: "related" }],
-      sources: [],
-      verifiedAt: null,
-      reviewAfter: null,
-      compaction: {
-        enabled: false,
-        available: false,
-        status: "not_requested",
-        attempts: 0,
-        error: null,
-        compactedAt: null,
-        canRetry: false,
-      },
-      provenance: {
-        actorId: "00000000-0000-4000-8000-000000000009",
-        clientId: "test-client",
-        changeSummary: "Create article",
-        createdAt: "2026-01-02T00:00:00.000Z",
-      },
-    })),
+    readArticle: vi.fn(async () => articleResult()),
     recentActivity: vi.fn(async () => []),
     stageWrite: vi.fn(async () => ({ id: writeId, status: "pending", body: Buffer.from("x") })),
     promoteWrite: vi.fn(async () => ({ version: { version: 3 } })),
@@ -342,6 +366,7 @@ const toolsByScope = {
     "search_brains",
     "get_brain",
     "search_articles",
+    "load_context",
     "read_article",
     "recent_activity",
     "get_write_status",
@@ -377,7 +402,7 @@ const toolsByScope = {
 } as const;
 
 const catalogBudgets = {
-  "brain:read": 7_000,
+  "brain:read": 8_500,
   "brain:write": 11_000,
   "task:read": 1_500,
   "task:write": 10_000,
@@ -393,7 +418,7 @@ describe("MCP tool surface", () => {
     expect(names).toContain("promote_staged_write");
     expect(names).toContain("import_markdown");
     expect(names).toContain("export_brain");
-    expect(JSON.stringify(catalog).length).toBeLessThanOrEqual(28_000);
+    expect(JSON.stringify(catalog).length).toBeLessThanOrEqual(30_000);
   });
 
   it.each(Object.entries(toolsByScope))(
@@ -787,6 +812,89 @@ describe("compact MCP results", () => {
     const text = typeof textBlock?.text === "string" ? textBlock.text : undefined;
     expect(text).not.toContain("\n  ");
     expect(JSON.parse(text ?? "")).toEqual(response.structuredContent);
+  });
+});
+
+describe("load_context", () => {
+  const firstId = "00000000-0000-4000-8000-000000000006";
+  const secondId = "00000000-0000-4000-8000-000000000007";
+  const thirdId = "00000000-0000-4000-8000-000000000008";
+
+  it("preserves hybrid rank while respecting the article limit", async () => {
+    const hits = [
+      searchHit(firstId, "first", 0.9),
+      searchHit(secondId, "second", 0.8),
+      searchHit(thirdId, "third", 0.7),
+    ];
+    const search = vi.fn(async () => hits);
+    const readArticle = vi.fn(async (id: string) => {
+      const hit = hits.find((candidate) => candidate.article.id === id);
+      if (!hit) throw new Error("Unknown article");
+      return articleResult(id, hit.article.slug, `# ${hit.article.slug}\n${"x".repeat(500)}`);
+    });
+    const client = await connect(stubService({ search, readArticle }));
+    const response = await client.callTool({
+      name: "load_context",
+      arguments: { brainId, query: "ranked context", maxArticles: 2, maxChars: 100_000 },
+    });
+    expect(response.structuredContent).toMatchObject({
+      brainId,
+      articles: [
+        { id: firstId, slug: "first", score: 0.9 },
+        { id: secondId, slug: "second", score: 0.8 },
+      ],
+      omitted: [{ id: thirdId, slug: "third", reason: "article_limit" }],
+      omittedCount: 1,
+      candidateCount: 3,
+      searchTruncated: false,
+      hasMore: true,
+    });
+    const result = structuredResult(response);
+    const articles = result.articles;
+    expect(Array.isArray(articles) ? articles.map((article) => article.body) : []).toEqual([
+      `# first\n${"x".repeat(500)}`,
+      `# second\n${"x".repeat(500)}`,
+    ]);
+    expect(readArticle.mock.calls.map((call) => call[0])).toEqual([firstId, secondId]);
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({ brainId, query: "ranked context", limit: 6 }),
+      expect.anything(),
+    );
+    expect(JSON.stringify(response.structuredContent).length).toBeLessThanOrEqual(100_000);
+  });
+
+  it("skips oversized bodies without truncating articles that fit", async () => {
+    const hits = [searchHit(firstId, "oversized", 0.9), searchHit(secondId, "fits", 0.8)];
+    const fittingBody = `# Fits\n${"y".repeat(500)}`;
+    const readArticle = vi.fn(async (id: string) =>
+      id === firstId
+        ? articleResult(id, "oversized", `# Oversized\n${"x".repeat(5000)}`)
+        : articleResult(id, "fits", fittingBody),
+    );
+    const client = await connect(stubService({ search: vi.fn(async () => hits), readArticle }));
+    const response = await client.callTool({
+      name: "load_context",
+      arguments: { brainId, query: "bounded context", maxArticles: 2, maxChars: 4000 },
+    });
+    expect(response.structuredContent).toMatchObject({
+      articles: [{ id: secondId, slug: "fits", body: fittingBody }],
+      omitted: [{ id: firstId, slug: "oversized", reason: "character_budget" }],
+      omittedCount: 1,
+      hasMore: true,
+    });
+    expect(JSON.stringify(response.structuredContent).length).toBeLessThanOrEqual(4000);
+  });
+
+  it("is hidden and blocked without brain read scope", async () => {
+    const service = stubService();
+    const client = await connect(service, "brain:write");
+    expect((await client.listTools()).tools.map((tool) => tool.name)).not.toContain("load_context");
+    const response = await client.callTool({
+      name: "load_context",
+      arguments: { brainId, query: "blocked" },
+    });
+    expect(response).toMatchObject({ isError: true });
+    expect(service.search).not.toHaveBeenCalled();
   });
 });
 

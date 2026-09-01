@@ -8,6 +8,8 @@ import {
   createBrainSchema,
   createTaskSchema,
   externalUrlSchema,
+  type LoadContextInput,
+  loadContextSchema,
   type MaintenanceCandidate,
   promoteWriteSchema,
   searchArticlesSchema,
@@ -244,6 +246,37 @@ export function createMcpServer(
       scoped(actor, "brain:read", async () => {
         const hits = await service.search(searchArticlesSchema.parse(input), actor);
         return publicResult({ items: hits.map(compactSearchHit) });
+      }),
+  );
+
+  registerScopedTool(
+    server,
+    actor,
+    "brain:read",
+    "load_context",
+    {
+      title: "Load bounded brain context",
+      description:
+        "Uses hybrid search to return complete relevant article bodies within explicit article and serialized-character budgets. Read omitted articles separately when needed.",
+      inputSchema: loadContextSchema.shape,
+      annotations: read,
+    },
+    (input) =>
+      scoped(actor, "brain:read", async () => {
+        const request = loadContextSchema.parse(input);
+        const candidateLimit = Math.min(50, request.maxArticles * 3);
+        const hits = await service.search(
+          searchArticlesSchema.parse({
+            brainId: request.brainId,
+            query: request.query,
+            limit: candidateLimit,
+            ...(request.freshness ? { freshness: request.freshness } : {}),
+          }),
+          actor,
+        );
+        return publicResult(
+          await buildContextResult(service, actor, request, hits, candidateLimit),
+        );
       }),
   );
 
@@ -830,6 +863,11 @@ const pageCursorSchema = z
   .strict();
 type PageKind = z.infer<typeof pageCursorSchema>["kind"];
 type Activity = Awaited<ReturnType<RementumService["recentActivity"]>>[number];
+type ContextOmission = {
+  id: string;
+  slug: string;
+  reason: "article_limit" | "character_budget";
+};
 
 function encodePageCursor(kind: PageKind, offset: number): string {
   return Buffer.from(JSON.stringify({ version: 1, kind, offset })).toString("base64url");
@@ -898,6 +936,134 @@ function compactSearchHit(hit: SearchHit) {
     score: hit.score,
     sources: hit.sources,
   };
+}
+
+async function buildContextResult(
+  service: RementumService,
+  actor: ScopedActor,
+  request: LoadContextInput,
+  hits: SearchHit[],
+  candidateLimit: number,
+) {
+  const articles: Array<
+    Omit<ReturnType<typeof compactArticle>, "brainId"> & Pick<SearchHit, "score" | "sources">
+  > = [];
+  const omitted: ContextOmission[] = [];
+  let omittedCount = 0;
+
+  for (let index = 0; index < hits.length; index += 1) {
+    if (articles.length >= request.maxArticles) {
+      for (const remaining of hits.slice(index)) {
+        omittedCount += 1;
+        const omission = {
+          id: remaining.article.id,
+          slug: remaining.article.slug,
+          reason: "article_limit" as const,
+        };
+        const withOmission = contextEnvelope(
+          request.brainId,
+          articles,
+          [...omitted, omission],
+          omittedCount,
+          hits.length,
+          hits.length === candidateLimit,
+        );
+        if (serializedChars(withOmission) <= request.maxChars) omitted.push(omission);
+      }
+      break;
+    }
+    const hit = hits[index];
+    if (!hit) continue;
+    const article = await service.readArticle(hit.article.id, actor);
+    const { brainId: _brainId, ...compact } = compactArticle(article);
+    const candidate = { ...compact, score: hit.score, sources: hit.sources };
+    const trial = contextEnvelope(
+      request.brainId,
+      [...articles, candidate],
+      omitted,
+      omittedCount,
+      hits.length,
+      hits.length === candidateLimit,
+    );
+    if (serializedChars(trial) <= request.maxChars) {
+      articles.push(candidate);
+      continue;
+    }
+
+    omittedCount += 1;
+    const omission = {
+      id: hit.article.id,
+      slug: hit.article.slug,
+      reason: "character_budget" as const,
+    };
+    const withOmission = contextEnvelope(
+      request.brainId,
+      articles,
+      [...omitted, omission],
+      omittedCount,
+      hits.length,
+      hits.length === candidateLimit,
+    );
+    if (serializedChars(withOmission) <= request.maxChars) omitted.push(omission);
+  }
+
+  let output = contextEnvelope(
+    request.brainId,
+    articles,
+    omitted,
+    omittedCount,
+    hits.length,
+    hits.length === candidateLimit,
+  );
+  // Omission metadata and counter digit growth are added after individual body fit checks. Trim
+  // optional detail, then whole articles, so the final serialized result still honors maxChars.
+  while (serializedChars(output) > request.maxChars && omitted.length > 0) {
+    omitted.pop();
+    output = contextEnvelope(
+      request.brainId,
+      articles,
+      omitted,
+      omittedCount,
+      hits.length,
+      hits.length === candidateLimit,
+    );
+  }
+  while (serializedChars(output) > request.maxChars && articles.length > 0) {
+    articles.pop();
+    omittedCount += 1;
+    output = contextEnvelope(
+      request.brainId,
+      articles,
+      omitted,
+      omittedCount,
+      hits.length,
+      hits.length === candidateLimit,
+    );
+  }
+  return output;
+}
+
+function contextEnvelope<T>(
+  brainId: string,
+  articles: T[],
+  omitted: ContextOmission[],
+  omittedCount: number,
+  candidateCount: number,
+  searchTruncated: boolean,
+) {
+  return {
+    brainId,
+    articles,
+    omitted,
+    omittedCount,
+    candidateCount,
+    searchTruncated,
+    hasMore: omittedCount > 0 || searchTruncated,
+  };
+}
+
+function serializedChars(value: unknown): number {
+  return JSON.stringify(sanitize(value)).length;
 }
 
 function compactArticle(article: ReadArticleResult) {
