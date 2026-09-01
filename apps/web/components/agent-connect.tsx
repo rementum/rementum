@@ -5,7 +5,7 @@ import { EyebrowPill } from "./pui";
 import { CopyButton } from "./ui/copy-button";
 import { IconArrowUpRight } from "./ui/icons";
 
-const INTEGRATION_DOCS_URL = "https://rementum.dev/integrations/";
+const INTEGRATION_DOCS_URL = "https://rementum.dev/docs/integrations/";
 
 type HarnessId = (typeof HARNESSES)[number]["id"];
 

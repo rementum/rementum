@@ -1,0 +1,21 @@
+{
+	admin off
+	auto_https off
+	# Nothing to persist without TLS or the admin API, which lets the unprivileged user run Caddy
+	# without a writable config directory.
+	persist_config off
+}
+
+:8080 {
+	root * /srv
+	file_server
+	handle_errors {
+		@not_found expression {err.status_code} == 404
+		handle @not_found {
+			rewrite * /docs/404.html
+			file_server {
+				status 404
+			}
+		}
+	}
+}

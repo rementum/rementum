@@ -49,8 +49,9 @@ recovery.
 
 ## Documentation
 
-The [MkDocs site](docs/index.md) covers configuration, backups, upgrades, security, and agent
-connections. Build it with:
+The [documentation site](https://rementum.dev/docs/) covers configuration, backups, upgrades,
+security, and agent connections. Every instance serves the guide for its own version at `/docs`.
+Build it locally with:
 
 ```bash
 python3 -m pip install -r docs/requirements.txt

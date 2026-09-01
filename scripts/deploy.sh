@@ -22,7 +22,7 @@ compose() {
 # api and migrate race each other for the same layers instead of reusing them. The
 # running stack keeps serving until every new image exists; only then does `up` swap
 # containers. migrate follows api so its identical build is a pure cache hit.
-for service in api migrate worker web embeddings; do
+for service in api migrate worker web embeddings docs; do
   compose build "$service"
 done
 

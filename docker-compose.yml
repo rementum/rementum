@@ -17,6 +17,8 @@ services:
         condition: service_healthy
       web:
         condition: service_healthy
+      docs:
+        condition: service_healthy
 
   web:
     build:
@@ -39,6 +41,17 @@ services:
           "-e",
           "fetch('http://127.0.0.1:3000').then((response) => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))",
         ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  docs:
+    build:
+      context: .
+      dockerfile: deploy/docs/Dockerfile
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/docs/"]
       interval: 10s
       timeout: 5s
       retries: 10

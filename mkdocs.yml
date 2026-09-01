@@ -1,6 +1,6 @@
 site_name: Rementum
 site_description: Self-hosted, versioned memory for AI agents
-site_url: https://rementum.dev/
+site_url: https://rementum.dev/docs/
 repo_url: https://github.com/rementum/rementum
 repo_name: rementum/rementum
 edit_uri: edit/main/docs/
