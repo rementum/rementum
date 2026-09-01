@@ -5,6 +5,8 @@ import {
   type CreateBrainInput,
   type CreateTaskInput,
   type MaintenanceCandidate,
+  type McpAnalytics,
+  type McpAnalyticsRange,
   type PromoteWriteInput,
   type RoutingIndexSort,
   type SearchArticlesInput,
@@ -26,6 +28,7 @@ import {
   type ExportedVersion,
   ForbiddenError,
   type GeneratedArticle,
+  type McpToolCallInput,
   NotFoundError,
   type ResolvedStageWriteInput,
   reciprocalRankFusion,
@@ -42,6 +45,13 @@ import type postgres from "postgres";
 import type { DatabaseClient } from "./client.js";
 
 type Tx = postgres.TransactionSql;
+
+const MCP_ANALYTICS_DAYS: Record<McpAnalyticsRange, number> = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+  "365d": 365,
+};
 
 export class PostgresStore implements DataStore {
   constructor(private readonly client: DatabaseClient) {}
@@ -1715,6 +1725,307 @@ export class PostgresStore implements DataStore {
         detail: row.detail ?? {},
         createdAt: asDate(row.created_at).toISOString(),
       }));
+    });
+  }
+
+  async recordMcpToolCall(input: McpToolCallInput, actor: Actor): Promise<void> {
+    const clientId = actor.clientId ?? "unknown-client";
+    const articleIds = [...new Set(input.articleIds)].slice(0, 8);
+    await this.withActor(actor, async (tx) => {
+      await tx`
+        WITH resolved AS (
+          SELECT coalesce(
+            (
+              SELECT id FROM brains
+              WHERE id = ${input.brainId ?? null}::uuid
+                AND workspace_id = ${input.workspaceId} AND deleted_at IS NULL
+            ),
+            (
+              SELECT a.brain_id FROM articles a
+              JOIN brains b ON b.id = a.brain_id
+              WHERE a.id = ${input.articleId ?? null}::uuid
+                AND b.workspace_id = ${input.workspaceId} AND b.deleted_at IS NULL
+            ),
+            (
+              SELECT w.brain_id FROM staged_writes w
+              JOIN brains b ON b.id = w.brain_id
+              WHERE w.id = ${input.writeId ?? null}::uuid
+                AND b.workspace_id = ${input.workspaceId} AND b.deleted_at IS NULL
+            ),
+            (
+              SELECT t.brain_id FROM tasks t
+              JOIN brains b ON b.id = t.brain_id
+              WHERE t.id = ${input.taskId ?? null}::uuid
+                AND b.workspace_id = ${input.workspaceId} AND b.deleted_at IS NULL
+            )
+          ) AS brain_id
+        ), consumed AS (
+          SELECT coalesce(array_agg(a.id ORDER BY a.id), '{}'::uuid[]) AS article_ids
+          FROM (
+            SELECT DISTINCT unnest(${articleIds}::uuid[]) AS id
+          ) requested
+          JOIN articles a ON a.id = requested.id
+          JOIN brains b ON b.id = a.brain_id
+          WHERE b.workspace_id = ${input.workspaceId} AND b.deleted_at IS NULL
+        )
+        INSERT INTO mcp_tool_calls (
+          workspace_id, brain_id, client_id, client_name, tool_name, article_ids
+        )
+        SELECT
+          ${input.workspaceId}, resolved.brain_id, ${clientId},
+          coalesce(
+            (
+              SELECT coalesce(
+                nullif(payload->>'clientName', ''),
+                nullif(payload->>'client_name', ''),
+                ${clientId}
+              )
+              FROM oauth_records WHERE model = 'Client' AND id = ${clientId}
+            ),
+            ${clientId}
+          ),
+          ${input.tool}, consumed.article_ids
+        FROM resolved CROSS JOIN consumed
+      `;
+    });
+  }
+
+  async getMcpAnalytics(
+    workspaceId: string,
+    range: McpAnalyticsRange,
+    actor: Actor,
+    brainId?: string,
+  ): Promise<McpAnalytics> {
+    const days = MCP_ANALYTICS_DAYS[range];
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        WITH clock AS (
+          SELECT now() AS generated_at,
+            (now() AT TIME ZONE 'UTC')::date AS today_date
+        ), bounds AS (
+          SELECT generated_at, today_date,
+            (today_date::timestamp + interval '1 day') AT TIME ZONE 'UTC' AS tomorrow_start,
+            (
+              today_date::timestamp - make_interval(days => ${days - 1}::int)
+            ) AT TIME ZONE 'UTC' AS range_start,
+            today_date - 364 AS heatmap_start_date
+          FROM clock
+        ), scope AS (
+          SELECT greatest(
+            w.mcp_usage_started_at,
+            coalesce(b.created_at, w.mcp_usage_started_at)
+          ) AS tracking_started_at
+          FROM workspaces w
+          LEFT JOIN brains b ON b.id = ${brainId ?? null}::uuid
+            AND b.workspace_id = w.id AND b.deleted_at IS NULL
+          WHERE w.id = ${workspaceId}
+        ), range_calls AS (
+          SELECT c.* FROM mcp_tool_calls c CROSS JOIN bounds
+          WHERE c.workspace_id = ${workspaceId}
+            AND (${brainId ?? null}::uuid IS NULL OR c.brain_id = ${brainId ?? null})
+            AND c.created_at >= bounds.range_start
+            AND c.created_at < bounds.tomorrow_start
+        ), heatmap_counts AS (
+          SELECT (c.created_at AT TIME ZONE 'UTC')::date AS day, count(*)::int AS calls
+          FROM mcp_tool_calls c CROSS JOIN bounds
+          WHERE c.workspace_id = ${workspaceId}
+            AND (${brainId ?? null}::uuid IS NULL OR c.brain_id = ${brainId ?? null})
+            AND c.created_at >= (bounds.heatmap_start_date::timestamp AT TIME ZONE 'UTC')
+            AND c.created_at < bounds.tomorrow_start
+          GROUP BY day
+        )
+        SELECT
+          scope.tracking_started_at,
+          bounds.generated_at,
+          (SELECT count(*)::int FROM range_calls) AS calls,
+          (SELECT count(DISTINCT client_name)::int FROM range_calls) AS active_clients,
+          (
+            SELECT count(DISTINCT c.brain_id)::int
+            FROM range_calls c
+            JOIN brains b ON b.id = c.brain_id
+              AND b.workspace_id = ${workspaceId} AND b.deleted_at IS NULL
+          ) AS active_brains,
+          (
+            SELECT count(DISTINCT a.id)::int
+            FROM range_calls c
+            CROSS JOIN LATERAL unnest(c.article_ids) AS consumed(article_id)
+            JOIN articles a ON a.id = consumed.article_id
+            JOIN brains b ON b.id = a.brain_id
+              AND b.workspace_id = ${workspaceId} AND b.deleted_at IS NULL
+          ) AS articles_consumed,
+          coalesce((
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'date', to_char(days.day, 'YYYY-MM-DD'),
+                'calls', days.calls,
+                'tracked', days.day >= (scope.tracking_started_at AT TIME ZONE 'UTC')::date
+              ) ORDER BY days.day
+            )
+            FROM (
+              SELECT (bounds.heatmap_start_date + series.day_offset)::date AS day,
+                coalesce(h.calls, 0)::int AS calls
+              FROM bounds
+              CROSS JOIN LATERAL generate_series(0, 364) AS series(day_offset)
+              LEFT JOIN heatmap_counts h
+                ON h.day = (bounds.heatmap_start_date + series.day_offset)::date
+            ) days
+          ), '[]'::jsonb) AS daily,
+          coalesce((
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'name', ranked.client_name,
+                'calls', ranked.calls,
+                'registrations', ranked.registrations,
+                'lastUsedAt', ranked.last_used_at
+              ) ORDER BY ranked.calls DESC, ranked.last_used_at DESC, lower(ranked.client_name)
+            )
+            FROM (
+              SELECT client_name, count(*)::int AS calls,
+                count(DISTINCT client_id)::int AS registrations,
+                max(created_at) AS last_used_at
+              FROM range_calls GROUP BY client_name
+              ORDER BY calls DESC, last_used_at DESC, lower(client_name)
+              LIMIT 10
+            ) ranked
+          ), '[]'::jsonb) AS top_clients,
+          coalesce((
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'id', ranked.id,
+                'name', ranked.name,
+                'calls', ranked.calls,
+                'lastUsedAt', ranked.last_used_at
+              ) ORDER BY ranked.calls DESC, ranked.last_used_at DESC, lower(ranked.name)
+            )
+            FROM (
+              SELECT b.id, b.name, count(*)::int AS calls,
+                max(c.created_at) AS last_used_at
+              FROM range_calls c
+              JOIN brains b ON b.id = c.brain_id
+                AND b.workspace_id = ${workspaceId} AND b.deleted_at IS NULL
+              GROUP BY b.id, b.name
+              ORDER BY calls DESC, last_used_at DESC, lower(b.name)
+              LIMIT 10
+            ) ranked
+          ), '[]'::jsonb) AS top_brains,
+          coalesce((
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'id', ranked.id,
+                'brainId', ranked.brain_id,
+                'brainName', ranked.brain_name,
+                'title', ranked.title,
+                'uses', ranked.uses,
+                'lastUsedAt', ranked.last_used_at
+              ) ORDER BY ranked.uses DESC, ranked.last_used_at DESC, lower(ranked.title)
+            )
+            FROM (
+              SELECT a.id, a.brain_id, b.name AS brain_name, a.title,
+                count(*)::int AS uses, max(c.created_at) AS last_used_at
+              FROM range_calls c
+              CROSS JOIN LATERAL unnest(c.article_ids) AS consumed(article_id)
+              JOIN articles a ON a.id = consumed.article_id
+              JOIN brains b ON b.id = a.brain_id
+                AND b.workspace_id = ${workspaceId} AND b.deleted_at IS NULL
+              GROUP BY a.id, a.brain_id, b.name, a.title
+              ORDER BY uses DESC, last_used_at DESC, lower(a.title)
+              LIMIT 10
+            ) ranked
+          ), '[]'::jsonb) AS top_articles,
+          coalesce((
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'tool', ranked.tool_name,
+                'calls', ranked.calls,
+                'lastUsedAt', ranked.last_used_at
+              ) ORDER BY ranked.calls DESC, ranked.last_used_at DESC, ranked.tool_name
+            )
+            FROM (
+              SELECT tool_name, count(*)::int AS calls, max(created_at) AS last_used_at
+              FROM range_calls GROUP BY tool_name
+              ORDER BY calls DESC, last_used_at DESC, tool_name
+              LIMIT 10
+            ) ranked
+          ), '[]'::jsonb) AS top_tools,
+          coalesce((
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'id', recent.id,
+                'tool', recent.tool_name,
+                'clientName', recent.client_name,
+                'brainId', recent.brain_id,
+                'brainName', recent.brain_name,
+                'createdAt', recent.created_at
+              ) ORDER BY recent.created_at DESC, recent.id DESC
+            )
+            FROM (
+              SELECT c.id, c.tool_name, c.client_name, c.brain_id, b.name AS brain_name,
+                c.created_at
+              FROM mcp_tool_calls c
+              LEFT JOIN brains b ON b.id = c.brain_id
+                AND b.workspace_id = ${workspaceId} AND b.deleted_at IS NULL
+              WHERE c.workspace_id = ${workspaceId}
+                AND (${brainId ?? null}::uuid IS NULL OR c.brain_id = ${brainId ?? null})
+              ORDER BY c.created_at DESC, c.id DESC
+              LIMIT 50
+            ) recent
+          ), '[]'::jsonb) AS recent_calls
+        FROM bounds CROSS JOIN scope
+      `;
+      if (!row) throw new NotFoundError("Workspace");
+
+      const mapTimestamp = (value: Date | string) => asDate(value).toISOString();
+      return {
+        scope: { workspaceId, brainId: brainId ?? null },
+        trackingStartedAt: mapTimestamp(row.tracking_started_at),
+        generatedAt: mapTimestamp(row.generated_at),
+        timeZone: "UTC",
+        range,
+        totals: {
+          calls: Number(row.calls ?? 0),
+          activeClients: Number(row.active_clients ?? 0),
+          activeBrains: Number(row.active_brains ?? 0),
+          articlesConsumed: Number(row.articles_consumed ?? 0),
+        },
+        daily: (row.daily ?? []).map((item: any) => ({
+          date: String(item.date),
+          calls: Number(item.calls),
+          tracked: item.tracked === true,
+        })),
+        topClients: (row.top_clients ?? []).map((item: any) => ({
+          name: String(item.name),
+          calls: Number(item.calls),
+          registrations: Number(item.registrations),
+          lastUsedAt: mapTimestamp(item.lastUsedAt),
+        })),
+        topBrains: (row.top_brains ?? []).map((item: any) => ({
+          id: String(item.id),
+          name: String(item.name),
+          calls: Number(item.calls),
+          lastUsedAt: mapTimestamp(item.lastUsedAt),
+        })),
+        topArticles: (row.top_articles ?? []).map((item: any) => ({
+          id: String(item.id),
+          brainId: String(item.brainId),
+          brainName: String(item.brainName),
+          title: String(item.title),
+          uses: Number(item.uses),
+          lastUsedAt: mapTimestamp(item.lastUsedAt),
+        })),
+        topTools: (row.top_tools ?? []).map((item: any) => ({
+          tool: item.tool,
+          calls: Number(item.calls),
+          lastUsedAt: mapTimestamp(item.lastUsedAt),
+        })),
+        recentCalls: (row.recent_calls ?? []).map((item: any) => ({
+          id: String(item.id),
+          tool: item.tool,
+          clientName: String(item.clientName),
+          brainId: item.brainId ? String(item.brainId) : null,
+          brainName: item.brainName ? String(item.brainName) : null,
+          createdAt: mapTimestamp(item.createdAt),
+        })),
+      };
     });
   }
 

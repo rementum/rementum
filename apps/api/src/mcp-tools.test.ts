@@ -129,6 +129,7 @@ function stubService(overrides: Record<string, unknown> = {}): RementumService {
     scanMaintenance: vi.fn(async () => []),
     listMaintenance: vi.fn(async () => []),
     proposeInvite: vi.fn(async () => ({ id: "invite-id", token: "invite-token" })),
+    recordMcpToolCall: vi.fn(async () => undefined),
     ...overrides,
   } as unknown as RementumService;
 }
@@ -828,6 +829,59 @@ describe("compact MCP results", () => {
   });
 });
 
+describe("MCP usage tracking", () => {
+  it("records one successful direct article read with safe dimensions", async () => {
+    const recordMcpToolCall = vi.fn(async () => undefined);
+    const client = await connect(stubService({ recordMcpToolCall }));
+
+    await client.callTool({ name: "read_article", arguments: { articleId } });
+
+    expect(recordMcpToolCall).toHaveBeenCalledTimes(1);
+    expect(recordMcpToolCall).toHaveBeenCalledWith(
+      {
+        workspaceId,
+        tool: "read_article",
+        brainId,
+        articleId,
+        articleIds: [articleId],
+      },
+      expect.objectContaining({ clientId: "test-client", workspaceId }),
+    );
+  });
+
+  it("does not record failed calls", async () => {
+    const recordMcpToolCall = vi.fn(async () => undefined);
+    const client = await connect(
+      stubService({
+        readArticle: vi.fn(async () => {
+          throw new Error("read failed");
+        }),
+        recordMcpToolCall,
+      }),
+    );
+
+    const response = await client.callTool({ name: "read_article", arguments: { articleId } });
+
+    expect(response).toMatchObject({ isError: true });
+    expect(recordMcpToolCall).not.toHaveBeenCalled();
+  });
+
+  it("keeps a successful tool response when usage persistence fails", async () => {
+    const client = await connect(
+      stubService({
+        recordMcpToolCall: vi.fn(async () => {
+          throw new Error("analytics unavailable");
+        }),
+      }),
+    );
+
+    const response = await client.callTool({ name: "read_article", arguments: { articleId } });
+
+    expect(response.isError).not.toBe(true);
+    expect(response.structuredContent).toMatchObject({ id: articleId, body: "# Architecture\n" });
+  });
+});
+
 describe("load_context", () => {
   const firstId = "00000000-0000-4000-8000-000000000006";
   const secondId = "00000000-0000-4000-8000-000000000007";
@@ -845,7 +899,8 @@ describe("load_context", () => {
       if (!hit) throw new Error("Unknown article");
       return articleResult(id, hit.article.slug, `# ${hit.article.slug}\n${"x".repeat(500)}`);
     });
-    const client = await connect(stubService({ search, readArticle }));
+    const recordMcpToolCall = vi.fn(async () => undefined);
+    const client = await connect(stubService({ search, readArticle, recordMcpToolCall }));
     const response = await client.callTool({
       name: "load_context",
       arguments: { brainId, query: "ranked context", maxArticles: 2, maxChars: 100_000 },
@@ -874,6 +929,15 @@ describe("load_context", () => {
       expect.anything(),
     );
     expect(JSON.stringify(response.structuredContent).length).toBeLessThanOrEqual(100_000);
+    expect(recordMcpToolCall).toHaveBeenCalledWith(
+      {
+        workspaceId,
+        tool: "load_context",
+        brainId,
+        articleIds: [firstId, secondId],
+      },
+      expect.anything(),
+    );
   });
 
   it("skips oversized bodies without truncating articles that fit", async () => {

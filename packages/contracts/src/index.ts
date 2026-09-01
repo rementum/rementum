@@ -359,3 +359,76 @@ export const toolNames = [
   "list_maintenance_candidates",
 ] as const;
 export type ToolName = (typeof toolNames)[number];
+
+export const toolNameSchema = z.enum(toolNames);
+
+export const mcpAnalyticsRangeSchema = z.enum(["7d", "30d", "90d", "365d"]);
+export type McpAnalyticsRange = z.infer<typeof mcpAnalyticsRangeSchema>;
+
+export const mcpAnalyticsSchema = z.object({
+  scope: z.object({
+    workspaceId: idSchema,
+    brainId: idSchema.nullable(),
+  }),
+  trackingStartedAt: z.iso.datetime(),
+  generatedAt: z.iso.datetime(),
+  timeZone: z.literal("UTC"),
+  range: mcpAnalyticsRangeSchema,
+  totals: z.object({
+    calls: z.number().int().nonnegative(),
+    activeClients: z.number().int().nonnegative(),
+    activeBrains: z.number().int().nonnegative(),
+    articlesConsumed: z.number().int().nonnegative(),
+  }),
+  daily: z.array(
+    z.object({
+      date: z.iso.date(),
+      calls: z.number().int().nonnegative(),
+      tracked: z.boolean(),
+    }),
+  ),
+  topClients: z.array(
+    z.object({
+      name: z.string(),
+      calls: z.number().int().nonnegative(),
+      registrations: z.number().int().nonnegative(),
+      lastUsedAt: z.iso.datetime(),
+    }),
+  ),
+  topBrains: z.array(
+    z.object({
+      id: idSchema,
+      name: z.string(),
+      calls: z.number().int().nonnegative(),
+      lastUsedAt: z.iso.datetime(),
+    }),
+  ),
+  topArticles: z.array(
+    z.object({
+      id: idSchema,
+      brainId: idSchema,
+      brainName: z.string(),
+      title: z.string(),
+      uses: z.number().int().nonnegative(),
+      lastUsedAt: z.iso.datetime(),
+    }),
+  ),
+  topTools: z.array(
+    z.object({
+      tool: toolNameSchema,
+      calls: z.number().int().nonnegative(),
+      lastUsedAt: z.iso.datetime(),
+    }),
+  ),
+  recentCalls: z.array(
+    z.object({
+      id: idSchema,
+      tool: toolNameSchema,
+      clientName: z.string(),
+      brainId: idSchema.nullable(),
+      brainName: z.string().nullable(),
+      createdAt: z.iso.datetime(),
+    }),
+  ),
+});
+export type McpAnalytics = z.infer<typeof mcpAnalyticsSchema>;

@@ -5,6 +5,7 @@ import type {
   CreateTaskInput,
   CreateTeamInput,
   CreateWorkspaceInput,
+  McpAnalyticsRange,
   PromoteWriteInput,
   RoutingIndexSort,
   SearchArticlesInput,
@@ -41,6 +42,7 @@ import type {
   ClaimedCompactionJob,
   DataStore,
   EmbeddingClient,
+  McpToolCallInput,
   ReadArticleResult,
   ResolvedStageWriteInput,
   SearchHit,
@@ -742,6 +744,26 @@ export class RementumService {
   async recentActivity(brainId: string, limit: number, actor: Actor, source?: "mcp", offset = 0) {
     requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
     return this.store.recentActivity(brainId, actor, limit, source, offset);
+  }
+
+  async recordMcpToolCall(input: McpToolCallInput, actor: Actor) {
+    requireWorkspaceRole(actor, input.workspaceId, ["owner", "admin", "member"]);
+    await this.store.recordMcpToolCall(input, actor);
+  }
+
+  async getMcpAnalytics(
+    workspaceId: string,
+    range: McpAnalyticsRange,
+    actor: Actor,
+    brainId?: string,
+  ) {
+    requireWorkspaceRole(actor, workspaceId, ["owner", "admin", "member"]);
+    if (brainId) {
+      requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
+      const brain = await this.store.getBrain(brainId, actor);
+      if (!brain || brain.workspaceId !== workspaceId) throw new NotFoundError("Brain");
+    }
+    return this.store.getMcpAnalytics(workspaceId, range, actor, brainId);
   }
 
   async reindexArticle(articleId: string, actor: Actor) {

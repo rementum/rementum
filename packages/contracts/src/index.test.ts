@@ -4,6 +4,8 @@ import {
   createTaskSchema,
   externalUrlSchema,
   loadContextSchema,
+  mcpAnalyticsRangeSchema,
+  mcpAnalyticsSchema,
   routingIndexSortSchema,
   stageWriteSchema,
   toolNames,
@@ -81,6 +83,31 @@ describe("loadContextSchema", () => {
     expect(() => loadContextSchema.parse({ ...input, maxArticles: 9 })).toThrow();
     expect(() => loadContextSchema.parse({ ...input, maxChars: 3999 })).toThrow();
     expect(() => loadContextSchema.parse({ ...input, maxChars: 100_001 })).toThrow();
+  });
+});
+
+describe("mcpAnalyticsSchema", () => {
+  it("accepts bounded ranges and an empty analytics response", () => {
+    expect(mcpAnalyticsRangeSchema.options).toEqual(["7d", "30d", "90d", "365d"]);
+    const value = {
+      scope: {
+        workspaceId: "00000000-0000-4000-8000-000000000001",
+        brainId: null,
+      },
+      trackingStartedAt: "2026-09-01T00:00:00.000Z",
+      generatedAt: "2026-09-01T12:00:00.000Z",
+      timeZone: "UTC",
+      range: "30d",
+      totals: { calls: 0, activeClients: 0, activeBrains: 0, articlesConsumed: 0 },
+      daily: [{ date: "2026-09-01", calls: 0, tracked: true }],
+      topClients: [],
+      topBrains: [],
+      topArticles: [],
+      topTools: [],
+      recentCalls: [],
+    };
+    expect(mcpAnalyticsSchema.parse(value)).toEqual(value);
+    expect(() => mcpAnalyticsRangeSchema.parse("all")).toThrow();
   });
 });
 

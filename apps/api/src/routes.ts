@@ -7,6 +7,7 @@ import {
   createTeamInvitationSchema,
   createTeamSchema,
   createWorkspaceSchema,
+  mcpAnalyticsRangeSchema,
   promoteWriteSchema,
   routingIndexSortSchema,
   searchArticlesSchema,
@@ -297,6 +298,21 @@ export async function registerApiRoutes(
       mcpUrl: `${publicUrl}/mcp/workspace/${workspace.id}`,
       llmCompactionAvailable,
     }));
+  });
+  app.get("/api/v1/workspaces/:workspaceId/analytics", async (request) => {
+    const { workspaceId } = z.object({ workspaceId: z.uuid() }).parse(request.params);
+    const { range, brainId } = z
+      .object({
+        range: mcpAnalyticsRangeSchema.default("30d"),
+        brainId: z.uuid().optional(),
+      })
+      .parse(request.query);
+    return service.getMcpAnalytics(
+      workspaceId,
+      range,
+      await authorize(request, "brain:read"),
+      brainId,
+    );
   });
   app.get("/api/v1/teams/:teamId/workspaces", async (request) => {
     const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);

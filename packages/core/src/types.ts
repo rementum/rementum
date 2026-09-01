@@ -8,6 +8,8 @@ import type {
   CreateBrainInput,
   CreateTaskInput,
   MaintenanceCandidate,
+  McpAnalytics,
+  McpAnalyticsRange,
   PromoteWriteInput,
   RoutingIndexSort,
   SearchArticlesInput,
@@ -15,6 +17,7 @@ import type {
   StageWriteInput,
   Task,
   TeamRole,
+  ToolName,
 } from "@rementum/contracts";
 import type { CipherEnvelope, WrappedKey } from "./crypto.js";
 
@@ -24,6 +27,16 @@ export interface Actor {
   teamRoles: Map<string, TeamRole>;
   workspaceRoles: Map<string, TeamRole>;
   brainRoles: Map<string, BrainRole>;
+}
+
+export interface McpToolCallInput {
+  workspaceId: string;
+  tool: ToolName;
+  brainId?: string;
+  articleId?: string;
+  writeId?: string;
+  taskId?: string;
+  articleIds: string[];
 }
 
 export interface BrainRecord {
@@ -431,6 +444,13 @@ export interface DataStore {
       createdAt: string;
     }>
   >;
+  recordMcpToolCall(input: McpToolCallInput, actor: Actor): Promise<void>;
+  getMcpAnalytics(
+    workspaceId: string,
+    range: McpAnalyticsRange,
+    actor: Actor,
+    brainId?: string,
+  ): Promise<McpAnalytics>;
   createInvitation(
     brainId: string,
     email: string,

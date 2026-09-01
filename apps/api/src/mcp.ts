@@ -27,6 +27,7 @@ import {
   searchBrainsSchema,
   stageWriteSchema,
   type Task,
+  type ToolName,
   taskStatusSchema,
 } from "@rementum/contracts";
 import {
@@ -34,6 +35,7 @@ import {
   type BrainWithIndex,
   DomainError,
   hashContent,
+  type McpToolCallInput,
   type ReadArticleResult,
   type RementumService,
   type SearchHit,
@@ -44,6 +46,12 @@ import { z } from "zod";
 import { type AccessScope, requireAccessScope, type ScopedActor } from "./access.js";
 
 type Authenticate = (request: any) => Promise<ScopedActor>;
+type UsageErrorHandler = (error: unknown, tool: ToolName) => void;
+
+const usageTrackers = new WeakMap<
+  McpServer,
+  { service: RementumService; onError?: UsageErrorHandler }
+>();
 
 export async function registerWorkspaceMcpEndpoint(
   app: FastifyInstance,
@@ -72,8 +80,11 @@ function registerMcpRoute(
   publicUrl: string,
   resourceMetadataUrl: (request: any) => string,
 ): void {
+  const onUsageError: UsageErrorHandler = (error, tool) =>
+    app.log.warn({ err: error, tool }, "MCP usage recording failed");
   const modernHandler = createMcpHandler(
-    ({ authInfo }) => createMcpServer(service, scopedActorFromAuthInfo(authInfo), publicUrl),
+    ({ authInfo }) =>
+      createMcpServer(service, scopedActorFromAuthInfo(authInfo), publicUrl, onUsageError),
     {
       legacy: "reject",
       responseMode: "json",
@@ -111,7 +122,7 @@ function registerMcpRoute(
         return;
       }
 
-      const server = createMcpServer(service, actor, publicUrl);
+      const server = createMcpServer(service, actor, publicUrl, onUsageError);
       const transport = new NodeStreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,
@@ -159,6 +170,7 @@ export function createMcpServer(
   service: RementumService,
   actor: ScopedActor,
   publicUrl = "http://localhost",
+  onUsageError?: UsageErrorHandler,
 ): McpServer {
   const server = new McpServer(
     { name: "rementum", version: "0.1.0" },
@@ -167,6 +179,10 @@ export function createMcpServer(
       cacheHints: { "tools/list": { ttlMs: 5 * 60_000, cacheScope: "private" } },
     },
   );
+  usageTrackers.set(server, {
+    service,
+    ...(onUsageError ? { onError: onUsageError } : {}),
+  });
   // The high-level SDK installs tools/list on the first registration. Keep a disabled anchor so a
   // caller with no workspace tool scopes receives an empty catalog instead of Method not found.
   server
@@ -1255,7 +1271,7 @@ function registerScopedTool<
   server: McpServer,
   actor: ScopedActor,
   scope: AccessScope,
-  name: string,
+  name: ToolName,
   config: {
     title?: string;
     description?: string;
@@ -1267,5 +1283,77 @@ function registerScopedTool<
   callback: ToolCallback<InputArgs>,
 ): void {
   if (!actor.scopes.has(scope)) return;
-  server.registerTool<OutputArgs, InputArgs>(name, config, callback);
+  const invoke = callback as unknown as (...args: unknown[]) => unknown;
+  const trackedCallback = (async (...args: unknown[]) => {
+    const response = await invoke(...args);
+    const input = args.length > 1 ? args[0] : {};
+    const tracker = usageTrackers.get(server);
+    if (tracker && actor.workspaceId) {
+      try {
+        await tracker.service.recordMcpToolCall(
+          mcpToolCallInput(name, actor.workspaceId, input, response),
+          actor,
+        );
+      } catch (error) {
+        tracker.onError?.(error, name);
+      }
+    }
+    return response;
+  }) as unknown as ToolCallback<InputArgs>;
+  server.registerTool<OutputArgs, InputArgs>(name, config, trackedCallback);
+}
+
+const usageUuidSchema = z.uuid();
+
+function mcpToolCallInput(
+  tool: ToolName,
+  workspaceId: string,
+  input: unknown,
+  response: unknown,
+): McpToolCallInput {
+  const args = objectValue(input);
+  const structured = objectValue(objectValue(response).structuredContent);
+  const responseBrain = objectValue(structured.brain);
+  const brainId =
+    uuidValue(args.brainId) ?? uuidValue(structured.brainId) ?? uuidValue(responseBrain.id);
+  const articleId = uuidValue(args.articleId);
+  const writeId = uuidValue(args.writeId);
+  const taskId = uuidValue(args.taskId);
+  const articleIds =
+    tool === "read_article" && articleId
+      ? [articleId]
+      : tool === "load_context"
+        ? uniqueUuids(
+            Array.isArray(structured.articles)
+              ? structured.articles.map((article) => objectValue(article).id)
+              : [],
+          )
+        : [];
+  return {
+    workspaceId,
+    tool,
+    articleIds,
+    ...(brainId ? { brainId } : {}),
+    ...(articleId ? { articleId } : {}),
+    ...(writeId ? { writeId } : {}),
+    ...(taskId ? { taskId } : {}),
+  };
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function uuidValue(value: unknown): string | undefined {
+  const parsed = usageUuidSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function uniqueUuids(values: unknown[]): string[] {
+  return [...new Set(values.map(uuidValue).filter((value): value is string => !!value))].slice(
+    0,
+    8,
+  );
 }

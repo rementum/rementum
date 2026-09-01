@@ -105,6 +105,8 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     listTasks: vi.fn(async () => []),
     listMaintenance: vi.fn(async () => []),
     recentActivity: vi.fn(async () => []),
+    recordMcpToolCall: vi.fn(async () => undefined),
+    getMcpAnalytics: vi.fn(async () => ({ totals: { calls: 0 } })),
     scanMaintenance: vi.fn(async () => []),
     search: vi.fn(async () => []),
     createTask: vi.fn(async () => ({ id: "task-id", brainId })),
@@ -224,6 +226,23 @@ describe("brain role boundaries", () => {
 });
 
 describe("workspace and team role boundaries", () => {
+  it("lets every workspace member read and record scoped MCP analytics", async () => {
+    const { service, store } = setup();
+    const member = actor("editor", { workspaceRoles: new Map([[workspaceId, "member"]]) });
+    await expect(service.getMcpAnalytics(workspaceId, "30d", member)).resolves.toMatchObject({
+      totals: { calls: 0 },
+    });
+    await expect(
+      service.recordMcpToolCall({ workspaceId, tool: "list_brains", articleIds: [] }, member),
+    ).resolves.toBeUndefined();
+    expect(store.recordMcpToolCall).toHaveBeenCalledTimes(1);
+
+    const outsider = actor("editor", { workspaceRoles: new Map() });
+    await expect(service.getMcpAnalytics(workspaceId, "30d", outsider)).rejects.toThrow(
+      ForbiddenError,
+    );
+  });
+
   it("only lets a workspace owner delete it", async () => {
     const { service, store } = setup();
     const admin = actor("owner", { workspaceRoles: new Map([[workspaceId, "admin"]]) });

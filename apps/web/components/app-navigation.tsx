@@ -23,7 +23,7 @@ import { ThemeToggle } from "./ui/theme-toggle";
 
 const NAV_ITEMS = [
   { label: "Brains", href: "/", icon: IconBrains },
-  { label: "MCP Activity", href: "/activity", icon: IconActivity },
+  { label: "Analytics", href: "/activity", icon: IconActivity },
   { label: "Teams", href: "/teams", icon: IconTeams },
   { label: "Connections", href: "/connections", icon: IconConnections },
 ];
