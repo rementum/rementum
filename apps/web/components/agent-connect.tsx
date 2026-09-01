@@ -14,7 +14,8 @@ const HARNESSES = [
     id: "claude",
     label: "Claude Code",
     commands: (mcpUrl: string) => [
-      "npx -y skills add rementum/rementum --global --agent claude-code --skill '*' --yes",
+      "/plugin marketplace add rementum/rementum",
+      "/plugin install rementum@rementum",
       `claude mcp add --scope user --transport http rementum ${mcpUrl}`,
       "claude mcp login rementum",
     ],
@@ -23,7 +24,8 @@ const HARNESSES = [
     id: "codex",
     label: "Codex",
     commands: (mcpUrl: string) => [
-      "npx -y skills add rementum/rementum --global --agent codex --skill '*' --yes",
+      "codex plugin marketplace add rementum/rementum",
+      "codex plugin add rementum@rementum",
       `codex mcp add rementum --url ${mcpUrl}`,
       "codex mcp login rementum",
     ],
@@ -32,7 +34,7 @@ const HARNESSES = [
     id: "opencode",
     label: "OpenCode",
     commands: (mcpUrl: string) => [
-      "npx -y skills add rementum/rementum --global --agent opencode --skill '*' --yes",
+      "npx -y skills add rementum/rementum --global --agent opencode --skill '*' --yes --full-depth",
       `opencode mcp add rementum --url ${mcpUrl}`,
       "opencode mcp auth rementum",
     ],
@@ -54,8 +56,8 @@ export function AgentConnect({ workspaceName, mcpUrl }: { workspaceName: string;
           Connect {workspaceName} to an agent.
         </h2>
         <p className="mt-2 text-sm text-ink-2">
-          Pick your agent, install the Rementum skills, then connect MCP. Your browser will ask you
-          to approve this workspace. Restart the agent when setup completes.
+          Pick your agent, install the Rementum plugin or skills, then connect MCP. Your browser
+          will ask you to approve this workspace. Restart the agent when setup completes.
         </p>
         <a
           className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent transition-colors hover:text-ink"

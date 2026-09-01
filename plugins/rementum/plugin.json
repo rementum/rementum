@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "rementum",
+  "version": "0.1.0",
+  "description": "Load and maintain durable project knowledge through Rementum.",
+  "author": {
+    "name": "Rementum",
+    "url": "https://github.com/rementum"
+  },
+  "homepage": "https://rementum.dev",
+  "repository": "https://github.com/rementum/rementum",
+  "license": "AGPL-3.0-only",
+  "keywords": ["memory", "knowledge", "mcp", "agents"]
+}
