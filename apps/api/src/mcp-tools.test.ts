@@ -268,15 +268,86 @@ const cases: ToolCase[] = [
   },
 ];
 
+const toolsByScope = {
+  "brain:read": [
+    "list_brains",
+    "search_brains",
+    "get_brain",
+    "search_articles",
+    "read_article",
+    "recent_activity",
+    "get_write_status",
+    "export_brain",
+    "list_maintenance_candidates",
+  ],
+  "brain:write": [
+    "create_brain",
+    "stage_write",
+    "promote_staged_write",
+    "withdraw_staged_write",
+    "verify_article",
+    "set_article_links",
+    "import_markdown",
+    "scan_brain",
+    "propose_invite",
+  ],
+  "task:read": ["list_tasks", "get_task"],
+  "task:write": [
+    "create_task",
+    "claim_task",
+    "claim_next_task",
+    "heartbeat_claim",
+    "release_claim",
+    "force_release_claim",
+    "update_task",
+    "approve_task",
+    "cancel_task",
+    "comment_task",
+    "attach_task_link",
+    "link_task_article",
+  ],
+} as const;
+
+const catalogBudgets = {
+  "brain:read": 7_000,
+  "brain:write": 11_000,
+  "task:read": 1_300,
+  "task:write": 10_000,
+} as const;
+
 describe("MCP tool surface", () => {
   it("exposes every documented tool", async () => {
     const client = await connect(stubService());
-    const names = (await client.listTools()).tools.map((tool) => tool.name).sort();
+    const catalog = await client.listTools();
+    const names = catalog.tools.map((tool) => tool.name).sort();
     for (const { tool } of cases) expect(names).toContain(tool);
     expect(names).toContain("stage_write");
     expect(names).toContain("promote_staged_write");
     expect(names).toContain("import_markdown");
     expect(names).toContain("export_brain");
+    expect(JSON.stringify(catalog).length).toBeLessThanOrEqual(28_000);
+  });
+
+  it.each(Object.entries(toolsByScope))(
+    "advertises only deterministic %s tools within the catalog budget",
+    async (scope, expectedNames) => {
+      const client = await connect(stubService(), scope);
+      const first = await client.listTools();
+      const second = await client.listTools();
+      expect(first.tools.map((tool) => tool.name)).toEqual(expectedNames);
+      expect(second.tools.map((tool) => tool.name)).toEqual(expectedNames);
+      expect(JSON.stringify(first).length).toBeLessThanOrEqual(
+        catalogBudgets[scope as keyof typeof catalogBudgets],
+      );
+    },
+  );
+
+  it("keeps server guidance concise and security-relevant", async () => {
+    const client = await connect(stubService(), "brain:read brain:write");
+    const instructions = client.getInstructions();
+    expect(instructions?.length).toBeLessThanOrEqual(260);
+    expect(instructions).toContain("stage_write");
+    expect(instructions).toContain("untrusted");
   });
 
   it.each(cases)("routes $tool to the service", async ({ tool, args, method, expect: args_ }) => {
@@ -289,14 +360,16 @@ describe("MCP tool surface", () => {
   });
 
   it.each(cases)(
-    "refuses $tool without the $scope scope",
+    "hides and refuses $tool without the $scope scope",
     async ({ tool, scope, args, method }) => {
       const service = stubService();
       const granted = allAccessScopes.filter((value) => value !== scope).join(" ");
       const client = await connect(service, granted);
+      expect((await client.listTools()).tools.map((candidate) => candidate.name)).not.toContain(
+        tool,
+      );
       const response = await client.callTool({ name: tool, arguments: args });
       expect(response).toMatchObject({ isError: true });
-      expect(JSON.stringify(response.content)).toContain(scope);
       expect(service[method]).not.toHaveBeenCalled();
     },
   );

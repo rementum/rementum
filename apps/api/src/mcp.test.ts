@@ -45,9 +45,10 @@ describe("MCP OAuth scopes", () => {
     expect(service.listBrains).toHaveBeenCalledOnce();
   });
 
-  it("blocks a write tool before the service is called", async () => {
+  it("hides and blocks a write tool before the service is called", async () => {
     const service = { stageWrite: vi.fn() } as unknown as RementumService;
     const client = await connectedClient("brain:read", service);
+    expect((await client.listTools()).tools.map((tool) => tool.name)).not.toContain("stage_write");
     const response = await client.callTool({
       name: "stage_write",
       arguments: {
@@ -67,8 +68,6 @@ describe("MCP OAuth scopes", () => {
     const service = {} as RementumService;
     const client = await connectedClient("team:read team:write", service);
     const tools = await client.listTools();
-    expect(tools.tools.map((tool) => tool.name)).not.toContain("list_teams");
-    expect(tools.tools.map((tool) => tool.name)).not.toContain("create_team");
-    expect(tools.tools.map((tool) => tool.name)).not.toContain("propose_team_invite");
+    expect(tools.tools).toEqual([]);
   });
 });
