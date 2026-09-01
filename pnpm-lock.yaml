@@ -123,9 +123,6 @@ importers:
       '@marsidev/react-turnstile':
         specifier: ^1.6.1
         version: 1.6.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@rementum/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
       geist:
         specifier: ^1.7.2
         version: 1.7.2(next@16.3.2(@types/node@24.13.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))

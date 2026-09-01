@@ -1,13 +1,46 @@
-import type { McpAnalytics, McpAnalyticsRange } from "@rementum/contracts";
+export const ANALYTICS_RANGES = ["7d", "30d", "90d", "365d"] as const;
+export type AnalyticsRange = (typeof ANALYTICS_RANGES)[number];
 
-export const ANALYTICS_RANGES = [
-  "7d",
-  "30d",
-  "90d",
-  "365d",
-] as const satisfies readonly McpAnalyticsRange[];
-export type AnalyticsRange = McpAnalyticsRange;
-export type UsageAnalytics = McpAnalytics;
+// The API validates this shape from @rementum/contracts. The web image is intentionally
+// standalone and does not copy workspace packages, so keep its erased TypeScript view local.
+export interface UsageAnalytics {
+  scope: { workspaceId: string; brainId: string | null };
+  trackingStartedAt: string;
+  generatedAt: string;
+  timeZone: "UTC";
+  range: AnalyticsRange;
+  totals: {
+    calls: number;
+    activeClients: number;
+    activeBrains: number;
+    articlesConsumed: number;
+  };
+  daily: Array<{ date: string; calls: number; tracked: boolean }>;
+  topClients: Array<{
+    name: string;
+    calls: number;
+    registrations: number;
+    lastUsedAt: string;
+  }>;
+  topBrains: Array<{ id: string; name: string; calls: number; lastUsedAt: string }>;
+  topArticles: Array<{
+    id: string;
+    brainId: string;
+    brainName: string;
+    title: string;
+    uses: number;
+    lastUsedAt: string;
+  }>;
+  topTools: Array<{ tool: string; calls: number; lastUsedAt: string }>;
+  recentCalls: Array<{
+    id: string;
+    tool: string;
+    clientName: string;
+    brainId: string | null;
+    brainName: string | null;
+    createdAt: string;
+  }>;
+}
 
 export interface HeatmapCell {
   key: string;
