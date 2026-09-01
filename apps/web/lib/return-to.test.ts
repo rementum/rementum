@@ -9,8 +9,12 @@ describe("safeReturnTo", () => {
   });
 
   it("rejects absolute, protocol-relative, and backslash-normalized origins", () => {
-    expect(safeReturnTo("https://evil.example")).toBe("/");
-    expect(safeReturnTo("//evil.example")).toBe("/");
-    expect(safeReturnTo("/\\\\evil.example")).toBe("/");
+    expect(safeReturnTo("https://evil.example")).toBe("/dashboard");
+    expect(safeReturnTo("//evil.example")).toBe("/dashboard");
+    expect(safeReturnTo("/\\\\evil.example")).toBe("/dashboard");
+  });
+
+  it("defaults sign-in to the dashboard", () => {
+    expect(safeReturnTo(undefined)).toBe("/dashboard");
   });
 });

@@ -17,6 +17,20 @@ export const metadata: Metadata = {
   description: "One versioned brain behind every agent.",
 };
 
+// The static landing page cannot read cookies, so it ships the default theme. This runs while
+// the HTML is still parsing so a light-theme visitor never sees a dark first paint; next/script's
+// beforeInteractive would only run it from the client bootstrap, after the page is visible.
+const themeInitializer = `
+try {
+  const entry = document.cookie.split("; ").find((value) => value.startsWith("rementum_theme="));
+  const theme = entry?.slice("rementum_theme=".length);
+  if (theme === "light" || theme === "dark") {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }
+} catch {}
+`;
+
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies();
   const theme = cookieStore.get("rementum_theme")?.value === "light" ? "light" : "dark";
@@ -30,7 +44,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       lang="en"
       data-theme={theme}
       className={`${GeistSans.variable} ${GeistMono.variable}${theme === "dark" ? " dark" : ""}`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: constant script above, no user input */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitializer }} />
+      </head>
       <body>
         {signedIn ? (
           <div className="min-h-dvh md:flex">

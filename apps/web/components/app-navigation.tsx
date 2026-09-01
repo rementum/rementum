@@ -22,14 +22,14 @@ import {
 import { ThemeToggle } from "./ui/theme-toggle";
 
 const NAV_ITEMS = [
-  { label: "Brains", href: "/", icon: IconBrains },
+  { label: "Brains", href: "/dashboard", icon: IconBrains },
   { label: "Analytics", href: "/activity", icon: IconActivity },
   { label: "Teams", href: "/teams", icon: IconTeams },
   { label: "Connections", href: "/connections", icon: IconConnections },
 ];
 
 function activeIndexFor(pathname: string) {
-  if (pathname === "/" || pathname.startsWith("/brains/")) return 0;
+  if (pathname === "/dashboard" || pathname.startsWith("/brains/")) return 0;
   if (pathname.startsWith("/activity")) return 1;
   if (pathname.startsWith("/teams")) return 2;
   if (pathname.startsWith("/connections")) return 3;
@@ -187,7 +187,7 @@ export function AppNavigation({
       >
         <div className={`flex items-center pb-4 pt-5 ${collapsed ? "justify-center" : "px-4"}`}>
           <Link
-            href="/"
+            href="/dashboard"
             className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-ink"
           >
             <BrandMark className="size-7 shrink-0" />
@@ -247,7 +247,7 @@ export function AppNavigation({
 
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-line bg-canvas/85 px-4 backdrop-blur md:hidden">
         <Link
-          href="/"
+          href="/dashboard"
           className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-ink"
         >
           <BrandMark className="size-7" />

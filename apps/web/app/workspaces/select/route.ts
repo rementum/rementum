@@ -17,5 +17,5 @@ export async function POST(request: Request) {
     maxAge: 365 * 24 * 60 * 60,
     path: "/",
   });
-  return NextResponse.redirect(new URL("/", publicUrl), 303);
+  return NextResponse.redirect(new URL("/dashboard", publicUrl), 303);
 }

@@ -161,10 +161,9 @@ describe("publicAuthConfig", () => {
       signupEnabled: true,
       turnstileSiteKey: "0x4AAAAAAA-site",
     });
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://api:8787/api/v1/auth/config",
-      expect.objectContaining({ cache: "no-store" }),
-    );
+    expect(fetchMock).toHaveBeenCalledWith("http://api:8787/api/v1/auth/config", {
+      next: { revalidate: 60 },
+    });
   });
 
   it("treats a missing site key as bot protection being off", async () => {

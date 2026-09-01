@@ -454,7 +454,7 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
     return (
       <div className="flex flex-col gap-4">
         <p className={successBanner}>You joined {metadata.name}.</p>
-        <Button as={Link} href="/" variant="solid" block>
+        <Button as={Link} href="/dashboard" variant="solid" block>
           Open team
         </Button>
       </div>

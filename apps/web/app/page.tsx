@@ -1,4 +1,3 @@
-import { Dashboard } from "../components/dashboard";
 import { Architecture } from "../components/landing/architecture";
 import { CapabilityMarquee } from "../components/landing/capability-marquee";
 import { ConnectTeaser } from "../components/landing/connect-teaser";
@@ -11,20 +10,15 @@ import { ScrollProgress } from "../components/landing/scroll-progress";
 import { SectionHead } from "../components/landing/section-head";
 import { Stepper } from "../components/landing/stepper";
 import { GradientText } from "../components/pui";
-import { hasSession, publicAuthConfig } from "../lib/api";
+import { publicAuthConfig } from "../lib/api";
 import { GITHUB_URL } from "../lib/site";
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ page?: string; sharedPage?: string }>;
-}) {
-  if (!(await hasSession())) return <Landing />;
-  const { page, sharedPage } = await searchParams;
-  return <Dashboard page={page} sharedPage={sharedPage} />;
-}
+// This route deliberately sees empty cookies, including in the parent layout, so Next can serve
+// one cached public landing page. Session-dependent rendering lives at /dashboard.
+export const dynamic = "force-static";
+export const revalidate = 60;
 
-async function Landing() {
+export default async function Home() {
   const authConfig = await publicAuthConfig();
   return (
     <main className="relative">

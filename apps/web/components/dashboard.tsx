@@ -79,7 +79,7 @@ function dashboardHref(page: number, sharedPage: number) {
   if (page > 1) search.set("page", String(page));
   if (sharedPage > 1) search.set("sharedPage", String(sharedPage));
   const query = search.toString();
-  return query ? `/?${query}` : "/";
+  return query ? `/dashboard?${query}` : "/dashboard";
 }
 
 const needsReview = (write: Write) => write.status === "pending" || write.status === "conflicted";
