@@ -32,6 +32,14 @@ export interface UsageAnalytics {
     lastUsedAt: string;
   }>;
   topTools: Array<{ tool: string; calls: number; lastUsedAt: string }>;
+  topMembers: Array<{
+    userId: string;
+    name: string;
+    role: "owner" | "admin" | "member";
+    actions: number;
+    writes: number;
+    lastActiveAt: string | null;
+  }>;
   recentCalls: Array<{
     id: string;
     tool: string;

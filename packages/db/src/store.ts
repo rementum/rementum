@@ -1650,6 +1650,7 @@ export class PostgresStore implements DataStore {
     const brainMatch = /^brain:([0-9a-f-]{36})$/i.exec(resource);
     const articleId = /^article:([0-9a-f-]{36})$/i.exec(resource)?.[1];
     const taskId = /^task:([0-9a-f-]{36})$/i.exec(resource)?.[1];
+    const writeId = /^write:([0-9a-f-]{36})$/i.exec(resource)?.[1];
     await this.withActor(actor, async (tx) => {
       let brainId = brainMatch?.[1] ?? null;
       if (!brainId && articleId) {
@@ -1658,6 +1659,13 @@ export class PostgresStore implements DataStore {
       }
       if (!brainId && taskId) {
         const [row] = await tx<any[]>`SELECT brain_id FROM tasks WHERE id = ${taskId}`;
+        brainId = row?.brain_id ?? null;
+      }
+      // Staged, promoted, and withdrawn writes audit under the write id. Without this
+      // lookup they land with no brain or workspace, so the brain's activity trail and the
+      // team leaderboard could not see the one action a shared brain exists for.
+      if (!brainId && writeId) {
+        const [row] = await tx<any[]>`SELECT brain_id FROM staged_writes WHERE id = ${writeId}`;
         brainId = row?.brain_id ?? null;
       }
       const teamMatch = resource.match(/^team:([0-9a-f-]{36})$/i);
@@ -1953,6 +1961,44 @@ export class PostgresStore implements DataStore {
           coalesce((
             SELECT jsonb_agg(
               jsonb_build_object(
+                'userId', ranked.user_id,
+                'name', ranked.name,
+                'role', ranked.role,
+                'actions', ranked.actions,
+                'writes', ranked.writes,
+                'lastActiveAt', ranked.last_active_at
+              ) ORDER BY ranked.actions DESC, ranked.last_active_at DESC NULLS LAST,
+                lower(ranked.name), ranked.user_id
+            )
+            FROM (
+              SELECT tm.user_id, tm.role,
+                coalesce(nullif(u.display_name, ''), u.email) AS name,
+                coalesce(activity.actions, 0)::int AS actions,
+                coalesce(activity.writes, 0)::int AS writes,
+                activity.last_active_at
+              FROM workspaces w
+              JOIN team_members tm ON tm.team_id = w.team_id
+              JOIN users u ON u.id = tm.user_id
+              LEFT JOIN LATERAL (
+                SELECT count(*)::int AS actions,
+                  count(*) FILTER (WHERE e.action = 'write.promoted')::int AS writes,
+                  max(e.created_at) AS last_active_at
+                FROM audit_events e CROSS JOIN bounds
+                WHERE e.actor_id = tm.user_id
+                  AND e.workspace_id = w.id
+                  AND (${brainId ?? null}::uuid IS NULL OR e.brain_id = ${brainId ?? null})
+                  AND e.action <> 'task.heartbeat'
+                  AND e.created_at >= bounds.range_start
+                  AND e.created_at < bounds.tomorrow_start
+              ) activity ON true
+              WHERE w.id = ${workspaceId}
+              ORDER BY actions DESC, last_active_at DESC NULLS LAST, lower(name), tm.user_id
+              LIMIT 10
+            ) ranked
+          ), '[]'::jsonb) AS top_members,
+          coalesce((
+            SELECT jsonb_agg(
+              jsonb_build_object(
                 'id', recent.id,
                 'tool', recent.tool_name,
                 'clientName', recent.client_name,
@@ -2019,6 +2065,14 @@ export class PostgresStore implements DataStore {
           tool: item.tool,
           calls: Number(item.calls),
           lastUsedAt: mapTimestamp(item.lastUsedAt),
+        })),
+        topMembers: (row.top_members ?? []).map((item: any) => ({
+          userId: String(item.userId),
+          name: String(item.name),
+          role: item.role as TeamRole,
+          actions: Number(item.actions),
+          writes: Number(item.writes),
+          lastActiveAt: item.lastActiveAt == null ? null : mapTimestamp(item.lastActiveAt),
         })),
         recentCalls: (row.recent_calls ?? []).map((item: any) => ({
           id: String(item.id),

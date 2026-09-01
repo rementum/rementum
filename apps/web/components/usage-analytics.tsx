@@ -216,6 +216,14 @@ function ContributionHeatmap({ analytics }: { analytics: UsageAnalytics }) {
 }
 
 function Leaderboards({ analytics }: { analytics: UsageAnalytics }) {
+  const memberItems: RankItem[] = analytics.topMembers.map((member) => ({
+    key: member.userId,
+    label: member.name,
+    value: member.actions,
+    meta: member.lastActiveAt
+      ? `${member.role} · ${member.writes} ${member.writes === 1 ? "write" : "writes"} promoted · Last active ${relativeTime(member.lastActiveAt)}`
+      : `${member.role} · No activity in this range`,
+  }));
   const clientItems: RankItem[] = analytics.topClients.map((client) => ({
     key: client.name,
     label: client.name,
@@ -244,6 +252,12 @@ function Leaderboards({ analytics }: { analytics: UsageAnalytics }) {
   }));
   return (
     <section className="grid gap-5 lg:grid-cols-2" aria-label="Usage rankings">
+      <RankedCard
+        className="lg:col-span-2"
+        items={memberItems}
+        title="Team leaderboard"
+        valueLabel="actions"
+      />
       <RankedCard items={clientItems} title="Top clients" valueLabel="calls" />
       <RankedCard items={brainItems} title="Top brains" valueLabel="calls" />
       <RankedCard items={articleItems} title="Top articles" valueLabel="uses" />
@@ -257,15 +271,17 @@ function RankedCard({
   items,
   valueLabel,
   mono = false,
+  className,
 }: {
   title: string;
   items: RankItem[];
   valueLabel: string;
   mono?: boolean;
+  className?: string;
 }) {
   const max = Math.max(...items.map((item) => item.value), 1);
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader title={title} count={items.length || undefined} />
       {items.length ? (
         <ol className="divide-y divide-line">
