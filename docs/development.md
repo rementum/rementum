@@ -76,3 +76,8 @@ mkdocs serve
 ```
 
 Run the release check with `mkdocs build --strict`.
+
+The stack serves the built site at `/docs` from the `docs` service, whose image
+(`deploy/docs/Dockerfile`) runs the same strict build. The public copy at
+[rementum.dev/docs](https://rementum.dev/docs/) is that service on the hosted instance, so a
+documentation change reaches it with the next deployment.
