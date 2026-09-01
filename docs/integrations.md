@@ -128,6 +128,19 @@ behind tool search. Claude API clients can keep the common memory tools loaded a
 maintenance, import, and export tools. These client settings reduce prompt tokens in addition to the
 server-side scope filtering.
 
+## Usage analytics
+
+The web **Analytics** page records one usage event after each successful MCP tool call. It counts
+tool calls rather than audit rows, so internal `load_context` candidate reads do not inflate client
+or brain activity. Top articles count only bodies delivered by `read_article` or actually returned
+by `load_context`, once per call per article.
+
+The dashboard offers 7, 30, 90, and 365-day rankings and a rolling 365-day contribution heatmap.
+All day boundaries are UTC. Tracking begins when the analytics migration is installed; older audit
+events are not converted into estimates, and the heatmap marks earlier days as untracked. Usage
+records remain for the life of the workspace and are visible to its team members. See the
+[security checklist](security.md) for the exact metadata retained.
+
 ## First request
 
 At initialization the server sends MCP instructions that tell the agent when to load and write

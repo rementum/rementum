@@ -97,6 +97,9 @@ export const workspaces = pgTable(
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     llmCompactionEnabled: boolean("llm_compaction_enabled").notNull().default(false),
+    mcpUsageStartedAt: timestamp("mcp_usage_started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id),
@@ -383,6 +386,30 @@ export const auditEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("audit_events_actor_created_idx").on(table.actorId, table.createdAt)],
+);
+
+export const mcpToolCalls = pgTable(
+  "mcp_tool_calls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    // Deliberately not a foreign key: usage remains attributable after a brain is deleted,
+    // while the workspace foreign key still enforces the selected retention boundary.
+    brainId: uuid("brain_id"),
+    clientId: text("client_id").notNull(),
+    clientName: text("client_name").notNull(),
+    toolName: text("tool_name").notNull(),
+    articleIds: uuid("article_ids").array().notNull().default(sql`'{}'::uuid[]`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("mcp_tool_calls_workspace_created_idx").on(table.workspaceId, table.createdAt),
+    index("mcp_tool_calls_brain_created_idx")
+      .on(table.brainId, table.createdAt)
+      .where(sql`${table.brainId} is not null`),
+  ],
 );
 
 export const oauthRecords = pgTable(

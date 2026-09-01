@@ -24,7 +24,10 @@ PostgreSQL or the embedding service to the public network.
 - Keep provider keys and Resend keys out of source control and support logs.
 
 Rementum encrypts article content at the application layer. PostgreSQL still stores routing
-summaries, titles, links, audit metadata, and embeddings. Use encrypted disks and encrypted backups.
+summaries, titles, links, audit metadata, MCP usage metadata, and embeddings. MCP usage metadata is
+limited to the workspace and optional brain/article identifiers, OAuth client id and name, tool
+name, and timestamp. It does not retain tool arguments, prompts, queries, outputs, errors, IP
+addresses, or user ids. Use encrypted disks and encrypted backups.
 
 ## Article generation mode
 
@@ -56,7 +59,9 @@ API. The MCP consent screen is therefore expected only while connecting an agent
 
 Team owners and admins can create or rename workspaces. Only the team owner can delete one, the
 last workspace is protected, and deletion requires the exact workspace name because it permanently
-removes every brain and note inside that workspace.
+removes every brain, note, and MCP usage record inside that workspace. Revoking a connection or
+deleting an individual brain does not erase that workspace's historical usage metadata; it remains
+until the workspace is deleted.
 
 Brains and teams can be deleted the same way: only the brain owner can delete a brain, only the
 team owner can delete a team, a user's last team is protected, and each deletion requires typing

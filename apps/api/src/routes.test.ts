@@ -55,6 +55,10 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
     countArticlesByBrain: vi.fn(async () => [
       { brainId, articleCount: 2, latestArticleUpdatedAt: "2026-08-27T10:00:00.000Z" },
     ]),
+    getMcpAnalytics: vi.fn(async (_workspaceId, range, _actor, filteredBrainId) => ({
+      scope: { workspaceId, brainId: filteredBrainId ?? null },
+      range,
+    })),
     getBrain: vi.fn(async () => ({
       brain: { id: brainId, slug: "product" },
       routingIndex: [{ id: "article-id", slug: "architecture" }],
@@ -683,6 +687,26 @@ describe("workspaces and connections", () => {
     });
     const on = await configured.app.inject({ method: "GET", url: "/api/v1/workspaces" });
     expect(on.json()[0].llmCompactionAvailable).toBe(true);
+  });
+
+  it("validates and forwards workspace analytics filters", async () => {
+    const response = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/workspaces/${workspaceId}/analytics?range=90d&brainId=${brainId}`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(context.service.getMcpAnalytics).toHaveBeenCalledWith(
+      workspaceId,
+      "90d",
+      expect.anything(),
+      brainId,
+    );
+
+    const invalid = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/workspaces/${workspaceId}/analytics?range=all`,
+    });
+    expect(invalid.statusCode).toBe(400);
   });
 
   it("reports whether a connection was there to revoke", async () => {
