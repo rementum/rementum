@@ -1,5 +1,4 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import type { RementumService } from "@rementum/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withAccessScopes } from "./access.js";
@@ -41,25 +40,32 @@ describe("MCP OAuth scopes", () => {
     const client = await connectedClient("brain:read", service);
     const response = await client.callTool({ name: "list_brains", arguments: {} });
     expect(response.isError).not.toBe(true);
-    expect(response.structuredContent).toEqual({ items: [] });
+    expect(response.structuredContent).toEqual({
+      items: [],
+      total: 0,
+      hasMore: false,
+      nextCursor: null,
+    });
     expect(service.listBrains).toHaveBeenCalledOnce();
   });
 
-  it("blocks a write tool before the service is called", async () => {
+  it("hides and blocks a write tool before the service is called", async () => {
     const service = { stageWrite: vi.fn() } as unknown as RementumService;
     const client = await connectedClient("brain:read", service);
-    const response = await client.callTool({
-      name: "stage_write",
-      arguments: {
-        brainId: "00000000-0000-4000-8000-000000000002",
-        operation: "create",
-        slug: "blocked-write",
-        title: "Blocked write",
-        body: "Body",
-        changeSummary: "Should not run",
-      },
-    });
-    expect(response).toMatchObject({ isError: true });
+    expect((await client.listTools()).tools.map((tool) => tool.name)).not.toContain("stage_write");
+    await expect(
+      client.callTool({
+        name: "stage_write",
+        arguments: {
+          brainId: "00000000-0000-4000-8000-000000000002",
+          operation: "create",
+          slug: "blocked-write",
+          title: "Blocked write",
+          body: "Body",
+          changeSummary: "Should not run",
+        },
+      }),
+    ).rejects.toThrow("Tool stage_write not found");
     expect(service.stageWrite).not.toHaveBeenCalled();
   });
 
@@ -67,8 +73,6 @@ describe("MCP OAuth scopes", () => {
     const service = {} as RementumService;
     const client = await connectedClient("team:read team:write", service);
     const tools = await client.listTools();
-    expect(tools.tools.map((tool) => tool.name)).not.toContain("list_teams");
-    expect(tools.tools.map((tool) => tool.name)).not.toContain("create_team");
-    expect(tools.tools.map((tool) => tool.name)).not.toContain("propose_team_invite");
+    expect(tools.tools).toEqual([]);
   });
 });

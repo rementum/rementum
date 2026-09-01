@@ -3,8 +3,10 @@ import {
   brainArticleCountSchema,
   createTaskSchema,
   externalUrlSchema,
+  loadContextSchema,
   routingIndexSortSchema,
   stageWriteSchema,
+  toolNames,
   updateWorkspaceSchema,
 } from "./index.js";
 
@@ -57,6 +59,28 @@ describe("routingIndexSortSchema", () => {
     expect(routingIndexSortSchema.parse("updated")).toBe("updated");
     expect(routingIndexSortSchema.parse("title")).toBe("title");
     expect(() => routingIndexSortSchema.parse("updated_at DESC")).toThrow();
+  });
+});
+
+describe("loadContextSchema", () => {
+  const input = {
+    brainId: "00000000-0000-4000-8000-000000000001",
+    query: "MCP token efficiency",
+  };
+
+  it("applies bounded retrieval defaults", () => {
+    expect(loadContextSchema.parse(input)).toEqual({
+      ...input,
+      maxArticles: 4,
+      maxChars: 24_000,
+    });
+    expect(toolNames).toContain("load_context");
+  });
+
+  it("rejects context requests outside the article and character budgets", () => {
+    expect(() => loadContextSchema.parse({ ...input, maxArticles: 9 })).toThrow();
+    expect(() => loadContextSchema.parse({ ...input, maxChars: 3999 })).toThrow();
+    expect(() => loadContextSchema.parse({ ...input, maxChars: 100_001 })).toThrow();
   });
 });
 

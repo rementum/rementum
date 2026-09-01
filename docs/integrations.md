@@ -101,6 +101,17 @@ Any client that supports remote Streamable HTTP MCP and OAuth can use the same w
 write-tool approval enabled. Rementum marks read tools with `readOnlyHint`, while writes use the
 staged write and promotion protocol.
 
+Rementum serves the stateless MCP `2026-07-28` protocol and keeps a stateless compatibility path for
+2025-era clients. Ordinary request/response calls use JSON rather than opening an SSE stream. The
+tool catalog is deterministic, filtered to the connection's granted OAuth scopes, and advertised as
+a private five-minute cache to modern clients.
+
+When a client exposes catalog controls, import only the tools needed for the workflow. OpenAI
+Responses clients can retain the `mcp_list_tools` item, set `allowed_tools`, and defer the MCP server
+behind tool search. Claude API clients can keep the common memory tools loaded and defer task,
+maintenance, import, and export tools. These client settings reduce prompt tokens in addition to the
+server-side scope filtering.
+
 ## First request
 
 At initialization the server sends MCP instructions that tell the agent when to load and write
@@ -110,9 +121,24 @@ without extra prompt configuration.
 Start with these calls:
 
 1. `search_brains` finds the brain matching the current project by name, slug, or description;
-   `list_brains` enumerates every accessible brain when a search is not enough.
-2. `get_brain` returns one brain's instructions and routing index.
-3. `read_article` loads the current version of an article selected from that index.
+   `list_brains` pages through accessible brains when a search is not enough.
+2. `get_brain` returns 25 routing entries by default. Pass its opaque `nextCursor` back unchanged
+   while `hasMore` is true when the remaining index matters.
+3. `load_context` runs the existing metadata, full-text, and embedding search and returns complete
+   relevant article bodies within `maxArticles` and `maxChars`. It reports bodies omitted by either
+   budget; it never silently truncates an article. `maxChars` is measured against the whole tool
+   result, which carries the payload twice — once as `structuredContent` and once as the JSON text
+   block older clients read. `omittedCount` counts every skipped article, while `omitted` names only
+   those the remaining budget had room to list, so treat the count as authoritative and the list as
+   a convenience. Opening a candidate costs a decrypt and an audit event, so the tool reads at most
+   `maxArticles * 2` of them and marks the untried tail `read_budget`.
+4. Use `read_article` for an exact article. Its default body view omits provenance and maintenance
+   metadata; request `detail: "full"` only when those fields are needed.
+
+List tools return compact summaries and opaque continuation cursors. `list_tasks` omits full task
+briefs, so follow a selected item with `get_task`. `recent_activity` defaults to ten compact events.
+`export_brain` returns a link to the REST ZIP export instead of injecting every article body into the
+agent context; opening that link requires a separate signed-in Rementum web session.
 
 Use `stage_write` for memory changes. Review its conflict result before you promote the pending
 write. Staging never waits for an external LLM. In opted-in workspaces, `read_article` exposes the

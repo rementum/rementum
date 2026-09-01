@@ -1387,11 +1387,16 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async listTasks(brainId: string, actor: Actor): Promise<Task[]> {
+  async listTasks(
+    brainId: string,
+    actor: Actor,
+    page?: { limit: number; offset: number },
+  ): Promise<Task[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
         SELECT * FROM tasks WHERE brain_id = ${brainId}
-        ORDER BY priority DESC, created_at ASC
+        ORDER BY priority DESC, created_at ASC, id ASC
+        ${page ? tx`LIMIT ${page.limit} OFFSET ${page.offset}` : tx``}
       `;
       return rows.map(mapTask);
     });
@@ -1603,8 +1608,12 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async listMaintenance(brainId: string, actor: Actor): Promise<MaintenanceCandidate[]> {
-    return this.withActor(actor, (tx) => this.listMaintenanceInTx(tx, brainId));
+  async listMaintenance(
+    brainId: string,
+    actor: Actor,
+    page?: { limit: number; offset: number },
+  ): Promise<MaintenanceCandidate[]> {
+    return this.withActor(actor, (tx) => this.listMaintenanceInTx(tx, brainId, page));
   }
 
   async updateMaintenance(
@@ -1687,7 +1696,7 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async recentActivity(brainId: string, actor: Actor, limit: number, source?: "mcp") {
+  async recentActivity(brainId: string, actor: Actor, limit: number, source?: "mcp", offset = 0) {
     return this.withActor(actor, async (tx) => {
       // Browser sessions audit under WEB_SESSION_CLIENT_ID and predate-it web rows
       // under NULL; source=mcp keeps only events from OAuth agent clients.
@@ -1695,7 +1704,7 @@ export class PostgresStore implements DataStore {
         SELECT id, action, resource, actor_id, client_id, detail, created_at
         FROM audit_events WHERE brain_id = ${brainId}
         ${source === "mcp" ? tx`AND client_id IS NOT NULL AND client_id <> ${WEB_SESSION_CLIENT_ID}` : tx``}
-        ORDER BY created_at DESC LIMIT ${limit}
+        ORDER BY created_at DESC, id DESC LIMIT ${limit} OFFSET ${offset}
       `;
       return rows.map((row) => ({
         id: row.id as string,
@@ -1749,10 +1758,15 @@ export class PostgresStore implements DataStore {
     `;
   }
 
-  private async listMaintenanceInTx(tx: Tx, brainId: string): Promise<MaintenanceCandidate[]> {
+  private async listMaintenanceInTx(
+    tx: Tx,
+    brainId: string,
+    page?: { limit: number; offset: number },
+  ): Promise<MaintenanceCandidate[]> {
     const rows = await tx<any[]>`
       SELECT * FROM maintenance_candidates WHERE brain_id = ${brainId} AND status = 'open'
-      ORDER BY created_at ASC
+      ORDER BY created_at ASC, id ASC
+      ${page ? tx`LIMIT ${page.limit} OFFSET ${page.offset}` : tx``}
     `;
     return rows.map(mapMaintenance);
   }
