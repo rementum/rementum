@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "motion/react";
-import Link from "next/link";
 import { AsciiHero, Button, EyebrowPill, GradientText, WordRoll } from "../pui";
 import { AURORA_HERO, AuroraBackdrop, LazyCanvas } from "../ui/backdrop";
 import { IconGitHub } from "../ui/icons";
@@ -65,7 +64,9 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.74 }}
           >
-            <Button as={Link} href="/auth/login" variant="solid" size="lg" sparkle>
+            {/* Full-page link: the force-static landing caches the signed-out root layout, so a
+                soft nav would strand a signed-in visitor on the public header. */}
+            <Button as="a" href="/auth/login" variant="solid" size="lg" sparkle>
               Get started
             </Button>
             <Button as="a" href={githubUrl} variant="wave" size="lg">

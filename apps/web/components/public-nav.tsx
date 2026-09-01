@@ -34,13 +34,17 @@ export function PublicNav({ signupEnabled }: { signupEnabled: boolean }) {
             </a>
           ))}
         </nav>
+        {/* Full-page links, not next/link. The landing page is force-static, so the root layout
+            is cached as the signed-out shell (public header). A soft navigation into the app would
+            keep that stale header over authenticated content; a document load re-renders the layout
+            against the real session — a signed-in visitor lands on the sidebar, not this header. */}
         <div className="flex items-center gap-2 md:ml-4 max-md:ml-auto">
           <ThemeToggle />
-          <Button as={Link} href="/auth/login" variant="ghost" size="sm">
+          <Button as="a" href="/auth/login" variant="ghost" size="sm">
             Sign in
           </Button>
           {signupEnabled ? (
-            <Button as={Link} href="/register" variant="solid" size="sm">
+            <Button as="a" href="/register" variant="solid" size="sm">
               Create account
             </Button>
           ) : null}
