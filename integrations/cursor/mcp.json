@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "rementum": {
-      "url": "https://YOUR_HOST/mcp/workspace/WORKSPACE_UUID"
+      "url": "https://rementum.dev/mcp/workspace/WORKSPACE_UUID"
     }
   }
 }

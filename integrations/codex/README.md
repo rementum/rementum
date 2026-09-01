@@ -1,13 +1,16 @@
 # Codex
 
-Install the Rementum skills, copy the workspace MCP URL from Rementum's **Teams** page, then run:
+Install the Rementum plugin, then connect the workspace shown on Rementum's **Teams** page:
 
 ```bash
-npx -y skills add rementum/rementum --global \
-  --agent codex --skill '*' --yes
-codex mcp add rementum --url https://YOUR_HOST/mcp/workspace/WORKSPACE_UUID
+codex plugin marketplace add rementum/rementum
+codex plugin add rementum@rementum
+codex mcp add rementum --url https://rementum.dev/mcp/workspace/WORKSPACE_UUID
 codex mcp login rementum
 ```
+
+Refresh the Git-backed plugin with `codex plugin marketplace upgrade rementum`. Start a new thread
+after installing or updating it so Codex loads the current skills.
 
 Rementum limits the connection to that workspace. It marks read tools with `readOnlyHint`; keep approval
 enabled for write tools.

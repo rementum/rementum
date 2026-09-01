@@ -1,0 +1,15 @@
+{
+  "name": "rementum",
+  "owner": {
+    "name": "Rementum"
+  },
+  "plugins": [
+    {
+      "name": "rementum",
+      "source": "plugins/rementum",
+      "description": "Load context and preserve verified project knowledge through Rementum.",
+      "version": "0.1.0",
+      "category": "Productivity"
+    }
+  ]
+}

@@ -11,14 +11,12 @@ describe("AgentConnect", () => {
     );
 
     expect(html).toContain("Connect Product knowledge to an agent.");
+    expect(html).toContain("/plugin marketplace add rementum/rementum");
+    expect(html).toContain("/plugin install rementum@rementum");
+    expect(html).toContain("codex plugin marketplace add rementum/rementum");
+    expect(html).toContain("codex plugin add rementum@rementum");
     expect(html).toContain(
-      "npx -y skills add rementum/rementum --global --agent claude-code --skill &#x27;*&#x27; --yes",
-    );
-    expect(html).toContain(
-      "npx -y skills add rementum/rementum --global --agent codex --skill &#x27;*&#x27; --yes",
-    );
-    expect(html).toContain(
-      "npx -y skills add rementum/rementum --global --agent opencode --skill &#x27;*&#x27; --yes",
+      "npx -y skills add rementum/rementum --global --agent opencode --skill &#x27;*&#x27; --yes --full-depth",
     );
     expect(html).toContain(`claude mcp add --scope user --transport http rementum ${mcpUrl}`);
     expect(html).toContain(`codex mcp add rementum --url ${mcpUrl}`);

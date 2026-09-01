@@ -4,7 +4,7 @@ Open **Teams** in Rementum and copy the MCP URL shown for the workspace you want
 looks like this:
 
 ```text
-https://memory.example.com/mcp/workspace/WORKSPACE_UUID
+https://rementum.dev/mcp/workspace/WORKSPACE_UUID
 ```
 
 The URL identifies the workspace; it is not a credential. Rementum opens OAuth in your browser,
@@ -12,29 +12,27 @@ checks your team membership, and limits that connection to the selected workspac
 This approval belongs to the MCP client. Signing in to the Rementum web interface uses a separate
 web session and never displays an OAuth consent screen.
 
-## Install the Rementum skills
+## Install the Rementum plugin
 
 MCP exposes the tools. The Rementum skills teach coding agents when to load context, how to stage and
-promote durable writes, and how to import or maintain a brain safely. Install both parts before using
-Rementum.
-
-If you use several supported coding agents, install the skills for all detected agents at once:
-
-```bash
-npx -y skills add rementum/rementum --global --all
-```
-
-The package contains `brain-context`, `brain-write`, `brain-import`, and `brain-maintenance`. For a
-single agent, use its complete setup block below instead. Restart the agent after installation so it
-discovers the new skills.
+promote durable writes, and how to import or maintain a brain safely. The plugin distributes
+`brain-context`, `brain-write`, `brain-import`, and `brain-maintenance` across projects. The MCP
+connection remains workspace-specific, so install the plugin and add the URL copied from **Teams**.
 
 ## Claude Code
 
+```text
+/plugin marketplace add rementum/rementum
+/plugin install rementum@rementum
+```
+
+Enable auto-update once from **/plugin → Marketplaces → rementum → Enable auto-update**. Claude Code
+then refreshes the third-party marketplace at startup and prompts for `/reload-plugins` when an
+update needs to be loaded. Add the workspace connection separately:
+
 ```bash
-npx -y skills add rementum/rementum --global \
-  --agent claude-code --skill '*' --yes
 claude mcp add --scope user --transport http \
-  rementum https://memory.example.com/mcp/workspace/WORKSPACE_UUID
+  rementum https://rementum.dev/mcp/workspace/WORKSPACE_UUID
 claude mcp login rementum
 ```
 
@@ -43,26 +41,30 @@ Complete OAuth in the browser, then ask Claude to call `list_brains` and `get_br
 ## Codex
 
 ```bash
-npx -y skills add rementum/rementum --global \
-  --agent codex --skill '*' --yes
-codex mcp add rementum --url https://memory.example.com/mcp/workspace/WORKSPACE_UUID
+codex plugin marketplace add rementum/rementum
+codex plugin add rementum@rementum
+codex mcp add rementum --url https://rementum.dev/mcp/workspace/WORKSPACE_UUID
 codex mcp login rementum
 ```
 
+Run `codex plugin marketplace upgrade rementum` to refresh the Git marketplace explicitly. Start a
+new thread after installing or updating the plugin.
+
 ## Cursor
 
-Add this server to the MCP configuration:
+Rementum is an Agent Plugin. For a team installation, open **Dashboard → Plugins**, add a marketplace
+with **Import from Repo**, and use `https://github.com/rementum/rementum`. Enable **Auto Refresh**
+after installing the Cursor GitHub App, then make the plugin Default On or Required as appropriate.
+Cursor will load the four shared skills from `plugins/rementum/plugin.json` through the repository's
+Cursor marketplace.
 
-```bash
-npx -y skills add rementum/rementum --global \
-  --agent cursor --skill '*' --yes
-```
+Add the workspace server to the MCP configuration:
 
 ```json
 {
   "mcpServers": {
     "rementum": {
-      "url": "https://memory.example.com/mcp/workspace/WORKSPACE_UUID"
+      "url": "https://rementum.dev/mcp/workspace/WORKSPACE_UUID"
     }
   }
 }
@@ -72,9 +74,23 @@ npx -y skills add rementum/rementum --global \
 
 ```bash
 npx -y skills add rementum/rementum --global \
-  --agent opencode --skill '*' --yes
-opencode mcp add rementum --url https://memory.example.com/mcp/workspace/WORKSPACE_UUID
+  --agent opencode --skill '*' --yes --full-depth
+opencode mcp add rementum --url https://rementum.dev/mcp/workspace/WORKSPACE_UUID
 opencode mcp auth rementum
+```
+
+## Compatibility fallback
+
+Agents without plugin support can still install the same four skills directly:
+
+```bash
+npx -y skills add rementum/rementum --global --all --full-depth
+```
+
+After this one-time install, direct installs can be refreshed without reinstalling:
+
+```bash
+npx -y skills update brain-context brain-write brain-import brain-maintenance --global --yes
 ```
 
 ## Claude and Claude Desktop
@@ -83,8 +99,8 @@ On supported Claude plans, open **Settings → Connectors**, choose **Add custom
 the workspace MCP URL. Remote connectors work in Claude and Claude Desktop; do not put this remote
 URL in `claude_desktop_config.json`. See [Anthropic's remote connector guide](https://support.anthropic.com/en/articles/11503834-building-custom-integrations-via-remote-mcp-servers).
 
-The skills installer targets Claude Code, not the hosted Claude or Claude Desktop connector. Those
-clients can use the MCP tools but do not receive the local coding-agent skills from this package.
+The plugin targets Claude Code, not the hosted Claude or Claude Desktop connector. Those clients can
+use the MCP tools but do not receive the local coding-agent skills from this package.
 
 ## ChatGPT
 
@@ -92,8 +108,8 @@ Where custom MCP apps are available for your plan and workspace, enable develope
 custom app under **Settings → Apps**, and use the workspace MCP URL. Select OAuth when prompted,
 scan the tools, and approve the connection. See [OpenAI's MCP app guide](https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt).
 
-The local skills installer targets Codex, not ChatGPT. ChatGPT can use the MCP tools but does not
-receive the Codex skills installed on your machine.
+The repository marketplace targets Codex, not ChatGPT. ChatGPT can use the MCP tools but does not
+receive a locally installed Codex plugin.
 
 ## Other MCP clients
 

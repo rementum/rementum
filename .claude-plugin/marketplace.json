@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "rementum",
+  "description": "Durable shared memory for coding agents.",
+  "owner": {
+    "name": "Rementum",
+    "url": "https://github.com/rementum"
+  },
+  "plugins": [
+    {
+      "name": "rementum",
+      "description": "Load context and preserve verified project knowledge through Rementum.",
+      "source": "./plugins/rementum",
+      "category": "productivity"
+    }
+  ]
+}
