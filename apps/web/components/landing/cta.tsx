@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Button, CommunityBadge, FloatingSparkles, GradientText } from "../pui";
 import { AURORA_HERO, AuroraBackdrop, LazyCanvas } from "../ui/backdrop";
 import { IconGitHub } from "../ui/icons";
@@ -27,7 +26,9 @@ export function CTASection({ githubUrl }: { githubUrl: string }) {
               agents write.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <Button as={Link} href="/auth/login" variant="solid" size="lg" sparkle>
+              {/* Full-page link: the force-static landing caches the signed-out root layout, so a
+                  soft nav would strand a signed-in visitor on the public header. */}
+              <Button as="a" href="/auth/login" variant="solid" size="lg" sparkle>
                 Get started
               </Button>
               <CommunityBadge
