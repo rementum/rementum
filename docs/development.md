@@ -42,6 +42,10 @@ Set host-side database and embedding URLs in the shell when they differ from the
 `.env`. Use the container stack for end-to-end authentication testing because the web session API
 and MCP OAuth endpoints share one public origin behind Caddy.
 
+The public landing page at `/` is statically rendered and refreshes its public authentication
+configuration at most once per minute. The session-dependent web application lives at `/dashboard`;
+sign-in and workspace-selection flows return there by default.
+
 ## Checks
 
 ```bash

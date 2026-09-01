@@ -100,7 +100,7 @@ export async function publicAuthConfig(): Promise<PublicAuthConfig> {
     "http://localhost:8787";
   try {
     const response = await fetch(`${base.replace(/\/$/, "")}/api/v1/auth/config`, {
-      cache: "no-store",
+      next: { revalidate: 60 },
     });
     if (!response.ok) return publicAuthConfigFallback;
     const body = (await response.json()) as Partial<PublicAuthConfig>;

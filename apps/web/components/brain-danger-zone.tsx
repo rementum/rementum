@@ -28,7 +28,7 @@ export function BrainDangerZone({ brainId, name }: { brainId: string; name: stri
         setBusy(false);
         return;
       }
-      router.push("/");
+      router.push("/dashboard");
       router.refresh();
     } catch {
       setError("The request could not be completed. Check your connection and try again.");

@@ -2,6 +2,7 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import Script from "next/script";
 import { AppNavigation } from "../components/app-navigation";
 import { PublicNav } from "../components/public-nav";
 import { StickyBanner } from "../components/pui";
@@ -17,6 +18,17 @@ export const metadata: Metadata = {
   description: "One versioned brain behind every agent.",
 };
 
+const themeInitializer = `
+try {
+  const entry = document.cookie.split("; ").find((value) => value.startsWith("rementum_theme="));
+  const theme = entry?.slice("rementum_theme=".length);
+  if (theme === "light" || theme === "dark") {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }
+} catch {}
+`;
+
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies();
   const theme = cookieStore.get("rementum_theme")?.value === "light" ? "light" : "dark";
@@ -30,7 +42,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       lang="en"
       data-theme={theme}
       className={`${GeistSans.variable} ${GeistMono.variable}${theme === "dark" ? " dark" : ""}`}
+      suppressHydrationWarning
     >
+      <head>
+        <Script id="rementum-theme" strategy="beforeInteractive">
+          {themeInitializer}
+        </Script>
+      </head>
       <body>
         {signedIn ? (
           <div className="min-h-dvh md:flex">

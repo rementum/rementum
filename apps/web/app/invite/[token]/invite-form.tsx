@@ -49,7 +49,7 @@ export function InviteForm({ token, signedIn }: { token: string; signedIn: boole
       return;
     }
     setState("success");
-    window.location.href = signedIn ? "/" : "/auth/login";
+    window.location.href = signedIn ? "/dashboard" : "/auth/login";
   }
   if (error && !metadata) return <p className={errorBanner}>{error}</p>;
   if (!metadata)

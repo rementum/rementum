@@ -64,7 +64,7 @@ export default async function BrainPage({
         <aside className="self-start lg:sticky lg:top-8">
           <Link
             className="inline-flex items-center gap-1 font-mono text-2xs text-ink-3 transition-colors hover:text-ink"
-            href="/"
+            href="/dashboard"
           >
             ← All brains
           </Link>

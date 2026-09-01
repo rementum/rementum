@@ -40,7 +40,7 @@ describe("workspace selection", () => {
   it("stores the chosen workspace and returns to the dashboard", async () => {
     const response = await POST(selectRequest("workspace-b"));
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(`${site}/`);
+    expect(response.headers.get("location")).toBe(`${site}/dashboard`);
     expect(cookieJar.get("rementum_workspace")).toMatchObject({
       value: "workspace-b",
       options: { httpOnly: true, sameSite: "lax", secure: true, path: "/" },
