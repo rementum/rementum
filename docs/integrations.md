@@ -136,7 +136,8 @@ or brain activity. Top articles count only bodies delivered by `read_article` or
 by `load_context`, once per call per article.
 
 The dashboard offers 7, 30, 90, and 365-day rankings and a rolling 365-day contribution heatmap.
-All day boundaries are UTC. Tracking begins when the analytics migration is installed; older audit
+The **Refresh** button in the page header re-reads the analytics in place, so a tab left open beside
+a working agent can pick up new calls without reloading the page. All day boundaries are UTC. Tracking begins when the analytics migration is installed; older audit
 events are not converted into estimates, and the heatmap marks earlier days as untracked. Usage
 records remain for the life of the workspace and are visible to its team members. See the
 [security checklist](security.md) for the exact metadata retained.

@@ -159,6 +159,16 @@ export function IconSignOut(props: IconProps) {
   );
 }
 
+export function IconRefresh(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M13.5 8a5.5 5.5 0 0 1-9.6 3.65" />
+      <path d="M2.5 8a5.5 5.5 0 0 1 9.6-3.65" />
+      <path d="M12.5 1.75v2.75h-2.75M3.5 14.25V11.5h2.75" />
+    </Icon>
+  );
+}
+
 export function IconCopy(props: IconProps) {
   return (
     <Icon {...props}>
