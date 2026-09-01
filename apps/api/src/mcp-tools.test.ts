@@ -648,9 +648,12 @@ describe("compact MCP results", () => {
     });
     const activityResult = structuredResult(activity);
     const activityItems = activityResult.items;
-    expect(Array.isArray(activityItems) ? activityItems[0] : undefined).not.toHaveProperty(
-      "actorId",
-    );
+    // Attribution survives compaction; the audit-event id does not.
+    expect(Array.isArray(activityItems) ? activityItems[0] : undefined).toMatchObject({
+      actorId: "00000000-0000-4000-8000-000000000009",
+      clientId: "agent-client",
+    });
+    expect(Array.isArray(activityItems) ? activityItems[0] : undefined).not.toHaveProperty("id");
     if (typeof activityResult.nextCursor !== "string") throw new Error("Expected activity cursor");
     const response = await client.callTool({
       name: "get_brain",
@@ -893,6 +896,46 @@ describe("load_context", () => {
       hasMore: true,
     });
     expect(JSON.stringify(response.structuredContent).length).toBeLessThanOrEqual(4000);
+  });
+
+  it("charges maxChars for the text block publicResult duplicates", async () => {
+    const hits = [searchHit(firstId, "first", 0.9), searchHit(secondId, "second", 0.8)];
+    const readArticle = vi.fn(async (id: string) =>
+      articleResult(id, id === firstId ? "first" : "second", `# Body\n${"x".repeat(900)}`),
+    );
+    const client = await connect(stubService({ search: vi.fn(async () => hits), readArticle }));
+    const response = await client.callTool({
+      name: "load_context",
+      arguments: { brainId, query: "budget", maxArticles: 2, maxChars: 4000 },
+    });
+    // The whole result, not just structuredContent: the same payload rides along JSON-escaped
+    // inside content[0].text, and a budget that ignored it delivered roughly double.
+    expect(JSON.stringify(response).length).toBeLessThanOrEqual(4000);
+  });
+
+  it("stops opening candidates once the read allowance is spent", async () => {
+    const ids = Array.from(
+      { length: 9 },
+      (_, index) => `00000000-0000-4000-8000-00000000001${index}`,
+    );
+    const hits = ids.map((id, index) => searchHit(id, `article-${index}`, 1 - index / 100));
+    // Every body overflows the budget, so nothing is ever added and only the allowance stops us.
+    const readArticle = vi.fn(async (id: string) =>
+      articleResult(id, "oversized", `# Oversized\n${"x".repeat(9000)}`),
+    );
+    const client = await connect(stubService({ search: vi.fn(async () => hits), readArticle }));
+    const response = await client.callTool({
+      name: "load_context",
+      arguments: { brainId, query: "expensive", maxArticles: 3, maxChars: 4000 },
+    });
+    // maxArticles * 2, not the full candidate list: each open costs a decrypt and an audit row.
+    expect(readArticle).toHaveBeenCalledTimes(6);
+    const result = structuredResult(response);
+    expect(result.articles).toEqual([]);
+    expect(result.omittedCount).toBe(9);
+    const omitted = Array.isArray(result.omitted) ? result.omitted : [];
+    expect(omitted.some((entry) => entry.reason === "read_budget")).toBe(true);
+    expect(result.hasMore).toBe(true);
   });
 
   it("is hidden and blocked without brain read scope", async () => {

@@ -126,7 +126,12 @@ Start with these calls:
    while `hasMore` is true when the remaining index matters.
 3. `load_context` runs the existing metadata, full-text, and embedding search and returns complete
    relevant article bodies within `maxArticles` and `maxChars`. It reports bodies omitted by either
-   budget; it never silently truncates an article.
+   budget; it never silently truncates an article. `maxChars` is measured against the whole tool
+   result, which carries the payload twice — once as `structuredContent` and once as the JSON text
+   block older clients read. `omittedCount` counts every skipped article, while `omitted` names only
+   those the remaining budget had room to list, so treat the count as authoritative and the list as
+   a convenience. Opening a candidate costs a decrypt and an audit event, so the tool reads at most
+   `maxArticles * 2` of them and marks the untried tail `read_budget`.
 4. Use `read_article` for an exact article. Its default body view omits provenance and maintenance
    metadata; request `detail: "full"` only when those fields are needed.
 

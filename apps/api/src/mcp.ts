@@ -922,7 +922,7 @@ type Activity = Awaited<ReturnType<RementumService["recentActivity"]>>[number];
 type ContextOmission = {
   id: string;
   slug: string;
-  reason: "article_limit" | "character_budget";
+  reason: "article_limit" | "character_budget" | "read_budget";
 };
 
 function encodePageCursor(kind: PageKind, offset: number, resourceId: string): string {
@@ -1016,15 +1016,22 @@ async function buildContextResult(
   > = [];
   const omitted: ContextOmission[] = [];
   let omittedCount = 0;
+  // Every candidate opened costs a body decrypt and an article.read audit row, and one rejected by
+  // the character budget is paid for without being returned. Allow a few misses past maxArticles so
+  // an oversized top hit can be skipped, then report the untried tail instead of reading all of it.
+  const readAllowance = request.maxArticles * 2;
+  let reads = 0;
 
   for (let index = 0; index < hits.length; index += 1) {
-    if (articles.length >= request.maxArticles) {
+    if (articles.length >= request.maxArticles || reads >= readAllowance) {
+      const reason: ContextOmission["reason"] =
+        articles.length >= request.maxArticles ? "article_limit" : "read_budget";
       for (const remaining of hits.slice(index)) {
         omittedCount += 1;
         const omission = {
           id: remaining.article.id,
           slug: remaining.article.slug,
-          reason: "article_limit" as const,
+          reason,
         };
         const withOmission = contextEnvelope(
           request.brainId,
@@ -1040,6 +1047,7 @@ async function buildContextResult(
     }
     const hit = hits[index];
     if (!hit) continue;
+    reads += 1;
     const article = await service.readArticle(hit.article.id, actor);
     const { brainId: _brainId, ...compact } = compactArticle(article);
     const candidate = { ...compact, score: hit.score, sources: hit.sources };
@@ -1128,8 +1136,12 @@ function contextEnvelope<T>(
   };
 }
 
+// publicResult ships the same object twice: minified JSON inside a text block and again as
+// structuredContent. Charging the budget for one copy let maxChars deliver roughly double what the
+// caller asked for, so measure both — the escaped text block is the larger of the two.
 function serializedChars(value: unknown): number {
-  return JSON.stringify(sanitize(value)).length;
+  const envelope = JSON.stringify(sanitize(value));
+  return envelope.length + JSON.stringify(envelope).length;
 }
 
 function compactArticle(article: ReadArticleResult) {
@@ -1140,9 +1152,13 @@ function compactArticle(article: ReadArticleResult) {
   };
 }
 
+// Attribution is the point of an activity feed: without an actor and client an operator cannot
+// reconstruct who changed what without querying audit_events directly.
 function compactActivity(event: Activity) {
   return {
     action: event.action,
+    actorId: event.actorId,
+    clientId: event.clientId,
     resource: event.resource,
     detail: event.detail,
     createdAt: event.createdAt,
