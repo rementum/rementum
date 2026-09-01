@@ -2,7 +2,6 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import Script from "next/script";
 import { AppNavigation } from "../components/app-navigation";
 import { PublicNav } from "../components/public-nav";
 import { StickyBanner } from "../components/pui";
@@ -18,6 +17,9 @@ export const metadata: Metadata = {
   description: "One versioned brain behind every agent.",
 };
 
+// The static landing page cannot read cookies, so it ships the default theme. This runs while
+// the HTML is still parsing so a light-theme visitor never sees a dark first paint; next/script's
+// beforeInteractive would only run it from the client bootstrap, after the page is visible.
 const themeInitializer = `
 try {
   const entry = document.cookie.split("; ").find((value) => value.startsWith("rementum_theme="));
@@ -45,9 +47,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       suppressHydrationWarning
     >
       <head>
-        <Script id="rementum-theme" strategy="beforeInteractive">
-          {themeInitializer}
-        </Script>
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: constant script above, no user input */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitializer }} />
       </head>
       <body>
         {signedIn ? (
