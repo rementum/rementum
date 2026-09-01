@@ -310,7 +310,7 @@ export async function registerApiRoutes(
     return service.getMcpAnalytics(
       workspaceId,
       range,
-      await authorize(request, "brain:read"),
+      await authorize(request, "team:read"),
       brainId,
     );
   });
