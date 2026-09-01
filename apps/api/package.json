@@ -19,7 +19,8 @@
     "@fastify/middie": "^9.3.3",
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@rementum/contracts": "workspace:*",
     "@rementum/core": "workspace:*",
     "@rementum/db": "workspace:*",
@@ -32,6 +33,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
     "@types/oidc-provider": "^8.8.1"
   }
 }

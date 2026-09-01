@@ -1,5 +1,4 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import type { RementumService } from "@rementum/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withAccessScopes } from "./access.js";
@@ -54,18 +53,19 @@ describe("MCP OAuth scopes", () => {
     const service = { stageWrite: vi.fn() } as unknown as RementumService;
     const client = await connectedClient("brain:read", service);
     expect((await client.listTools()).tools.map((tool) => tool.name)).not.toContain("stage_write");
-    const response = await client.callTool({
-      name: "stage_write",
-      arguments: {
-        brainId: "00000000-0000-4000-8000-000000000002",
-        operation: "create",
-        slug: "blocked-write",
-        title: "Blocked write",
-        body: "Body",
-        changeSummary: "Should not run",
-      },
-    });
-    expect(response).toMatchObject({ isError: true });
+    await expect(
+      client.callTool({
+        name: "stage_write",
+        arguments: {
+          brainId: "00000000-0000-4000-8000-000000000002",
+          operation: "create",
+          slug: "blocked-write",
+          title: "Blocked write",
+          body: "Body",
+          changeSummary: "Should not run",
+        },
+      }),
+    ).rejects.toThrow("Tool stage_write not found");
     expect(service.stageWrite).not.toHaveBeenCalled();
   });
 

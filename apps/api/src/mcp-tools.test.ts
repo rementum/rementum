@@ -1,5 +1,4 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import type { RementumService } from "@rementum/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { allAccessScopes, withAccessScopes } from "./access.js";
@@ -402,7 +401,7 @@ const toolsByScope = {
 } as const;
 
 const catalogBudgets = {
-  "brain:read": 8_500,
+  "brain:read": 8_000,
   "brain:write": 11_000,
   "task:read": 1_500,
   "task:write": 10_000,
@@ -418,7 +417,7 @@ describe("MCP tool surface", () => {
     expect(names).toContain("promote_staged_write");
     expect(names).toContain("import_markdown");
     expect(names).toContain("export_brain");
-    expect(JSON.stringify(catalog).length).toBeLessThanOrEqual(30_000);
+    expect(JSON.stringify(catalog).length).toBeLessThanOrEqual(28_000);
   });
 
   it.each(Object.entries(toolsByScope))(
@@ -461,8 +460,9 @@ describe("MCP tool surface", () => {
       expect((await client.listTools()).tools.map((candidate) => candidate.name)).not.toContain(
         tool,
       );
-      const response = await client.callTool({ name: tool, arguments: args });
-      expect(response).toMatchObject({ isError: true });
+      await expect(client.callTool({ name: tool, arguments: args })).rejects.toThrow(
+        `Tool ${tool} not found`,
+      );
       expect(service[method]).not.toHaveBeenCalled();
     },
   );
@@ -583,6 +583,16 @@ describe("compact MCP results", () => {
     const routingIndex = firstResult.routingIndex;
     expect(Array.isArray(routingIndex) ? routingIndex[0] : undefined).not.toHaveProperty("brainId");
     if (typeof firstResult.nextCursor !== "string") throw new Error("Expected a routing cursor");
+
+    const wrongBrain = await client.callTool({
+      name: "get_brain",
+      arguments: {
+        brainId: "00000000-0000-4000-8000-000000000009",
+        limit: 1,
+        cursor: firstResult.nextCursor,
+      },
+    });
+    expect(wrongBrain).toMatchObject({ isError: true });
 
     const second = await client.callTool({
       name: "get_brain",
@@ -889,11 +899,12 @@ describe("load_context", () => {
     const service = stubService();
     const client = await connect(service, "brain:write");
     expect((await client.listTools()).tools.map((tool) => tool.name)).not.toContain("load_context");
-    const response = await client.callTool({
-      name: "load_context",
-      arguments: { brainId, query: "blocked" },
-    });
-    expect(response).toMatchObject({ isError: true });
+    await expect(
+      client.callTool({
+        name: "load_context",
+        arguments: { brainId, query: "blocked" },
+      }),
+    ).rejects.toThrow("Tool load_context not found");
     expect(service.search).not.toHaveBeenCalled();
   });
 });
