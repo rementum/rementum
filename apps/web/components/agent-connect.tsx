@@ -31,6 +31,16 @@ const HARNESSES = [
     ],
   },
   {
+    id: "cursor",
+    label: "Cursor",
+    commands: (mcpUrl: string) => [
+      "Dashboard → Plugins → Add Marketplace → Import from Repo",
+      "https://github.com/rementum/rementum",
+      "Enable Auto Refresh; set Rementum to Default On or Required",
+      JSON.stringify({ mcpServers: { rementum: { url: mcpUrl } } }),
+    ],
+  },
+  {
     id: "opencode",
     label: "OpenCode",
     commands: (mcpUrl: string) => [

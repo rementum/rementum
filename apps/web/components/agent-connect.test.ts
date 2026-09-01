@@ -15,6 +15,10 @@ describe("AgentConnect", () => {
     expect(html).toContain("/plugin install rementum@rementum");
     expect(html).toContain("codex plugin marketplace add rementum/rementum");
     expect(html).toContain("codex plugin add rementum@rementum");
+    expect(html).toContain("Dashboard → Plugins → Add Marketplace → Import from Repo");
+    expect(html).toContain("https://github.com/rementum/rementum");
+    expect(html).toContain("Enable Auto Refresh; set Rementum to Default On or Required");
+    expect(html).toContain("{&quot;mcpServers&quot;:{&quot;rementum&quot;:{&quot;url&quot;:");
     expect(html).toContain(
       "npx -y skills add rementum/rementum --global --agent opencode --skill &#x27;*&#x27; --yes --full-depth",
     );
