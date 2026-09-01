@@ -141,6 +141,14 @@ events are not converted into estimates, and the heatmap marks earlier days as u
 records remain for the life of the workspace and are visible to its team members. See the
 [security checklist](security.md) for the exact metadata retained.
 
+The **Team leaderboard** card ranks the workspace team's current members by the actions attributed
+to them in the selected range and shows how many staged writes each one promoted. It is derived
+from the audit log rather than from the usage ledger, which deliberately records no user ids, so
+the usage metadata boundary in the security checklist is unchanged. Every audited action counts
+once; `task.heartbeat` keepalives are skipped because a held claim would otherwise outrank real
+work. Members without activity in the range are listed with zero so adoption gaps stay visible,
+and the card shows at most ten members.
+
 ## First request
 
 At initialization the server sends MCP instructions that tell the agent when to load and write

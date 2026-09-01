@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mcpAnalyticsSchema } from "@rementum/contracts";
 import { hashContent, NotFoundError, RementumService } from "@rementum/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AuthRepository } from "./auth.js";
 import { createDatabaseClient } from "./client.js";
 import { PostgresStore } from "./store.js";
@@ -67,6 +67,28 @@ integration("MCP usage analytics", () => {
       );
       const articleId = write.articleId;
       if (!articleId) throw new Error("Created write did not target an article");
+      const task = await service.createTask(
+        {
+          brainId: brain.brain.id,
+          title: "Leaderboard task",
+          brief: "Hold a claim so a heartbeat is audited.",
+          priority: 0,
+          articleIds: [],
+          links: [],
+        },
+        ownerActor,
+      );
+      await service.claimTask(brain.brain.id, task.id, 600, ownerActor);
+      await service.heartbeatTask(task.id, 600, ownerActor);
+      // Promotion indexes the new version in the background and audits article.read once
+      // it has read the body. Wait for it so the action counts below are deterministic.
+      await vi.waitFor(async () => {
+        const actions = (await service.recentActivity(brain.brain.id, 50, ownerActor)).map(
+          (event) => event.action,
+        );
+        expect(actions).toContain("article.read");
+        expect(actions).toEqual(expect.arrayContaining(["write.staged", "write.promoted"]));
+      });
 
       const firstClient = `analytics-client-a-${suffix}`;
       const secondClient = `analytics-client-b-${suffix}`;
@@ -131,6 +153,19 @@ integration("MCP usage analytics", () => {
         "read_article",
       ]);
       expect(analytics.recentCalls).toHaveLength(3);
+      // brain.created, write.staged, write.promoted, article.read, task.created,
+      // task.claimed. The heartbeat is audited but is a keepalive, and the ledger rows
+      // above are not audit events, so neither may reach the leaderboard.
+      expect(analytics.topMembers).toEqual([
+        {
+          userId: owner.user.id,
+          name: "Analytics owner",
+          role: "owner",
+          actions: 6,
+          writes: 1,
+          lastActiveAt: expect.any(String),
+        },
+      ]);
 
       const brainAnalytics = await service.getMcpAnalytics(
         owner.workspaceId,
@@ -142,6 +177,7 @@ integration("MCP usage analytics", () => {
       expect(brainAnalytics.recentCalls.every((call) => call.brainId === brain.brain.id)).toBe(
         true,
       );
+      expect(brainAnalytics.topMembers).toMatchObject([{ userId: owner.user.id, actions: 6 }]);
 
       const member = await auth.registerAccount(
         `analytics-member-${suffix}@example.test`,
@@ -159,9 +195,20 @@ integration("MCP usage analytics", () => {
       );
       await auth.acceptTeamInvitation(hashContent(invitation.token), member.user.id, null, null);
       const memberActor = await store.loadActor(member.user.id, "member-browser");
-      await expect(
-        service.getMcpAnalytics(owner.workspaceId, "30d", memberActor),
-      ).resolves.toMatchObject({ totals: { calls: 3 } });
+      const memberAnalytics = await service.getMcpAnalytics(owner.workspaceId, "30d", memberActor);
+      expect(memberAnalytics.totals.calls).toBe(3);
+      // Team membership reads every brain in the workspace, so a new member sees the same
+      // ranking as the owner and is listed at the bottom with nothing counted yet.
+      expect(
+        memberAnalytics.topMembers.map((entry) => [
+          entry.userId,
+          entry.actions,
+          entry.lastActiveAt,
+        ]),
+      ).toEqual([
+        [owner.user.id, 6, expect.any(String)],
+        [member.user.id, 0, null],
+      ]);
 
       const stranger = await auth.registerAccount(
         `analytics-stranger-${suffix}@example.test`,

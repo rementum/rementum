@@ -18,6 +18,10 @@ describe("UsageAnalyticsView", () => {
     expect(html).toContain("successful MCP calls");
     expect(html).toContain("not tracked");
     expect(html).toContain("Top clients");
+    expect(html).toContain("Team leaderboard");
+    expect(html).toContain("1 write promoted");
+    expect(html).toContain("No activity in this range");
+    expect(html).toContain("&lt;b&gt;Ada&lt;/b&gt;");
     expect(html).toContain("Recent tool calls");
     expect(html).toContain("&lt;script&gt;client&lt;/script&gt;");
     expect(html).not.toContain("<script>client</script>");
@@ -68,6 +72,24 @@ function analytics(): UsageAnalytics {
       },
     ],
     topTools: [{ tool: "load_context", calls: 2, lastUsedAt: "2026-09-01T12:00:00.000Z" }],
+    topMembers: [
+      {
+        userId: "00000000-0000-4000-8000-000000000005",
+        name: "<b>Ada</b>",
+        role: "owner",
+        actions: 4,
+        writes: 1,
+        lastActiveAt: "2026-09-01T12:00:00.000Z",
+      },
+      {
+        userId: "00000000-0000-4000-8000-000000000006",
+        name: "Grace",
+        role: "member",
+        actions: 0,
+        writes: 0,
+        lastActiveAt: null,
+      },
+    ],
     recentCalls: [
       {
         id: "00000000-0000-4000-8000-000000000004",

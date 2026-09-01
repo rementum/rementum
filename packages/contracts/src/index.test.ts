@@ -104,6 +104,7 @@ describe("mcpAnalyticsSchema", () => {
       topBrains: [],
       topArticles: [],
       topTools: [],
+      topMembers: [],
       recentCalls: [],
     };
     expect(mcpAnalyticsSchema.parse(value)).toEqual(value);
@@ -123,6 +124,7 @@ describe("mcpAnalyticsSchema", () => {
       topBrains: [],
       topArticles: [],
       topTools: [{ tool: "retired_tool", calls: 1, lastUsedAt: "2026-09-01T12:00:00.000Z" }],
+      topMembers: [],
       recentCalls: [
         {
           id: "00000000-0000-4000-8000-000000000002",
