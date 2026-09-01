@@ -63,15 +63,9 @@ export function UsageAnalyticsView({
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="font-mono text-2xs text-ink-3 uppercase tracking-[0.1em]">
-            Successful MCP tool calls · UTC
-          </p>
-          <p className="mt-1 text-ink-2 text-xs">
-            Tracking since {utcInstantDate(analytics.trackingStartedAt)}. Earlier days are
-            untracked.
-          </p>
-        </div>
+        <p className="font-mono text-2xs text-ink-3 uppercase tracking-[0.1em]">
+          Successful MCP tool calls · UTC
+        </p>
         <RangePicker path={rangePath} selected={range} />
       </div>
 
@@ -373,8 +367,4 @@ const utcDateTimeFormat = new Intl.DateTimeFormat("en", {
 
 function utcDate(value: string) {
   return utcDateFormat.format(new Date(`${value}T00:00:00.000Z`));
-}
-
-function utcInstantDate(value: string) {
-  return utcDate(new Date(value).toISOString().slice(0, 10));
 }
