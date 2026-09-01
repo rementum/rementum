@@ -375,7 +375,11 @@ export interface DataStore {
   ): Promise<void>;
   clearEmbeddings(articleId: string, version: number, actor: Actor): Promise<void>;
   createTask(input: CreateTaskInput, actor: Actor): Promise<Task>;
-  listTasks(brainId: string, actor: Actor): Promise<Task[]>;
+  listTasks(
+    brainId: string,
+    actor: Actor,
+    page?: { limit: number; offset: number },
+  ): Promise<Task[]>;
   getTask(id: string, actor: Actor): Promise<Task | null>;
   claimTask(
     brainId: string,
@@ -400,7 +404,11 @@ export interface DataStore {
   attachTaskLink(taskId: string, url: string, label: string | null, actor: Actor): Promise<void>;
   linkTaskArticle(taskId: string, articleId: string, actor: Actor): Promise<void>;
   scanMaintenance(brainId: string, actor: Actor): Promise<MaintenanceCandidate[]>;
-  listMaintenance(brainId: string, actor: Actor): Promise<MaintenanceCandidate[]>;
+  listMaintenance(
+    brainId: string,
+    actor: Actor,
+    page?: { limit: number; offset: number },
+  ): Promise<MaintenanceCandidate[]>;
   updateMaintenance(
     candidateId: string,
     status: "resolved" | "dismissed",
@@ -411,6 +419,7 @@ export interface DataStore {
     actor: Actor,
     limit: number,
     source?: "mcp",
+    offset?: number,
   ): Promise<
     Array<{
       id: string;

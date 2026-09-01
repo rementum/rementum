@@ -41,7 +41,12 @@ describe("MCP OAuth scopes", () => {
     const client = await connectedClient("brain:read", service);
     const response = await client.callTool({ name: "list_brains", arguments: {} });
     expect(response.isError).not.toBe(true);
-    expect(response.structuredContent).toEqual({ items: [] });
+    expect(response.structuredContent).toEqual({
+      items: [],
+      total: 0,
+      hasMore: false,
+      nextCursor: null,
+    });
     expect(service.listBrains).toHaveBeenCalledOnce();
   });
 

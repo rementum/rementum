@@ -630,9 +630,9 @@ export class RementumService {
     return { ok: true };
   }
 
-  async listTasks(brainId: string, actor: Actor) {
+  async listTasks(brainId: string, actor: Actor, page?: { limit: number; offset: number }) {
     requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
-    return this.store.listTasks(brainId, actor);
+    return this.store.listTasks(brainId, actor, page);
   }
 
   async getTask(taskId: string, actor: Actor) {
@@ -725,9 +725,9 @@ export class RementumService {
     return candidates;
   }
 
-  async listMaintenance(brainId: string, actor: Actor) {
+  async listMaintenance(brainId: string, actor: Actor, page?: { limit: number; offset: number }) {
     requireBrainRole(actor, brainId, ["owner", "editor"]);
-    return this.store.listMaintenance(brainId, actor);
+    return this.store.listMaintenance(brainId, actor, page);
   }
 
   async updateMaintenance(candidateId: string, status: "resolved" | "dismissed", actor: Actor) {
@@ -739,9 +739,9 @@ export class RementumService {
     return candidate;
   }
 
-  async recentActivity(brainId: string, limit: number, actor: Actor, source?: "mcp") {
+  async recentActivity(brainId: string, limit: number, actor: Actor, source?: "mcp", offset = 0) {
     requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
-    return this.store.recentActivity(brainId, actor, limit, source);
+    return this.store.recentActivity(brainId, actor, limit, source, offset);
   }
 
   async reindexArticle(articleId: string, actor: Actor) {
