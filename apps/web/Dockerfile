@@ -7,6 +7,7 @@ RUN pnpm install --filter @rementum/web... --frozen-lockfile
 
 FROM deps AS build
 COPY apps/web apps/web
+COPY docs docs
 ARG NEXT_PUBLIC_REMENTUM_API_URL
 ENV NEXT_PUBLIC_REMENTUM_API_URL=$NEXT_PUBLIC_REMENTUM_API_URL
 # Node sizes its default heap from the machine's total memory, which the build shares
