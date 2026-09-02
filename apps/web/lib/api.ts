@@ -1,5 +1,5 @@
 import { cookies, headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 export async function hasSession() {
   const token = (await cookies()).get("rementum_session")?.value;
@@ -23,6 +23,9 @@ export async function api<T>(path: string): Promise<T> {
     cache: "no-store",
   });
   if (response.status === 401) redirect("/auth/login");
+  // A brain, article, or task the visitor cannot see answers 404, which is a page of its
+  // own rather than the generic failure boundary every other status lands on.
+  if (response.status === 404) notFound();
   if (!response.ok)
     throw new Error(`Rementum API returned ${response.status}: ${await response.text()}`);
   return response.json() as Promise<T>;

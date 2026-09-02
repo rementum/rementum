@@ -18,6 +18,9 @@ vi.mock("next/navigation", () => ({
   redirect: (path: string) => {
     throw new Error(`REDIRECT:${path}`);
   },
+  notFound: () => {
+    throw new Error("NOT_FOUND");
+  },
 }));
 
 const { api, hasSession, publicAuthConfig, workspaceContext } = await import("./api");
@@ -114,6 +117,12 @@ describe("api", () => {
         headers: { cookie: `rementum_session=${token}`, "x-forwarded-for": "203.0.113.7" },
       }),
     );
+  });
+
+  it("renders the not-found page for a resource the API cannot find", async () => {
+    cookieJar.set("rementum_session", token);
+    fetchMock.mockResolvedValueOnce(respond(404, { code: "not_found" }));
+    await expect(api("/api/v1/articles/missing")).rejects.toThrow("NOT_FOUND");
   });
 
   it("surfaces any other API failure with its status and body", async () => {
