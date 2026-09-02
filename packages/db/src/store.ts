@@ -1287,17 +1287,25 @@ export class PostgresStore implements DataStore {
         ORDER BY rank DESC LIMIT 50
       `;
       // Cosine distance across vectors from different models is noise, so rows from a
-      // previous embedding model are excluded rather than ranked.
+      // previous embedding model are excluded rather than ranked. The best chunk per article
+      // is picked in the inner query; the outer one orders those by distance. DISTINCT ON
+      // forces its own ordering, so a LIMIT applied to it would keep the first fifty
+      // articles by id rather than the fifty nearest.
       const vectorRows = embedding
         ? await tx<any[]>`
-            SELECT DISTINCT ON (a.id) ${tx.unsafe(ARTICLE_COLUMNS_A)},
-                   (1 - (ae.embedding <=> ${vectorLiteral(embedding.vector)}::vector))::float8 AS rank
-            FROM article_embeddings ae
-            JOIN articles a ON a.id = ae.article_id AND a.current_version = ae.version
-            WHERE a.brain_id = ${input.brainId} AND a.archived_at IS NULL
-              AND ae.model = ${embedding.model}
-              ${input.freshness?.length ? tx`AND a.freshness = ANY(${input.freshness})` : tx``}
-            ORDER BY a.id, ae.embedding <=> ${vectorLiteral(embedding.vector)}::vector
+            SELECT ${tx.unsafe(ARTICLE_COLUMNS_A)}, best.rank
+            FROM (
+              SELECT DISTINCT ON (ae.article_id) ae.article_id,
+                     (1 - (ae.embedding <=> ${vectorLiteral(embedding.vector)}::vector))::float8 AS rank
+              FROM article_embeddings ae
+              JOIN articles a ON a.id = ae.article_id AND a.current_version = ae.version
+              WHERE a.brain_id = ${input.brainId} AND a.archived_at IS NULL
+                AND ae.model = ${embedding.model}
+                ${input.freshness?.length ? tx`AND a.freshness = ANY(${input.freshness})` : tx``}
+              ORDER BY ae.article_id, ae.embedding <=> ${vectorLiteral(embedding.vector)}::vector
+            ) best
+            JOIN articles a ON a.id = best.article_id
+            ORDER BY best.rank DESC
             LIMIT 50
           `
         : [];

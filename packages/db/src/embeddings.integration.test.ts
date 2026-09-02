@@ -1,5 +1,5 @@
-import { randomBytes } from "node:crypto";
-import { RementumService } from "@rementum/core";
+import { randomBytes, randomUUID } from "node:crypto";
+import { encrypt, hashContent, RementumService, unwrapDataKey } from "@rementum/core";
 import { describe, expect, it } from "vitest";
 import { AuthRepository } from "./auth.js";
 import { createDatabaseClient } from "./client.js";
@@ -102,6 +102,113 @@ integration("embedding model changes", () => {
         SELECT article_id FROM owl_worker_unindexed_articles(100, 'model-b')
       `;
       expect(unindexedForB.map((row) => row.article_id)).toContain(promoted.article.id);
+    } finally {
+      await database.close();
+    }
+  });
+});
+
+integration("vector candidate ranking", () => {
+  it("returns the nearest articles rather than the first fifty by id", async () => {
+    if (!databaseUrl) return;
+    const database = createDatabaseClient(databaseUrl, 2);
+    const auth = new AuthRepository(database);
+    const store = new PostgresStore(database);
+    const suffix = randomBytes(6).toString("hex");
+    const masterKey = Buffer.alloc(32, 7);
+    const query = unitVector();
+    const service = new RementumService(
+      store,
+      {
+        embedQuery: async () => ({ model: "model-a", vector: query }),
+        embedPassages: async () => ({ model: "model-a", vectors: [] }),
+        healthy: async () => true,
+      },
+      masterKey,
+    );
+    // Any vector not parallel to the query ranks below it; this one differs in every
+    // component so the target's similarity of one stands alone at the top.
+    const raw = Array.from({ length: 384 }, (_, index) => Math.cos(index * 7 + 3));
+    const norm = Math.sqrt(raw.reduce((sum, value) => sum + value * value, 0));
+    const far = raw.map((value) => value / norm);
+
+    try {
+      const owner = await auth.registerAccount(
+        `rank-owner-${suffix}@example.test`,
+        "Owner",
+        "owner-password-hash",
+        "Ranking team",
+        `rank-${suffix}`,
+      );
+      if (!owner) throw new Error("Owner registration failed");
+      const ownerActor = await store.loadActor(owner.user.id, "integration-test");
+      const brain = await service.createBrain(
+        {
+          workspaceId: owner.workspaceId,
+          slug: `rank-${suffix}`,
+          name: "Ranking brain",
+          description: "",
+          instructions: "",
+        },
+        ownerActor,
+      );
+      const record = await store.getBrain(brain.brain.id, ownerActor);
+      if (!record) throw new Error("Brain missing");
+      const key = unwrapDataKey(record.wrappedKey, masterKey, record.id);
+      // Article ids ascend with their index, so the target, the last one, sorts after the
+      // fifty lowest ids a DISTINCT ON ... LIMIT would have kept.
+      const total = 60;
+      const prefix = randomBytes(4).toString("hex");
+      const ids = Array.from(
+        { length: total },
+        (_, index) => `${prefix}-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      );
+      for (const [index, articleId] of ids.entries()) {
+        const writeId = randomUUID();
+        const bodyAad = `brain:${record.id}:article:${articleId}:write:${writeId}`;
+        const body = `Article ${index} body.`;
+        await store.createStagedWrite(
+          {
+            brainId: record.id,
+            operation: "create",
+            slug: `article-${index}`,
+            title: `Article ${index}`,
+            summary: `Summary ${index}`,
+            keywords: [],
+            kind: "canonical",
+            body,
+            changeSummary: "seed",
+            sources: [],
+            acknowledgePotentialConflicts: false,
+          },
+          ownerActor,
+          articleId,
+          writeId,
+          encrypt(body, key, bodyAad),
+          bodyAad,
+          hashContent(body),
+          [],
+        );
+        await store.promoteStagedWrite(
+          { writeId, decision: "promote", decisionSummary: "seed" },
+          ownerActor,
+          false,
+        );
+        const vector = index === total - 1 ? query : far;
+        await store.setEmbedding(articleId, 1, 0, vector, "model-a", ownerActor);
+      }
+
+      const hits = await store.search(
+        { brainId: record.id, query: "zzzunmatchable", limit: 10 } as never,
+        ownerActor,
+        { model: "model-a", vector: query },
+      );
+      expect(hits).toHaveLength(10);
+      expect(hits[0]?.article.id).toBe(ids[total - 1]);
+      expect(hits[0]?.sources).toEqual(["vector"]);
+      // Sixty unindexed-for-any-other-model articles would crowd the worker's window in
+      // the sibling test on a database that is reused between runs.
+      await store.deleteBrain(record.id, record.name, ownerActor);
     } finally {
       await database.close();
     }
