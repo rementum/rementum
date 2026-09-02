@@ -1,18 +1,19 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import type {
-  BrainListSort,
-  CreateBrainInput,
-  CreateTaskInput,
-  CreateTeamInput,
-  CreateWorkspaceInput,
-  McpAnalyticsRange,
-  PromoteWriteInput,
-  RoutingIndexSort,
-  SearchArticlesInput,
-  SearchBrainsInput,
-  StageWriteInput,
-  Task,
-  UpdateWorkspaceInput,
+import {
+  type BrainListSort,
+  type CreateBrainInput,
+  type CreateTaskInput,
+  type CreateTeamInput,
+  type CreateWorkspaceInput,
+  EMBEDDING_BATCH_LIMIT,
+  type McpAnalyticsRange,
+  type PromoteWriteInput,
+  type RoutingIndexSort,
+  type SearchArticlesInput,
+  type SearchBrainsInput,
+  type StageWriteInput,
+  type Task,
+  type UpdateWorkspaceInput,
 } from "@rementum/contracts";
 import {
   type CipherEnvelope,
@@ -877,16 +878,29 @@ export class RementumService {
 
   private async indexPromotedArticle(articleId: string, actor: Actor): Promise<void> {
     const article = await this.readArticle(articleId, actor);
-    const { model, vectors } = await this.embeddings.embedPassages(
-      splitMarkdownByHeading(article.body).map(
-        (section) => `${article.title}\n${article.summary}\n${section.text}`,
-      ),
+    const passages = splitMarkdownByHeading(article.body).map(
+      (section) => `${article.title}\n${article.summary}\n${section.text}`,
     );
-    await Promise.all(
-      vectors.map((vector, ordinal) =>
-        this.store.setEmbedding(articleId, article.currentVersion, ordinal, vector, model, actor),
-      ),
-    );
+    // The embedding service caps one request, so a long article is sent in batches; a
+    // single oversized request was rejected outright, and the article then failed to index
+    // on every retry for as long as it existed.
+    for (let offset = 0; offset < passages.length; offset += EMBEDDING_BATCH_LIMIT) {
+      const { model, vectors } = await this.embeddings.embedPassages(
+        passages.slice(offset, offset + EMBEDDING_BATCH_LIMIT),
+      );
+      await Promise.all(
+        vectors.map((vector, index) =>
+          this.store.setEmbedding(
+            articleId,
+            article.currentVersion,
+            offset + index,
+            vector,
+            model,
+            actor,
+          ),
+        ),
+      );
+    }
   }
 }
 

@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 export const idSchema = z.uuid();
+
+// The most passages one request to the embedding service may carry. The service enforces
+// it, and every indexer has to split its sections into batches of at most this size: an
+// article with more sections than this used to fail indexing on every attempt.
+export const EMBEDDING_BATCH_LIMIT = 64;
 export const slugSchema = z
   .string()
   .min(1)

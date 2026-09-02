@@ -14,6 +14,7 @@ class WorkerEmbeddingClient {
   }
 
   embedPassages(values: string[]) {
+    if (!values.length) return Promise.resolve({ model: "", vectors: [] });
     return this.embed("passage", values);
   }
 

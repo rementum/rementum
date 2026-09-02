@@ -73,6 +73,42 @@ function articleRecord(overrides: Partial<ArticleRecord> = {}): ArticleRecord {
   } as ArticleRecord;
 }
 
+describe("article indexing", () => {
+  it("sends passages to the embedding service in batches the service accepts", async () => {
+    const { brain, key, service, store, embeddings } = setup();
+    const body = Array.from(
+      { length: 100 },
+      (_, index) => `## Section ${index}\n\nText ${index}.`,
+    ).join("\n\n");
+    const bodyAad = `brain:${brainId}:article:${articleId}:version:2`;
+    (store.readArticleBundle as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      article: articleRecord(),
+      brain,
+      version: { version: 2, body: encrypt(body, key, bodyAad), bodyAad, createdAt: new Date() },
+      links: [],
+      sources: [],
+      compactionEnabled: false,
+    });
+    const setEmbedding = vi.fn(async () => undefined);
+    (store as unknown as { setEmbedding: typeof setEmbedding }).setEmbedding = setEmbedding;
+    (embeddings.embedPassages as ReturnType<typeof vi.fn>).mockImplementation(
+      async (values: string[]) => ({ model: "test-model", vectors: values.map(() => [0.1]) }),
+    );
+
+    await service.reindexArticle(articleId, actor("editor"));
+
+    const batches = (embeddings.embedPassages as ReturnType<typeof vi.fn>).mock.calls.map(
+      ([values]) => (values as string[]).length,
+    );
+    expect(batches).toEqual([64, 36]);
+    expect(setEmbedding).toHaveBeenCalledTimes(100);
+    const ordinals = setEmbedding.mock.calls
+      .map((call) => (call as unknown[])[2])
+      .sort((a, b) => (a as number) - (b as number));
+    expect(ordinals).toEqual(Array.from({ length: 100 }, (_, index) => index));
+  });
+});
+
 function setup(options: { llmAvailable?: boolean } = {}) {
   const brain = brainRecord();
   const key = unwrapDataKey(brain.wrappedKey, masterKey, brainId);
