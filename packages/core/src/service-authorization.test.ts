@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WrappedKey } from "./crypto.js";
-import { encrypt, generateDataKey, unwrapDataKey, wrapDataKey } from "./crypto.js";
+import { decrypt, encrypt, generateDataKey, unwrapDataKey, wrapDataKey } from "./crypto.js";
 import { ConflictError, ForbiddenError, LlmUnavailableError, NotFoundError } from "./errors.js";
 import { RementumService } from "./service.js";
 import type {
@@ -72,6 +72,45 @@ function articleRecord(overrides: Partial<ArticleRecord> = {}): ArticleRecord {
     ...overrides,
   } as ArticleRecord;
 }
+
+describe("promotion", () => {
+  it("seals the promoted body under its version position", async () => {
+    const { key, service, store } = setup();
+    const staged = await store.getStagedWrite("any", actor("editor"));
+    if (!staged) throw new Error("Expected the fake staged write");
+    const plaintext = decrypt(staged.body, key, staged.bodyAad).toString("utf8");
+    vi.mocked(store.promoteStagedWrite).mockImplementationOnce(
+      async (_input, _actor, _llm, sealVersion) => {
+        const sealed = sealVersion(staged, 3);
+        expect(sealed.bodyAad).toBe(`brain:${brainId}:article:${staged.articleId}:version:3`);
+        expect(sealed.bodyAad).not.toBe(staged.bodyAad);
+        expect(decrypt(sealed.body, key, sealed.bodyAad).toString("utf8")).toBe(plaintext);
+        return { write: staged, article: articleRecord(), version: { version: 3 } } as never;
+      },
+    );
+    await service.promoteWrite(
+      { writeId: staged.id, decision: "promote", decisionSummary: "ok" },
+      actor("editor"),
+    );
+    expect(store.promoteStagedWrite).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("maintenance", () => {
+  it("checks the brain role before a candidate is changed", async () => {
+    const { service, store } = setup();
+    (store as unknown as { getMaintenanceCandidate: unknown }).getMaintenanceCandidate = vi.fn(
+      async () => ({ id: "candidate", brainId, status: "open" }),
+    );
+    (store as unknown as { updateMaintenance: unknown }).updateMaintenance = vi.fn();
+    await expect(
+      service.updateMaintenance("candidate", "dismissed", actor("viewer")),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(
+      (store as unknown as { updateMaintenance: ReturnType<typeof vi.fn> }).updateMaintenance,
+    ).not.toHaveBeenCalled();
+  });
+});
 
 describe("article indexing", () => {
   it("sends passages to the embedding service in batches the service accepts", async () => {
@@ -183,7 +222,7 @@ function setup(options: { llmAvailable?: boolean } = {}) {
 
   function exportedVersions(count: number) {
     return Array.from({ length: count }, (_, index) => {
-      const bodyAad = `brain:${brainId}:article:${articleId}:version:${index + 1}`;
+      const bodyAad = `brain:${brainId}:article:${articleId}-${index}:version:${index + 1}`;
       return {
         articleId: `${articleId}-${index}`,
         slug: `article-${index}`,

@@ -28,6 +28,7 @@ import {
 import {
   ArticleGenerationError,
   ConflictError,
+  DomainError,
   ForbiddenError,
   LlmUnavailableError,
   NotFoundError,
@@ -208,11 +209,13 @@ export class RementumService {
     ).flat();
     const previous = pending.find((invitation) => invitation.id === invitationId);
     if (!previous) throw new NotFoundError("Pending team invitation");
+    requireTeamRole(actor, previous.teamId, ["owner", "admin"]);
     const actorRole = actor.teamRoles.get(previous.teamId);
     if (previous.role === "admin" && actorRole !== "owner") {
       throw new ForbiddenError("Only the team owner can resend an admin invitation");
     }
-    await this.store.revokeTeamInvitation(invitationId, actor);
+    // Creating the replacement revokes the earlier invitation for the same address in the
+    // same transaction, so a failure here leaves the pending invitation intact.
     return this.proposeTeamInvite(previous.teamId, previous.email, previous.role, actor);
   }
 
@@ -223,6 +226,7 @@ export class RementumService {
     ).flat();
     const invitation = pending.find((candidate) => candidate.id === invitationId);
     if (!invitation) throw new NotFoundError("Pending team invitation");
+    requireTeamRole(actor, invitation.teamId, ["owner", "admin"]);
     const actorRole = actor.teamRoles.get(invitation.teamId);
     if (invitation.role === "admin" && actorRole !== "owner") {
       throw new ForbiddenError("Only the team owner can revoke an admin invitation");
@@ -376,7 +380,11 @@ export class RementumService {
     const { article, brain, version, links, sources, compactionEnabled } = bundle;
     requireBrainRole(actor, article.brainId, ["owner", "editor", "commenter", "viewer"]);
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
-    const body = decrypt(version.body, key, version.bodyAad).toString("utf8");
+    const body = decrypt(
+      version.body,
+      key,
+      versionBodyAad(brain.id, article.id, version.version, version.bodyAad),
+    ).toString("utf8");
     await this.store.audit(actor, "article.read", `article:${articleId}`, {
       version: version.version,
     });
@@ -424,7 +432,11 @@ export class RementumService {
       summary: version.summary,
       kind: version.kind,
       version: version.version,
-      body: decrypt(version.body, key, version.bodyAad).toString("utf8"),
+      body: decrypt(
+        version.body,
+        key,
+        versionBodyAad(brain.id, version.articleId, version.version, version.bodyAad),
+      ).toString("utf8"),
     }));
     await this.store.audit(actor, "brain.exported", `brain:${brainId}`, {
       articleCount: articles.length,
@@ -471,7 +483,18 @@ export class RementumService {
     if (!brain) throw new NotFoundError("Brain");
     if (input.idempotencyKey) {
       const existing = await this.store.getStagedWriteByIdempotencyKey(input.idempotencyKey, actor);
-      if (existing) return existing;
+      if (existing) {
+        // Keys are unique per actor, not per brain. Returning the earlier write here would
+        // hand the caller a write against a brain they did not name, and a promote would
+        // then land in it.
+        if (existing.brainId !== input.brainId) {
+          throw new ConflictError("This idempotency key was already used for another brain", {
+            writeId: existing.id,
+            brainId: existing.brainId,
+          });
+        }
+        return existing;
+      }
     }
     if (input.articleId) {
       // The write only proves editor rights on input.brainId. Without this the target
@@ -530,7 +553,21 @@ export class RementumService {
     if (input.decision === "override" && write.stagedBy === actor.userId) {
       throw new ForbiddenError("The staging actor cannot approve their own override");
     }
-    const result = await this.store.promoteStagedWrite(input, actor, this.llmAvailable);
+    const brain = await this.store.getBrain(write.brainId, actor);
+    if (!brain) throw new NotFoundError("Brain");
+    const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
+    const result = await this.store.promoteStagedWrite(
+      input,
+      actor,
+      this.llmAvailable,
+      (staged, version) => {
+        if (!staged.articleId) throw new NotFoundError("Article");
+        return {
+          body: reencryptStagedBody(staged, key, staged.articleId, version),
+          bodyAad: contentAad(staged.brainId, staged.articleId, version),
+        };
+      },
+    );
     await this.store.audit(actor, "write.promoted", `write:${write.id}`, {
       version: result.version.version,
       decision: input.decision,
@@ -734,8 +771,10 @@ export class RementumService {
   }
 
   async updateMaintenance(candidateId: string, status: "resolved" | "dismissed", actor: Actor) {
+    const existing = await this.store.getMaintenanceCandidate(candidateId, actor);
+    if (!existing) throw new NotFoundError("Maintenance candidate");
+    requireBrainRole(actor, existing.brainId, ["owner", "editor"]);
     const candidate = await this.store.updateMaintenance(candidateId, status, actor);
-    requireBrainRole(actor, candidate.brainId, ["owner", "editor"]);
     await this.store.audit(actor, `maintenance.${status}`, `brain:${candidate.brainId}`, {
       candidateId,
     });
@@ -790,7 +829,8 @@ export class RementumService {
     ]);
     if (!brain || !version) throw new NotFoundError("Compaction source version");
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
-    const sourceBody = decrypt(version.body, key, version.bodyAad).toString("utf8");
+    const bodyAad = versionBodyAad(brain.id, version.articleId, version.version, version.bodyAad);
+    const sourceBody = decrypt(version.body, key, bodyAad).toString("utf8");
     let generated: Awaited<ReturnType<ArticleGenerator["generateArticle"]>>;
     try {
       generated = await this.compactionGenerator.generateArticle({
@@ -801,7 +841,7 @@ export class RementumService {
       if (error instanceof ArticleGenerationError) throw error;
       throw new ArticleGenerationError();
     }
-    const encrypted = encrypt(generated.body, key, version.bodyAad);
+    const encrypted = encrypt(generated.body, key, bodyAad);
     const result = await this.store.completeCompaction(
       job.id,
       claim.claimId,
@@ -824,7 +864,11 @@ export class RementumService {
   }
 
   async failClaimedCompaction(claim: ClaimedCompactionJob, error: unknown, actor: Actor) {
-    const message = compactErrorMessage(error);
+    // Generation errors carry fixed, reviewable messages; anything else is a database or
+    // network fault whose text belongs in the worker log, not on the article page.
+    const message = compactErrorMessage(
+      error instanceof ArticleGenerationError ? error : new ArticleGenerationError(),
+    );
     const retryAt =
       claim.attempts === 1
         ? new Date(Date.now() + 60_000)
@@ -1011,6 +1055,27 @@ function articleCompactionView(
 
 export function stagedBodyAad(write: StagedWriteRecord): string {
   return write.bodyAad;
+}
+
+/**
+ * The AAD a stored version body must have been sealed under.
+ *
+ * Versions are bound to their position, so the expected value is recomputed from it rather
+ * than read from the row: a row whose AAD was copied along with its ciphertext from another
+ * version would otherwise decrypt cleanly. Versions promoted before promotion re-encrypted
+ * kept the AAD of the staged write they came from; those are accepted only when they name
+ * this brain and article.
+ */
+export function versionBodyAad(
+  brainId: string,
+  articleId: string,
+  version: number,
+  storedAad: string,
+): string {
+  const expected = contentAad(brainId, articleId, version);
+  if (storedAad === expected) return expected;
+  if (storedAad.startsWith(`brain:${brainId}:article:${articleId}:write:`)) return storedAad;
+  throw new DomainError("decryption_failed", "Encrypted content could not be authenticated", 500);
 }
 
 export function reencryptStagedBody(

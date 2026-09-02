@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { encrypt, hashContent, RementumService, unwrapDataKey } from "@rementum/core";
+import { contentAad, encrypt, hashContent, RementumService, unwrapDataKey } from "@rementum/core";
 import { describe, expect, it } from "vitest";
 import { AuthRepository } from "./auth.js";
 import { createDatabaseClient } from "./client.js";
@@ -193,6 +193,10 @@ integration("vector candidate ranking", () => {
           { writeId, decision: "promote", decisionSummary: "seed" },
           ownerActor,
           false,
+          (_write, version) => ({
+            body: encrypt(body, key, contentAad(record.id, articleId, version)),
+            bodyAad: contentAad(record.id, articleId, version),
+          }),
         );
         const vector = index === total - 1 ? query : far;
         await store.setEmbedding(articleId, 1, 0, vector, "model-a", ownerActor);

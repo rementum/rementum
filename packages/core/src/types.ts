@@ -223,6 +223,11 @@ export interface ArticleGenerator {
 
 export type ResolvedStageWriteInput = StageWriteInput & GeneratedArticle;
 
+export interface SealedBody {
+  body: CipherEnvelope;
+  bodyAad: string;
+}
+
 export interface DataStore {
   createTeam(
     name: string,
@@ -342,15 +347,21 @@ export interface DataStore {
     status?: StagedWriteRecord["status"],
   ): Promise<StagedWriteRecord[]>;
   withdrawStagedWrite(id: string, actor: Actor): Promise<StagedWriteRecord>;
+  /**
+   * `sealVersion` re-encrypts the staged body for the version number the store assigns, so
+   * the stored ciphertext is bound to its final position rather than to the staged write.
+   */
   promoteStagedWrite(
     input: PromoteWriteInput,
     actor: Actor,
     llmAvailable: boolean,
+    sealVersion: (write: StagedWriteRecord, version: number) => SealedBody,
   ): Promise<{ write: StagedWriteRecord; article: ArticleRecord; version: VersionRecord }>;
   queueWorkspaceCurrentCompactions(workspaceId: string, actor: Actor): Promise<number>;
   queueArticleCompaction(articleId: string, actor: Actor): Promise<ArticleRecord>;
   cancelWorkspaceCompactions(workspaceId: string, actor: Actor): Promise<string[]>;
   getCompactionJob(jobId: string, actor: Actor): Promise<CompactionJobRecord | null>;
+  extendCompactionLease(jobId: string, claimId: string, leaseSeconds: number): Promise<boolean>;
   completeCompaction(
     jobId: string,
     claimId: string,
@@ -422,6 +433,7 @@ export interface DataStore {
     actor: Actor,
     page?: { limit: number; offset: number },
   ): Promise<MaintenanceCandidate[]>;
+  getMaintenanceCandidate(candidateId: string, actor: Actor): Promise<MaintenanceCandidate | null>;
   updateMaintenance(
     candidateId: string,
     status: "resolved" | "dismissed",

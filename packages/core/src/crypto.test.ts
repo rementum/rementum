@@ -1,4 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { parseMasterKey } from "./crypto.js";
+
+describe("parseMasterKey", () => {
+  it("accepts a standard base64 32-byte key with or without padding", () => {
+    const key = Buffer.alloc(32, 9).toString("base64");
+    expect(parseMasterKey(key)).toEqual(Buffer.alloc(32, 9));
+    expect(parseMasterKey(`${key.replace(/=$/, "")}\n`)).toEqual(Buffer.alloc(32, 9));
+  });
+
+  it("rejects keys with characters the decoder would silently drop", () => {
+    const key = Buffer.alloc(32, 9).toString("base64");
+    expect(() => parseMasterKey(`${key.slice(0, 10)}!${key.slice(11)}`)).toThrow(/32-byte/);
+    expect(() => parseMasterKey("too-short")).toThrow(/32-byte/);
+  });
+});
+
 import {
   contentAad,
   decrypt,

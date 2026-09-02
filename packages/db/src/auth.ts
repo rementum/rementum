@@ -269,6 +269,20 @@ export class AuthRepository {
     `;
   }
 
+  /**
+   * Removes OAuth records past their expiry. Nothing else ever deleted them, so every access
+   * token and code issued stayed in the table and each grant lookup scanned all of them.
+   */
+  async pruneExpiredOauthRecords(olderThanSeconds = 24 * 60 * 60): Promise<number> {
+    const rows = await this.client.sql<Array<{ id: string }>>`
+      DELETE FROM oauth_records
+      WHERE expires_at IS NOT NULL
+        AND expires_at < now() - (${olderThanSeconds} * interval '1 second')
+      RETURNING id
+    `;
+    return rows.length;
+  }
+
   async listConnections(userId: string) {
     const rows = await this.client.sql<any[]>`
       SELECT grants.id, grants.payload, clients.payload AS client
