@@ -116,6 +116,9 @@ export interface VersionRecord {
   createdAt: Date;
 }
 
+/** A version without its ciphertext, for history listings that never decrypt. */
+export type VersionSummary = Omit<VersionRecord, "body" | "bodyAad">;
+
 /** Everything one article view needs, read together. */
 export interface ArticleBundle {
   article: ArticleRecord;
@@ -317,7 +320,7 @@ export interface DataStore {
     version: number,
     actor: Actor,
   ): Promise<Array<SourceInput & { id: string }>>;
-  listArticleVersions(articleId: string, actor: Actor): Promise<VersionRecord[]>;
+  listArticleVersions(articleId: string, actor: Actor): Promise<VersionSummary[]>;
   /** Null when the article is not visible; throws when its brain or version is missing. */
   readArticleBundle(articleId: string, actor: Actor): Promise<ArticleBundle | null>;
   listCurrentVersions(brainId: string, actor: Actor, limit: number): Promise<ExportedVersion[]>;

@@ -40,6 +40,7 @@ import {
   type TeamMemberRecord,
   type TeamRecord,
   type VersionRecord,
+  type VersionSummary,
   type WorkspaceRecord,
   type WrappedKey,
 } from "@rementum/core";
@@ -679,12 +680,30 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async listArticleVersions(articleId: string, actor: Actor): Promise<VersionRecord[]> {
+  // History never decrypts, so the ciphertext of every version stays in the database
+  // instead of crossing to the API only to be stripped before the response.
+  async listArticleVersions(articleId: string, actor: Actor): Promise<VersionSummary[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
-        SELECT * FROM article_versions WHERE article_id = ${articleId} ORDER BY version DESC
+        SELECT id, brain_id, article_id, version, body_hash, change_summary, sources, actor_id,
+               client_id, created_at
+        FROM article_versions WHERE article_id = ${articleId} ORDER BY version DESC
       `;
-      return rows.map(mapVersion);
+      return rows.map((row) => {
+        const {
+          body: _body,
+          bodyAad: _bodyAad,
+          ...summary
+        } = mapVersion({
+          ...row,
+          body_ciphertext: Buffer.alloc(0),
+          body_nonce: Buffer.alloc(0),
+          body_tag: Buffer.alloc(0),
+          cipher_version: 1,
+          body_aad: "",
+        });
+        return summary;
+      });
     });
   }
 
