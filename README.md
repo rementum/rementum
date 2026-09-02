@@ -27,7 +27,7 @@ replaces the previous version, so two agents never overwrite each other's work.
 
 - 🧠 **Agent-first:** agents read a compact routing index, then open only the article it points to.
 - 📝 **Staged writes:** each proposal is checked against live canon before it lands; conflicts wait for review instead of overwriting.
-- 🔒 **Encrypted at rest:** article bodies use a per-brain key. The master key never touches the database or backups.
+- 🔒 **Envelope encryption:** article bodies use per-brain keys and position-bound AAD; titles and metadata stay searchable.
 - 🔎 **Hybrid search:** Rementum fuses routing metadata, PostgreSQL full-text, and local multilingual embeddings.
 - 🤝 **Coordinated agents:** leased tasks and maintenance proposals flow back through the same staged protocol.
 - 📦 **Yours to keep:** self-hosted, open source, and exportable as Markdown whenever you want.
@@ -72,10 +72,14 @@ requirements, backups, and recovery.
 
 ## Security
 
-Rementum encrypts article and version bodies at rest. External LLM capability and workspace compaction
-are **off by default**. With both on, the worker sends a version's title and body to the provider in
-plaintext to compact it. Treat routing metadata and embeddings as sensitive derived data; they stay
-searchable. Rementum never stores the master key in the database or backups.
+Rementum uses application-layer envelope encryption with searchable metadata. Article and version
+bodies are encrypted with AES-256-GCM using per-brain data keys sealed with position-bound AAD,
+wrapped by an instance master key that never touches the database or backups. Article titles,
+routing summaries, slugs, backlinks, and vector embeddings remain unencrypted in PostgreSQL so
+hybrid search works without client-side decryption; treat them as sensitive derived data.
+
+External LLM capability and workspace compaction are **off by default**. With both on, the worker
+sends a version's title and body to the provider in plaintext to compact it.
 
 Read [SECURITY.md](SECURITY.md) and the [security checklist](https://rementum.dev/docs/security/) before you store private
 knowledge. Report vulnerabilities through the process in SECURITY.md, not a public issue.
