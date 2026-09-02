@@ -260,6 +260,19 @@ export async function registerOauthRoutes(
     };
   });
   app.get("/.well-known/jwks.json", async () => runtime.publicJwks);
+
+  // The issuer lives under /oauth, so RFC 8414 places its metadata at the path-aware
+  // location and some clients also try the root; both lead to the document the provider
+  // serves under the issuer itself.
+  const discovery = `${runtime.issuer}/.well-known/openid-configuration`;
+  for (const path of [
+    "/.well-known/oauth-authorization-server",
+    "/.well-known/oauth-authorization-server/oauth",
+    "/.well-known/openid-configuration",
+    "/.well-known/openid-configuration/oauth",
+  ]) {
+    app.get(path, async (_request, reply) => reply.redirect(discovery, 302));
+  }
 }
 
 /**
