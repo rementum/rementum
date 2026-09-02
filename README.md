@@ -20,34 +20,37 @@ Self-hosted shared memory for Claude, Codex, Cursor, and any remote MCP client.
 ---
 
 Rementum gives your agents a memory they can trust. Knowledge lives in linked, encrypted Markdown
-articles, and **every canonical change is staged, versioned, attributed, and conflict-checked** before
-it replaces what came before — so agents can write to shared memory without silently overwriting it.
+articles. **Every canonical change is staged, versioned, attributed, and conflict-checked** before it
+replaces the previous version, so two agents never overwrite each other's work.
 
 ## Why Rementum
 
-- 🧠 **Agent-first** — a compact routing index lets agents find the right article, then open only that one.
-- 📝 **Staged writes** — proposals are reviewed against live canon; conflicts are parked, not merged blindly.
-- 🔒 **Encrypted at rest** — article bodies use a per-brain key; the master key never touches the database or backups.
-- 🔎 **Hybrid search** — routing metadata, PostgreSQL full-text, and local multilingual embeddings, fused.
-- 🤝 **Coordinated agents** — leased tasks and maintenance proposals flow back through the same staged protocol.
-- 📦 **Yours to keep** — self-hosted, open source, and exportable as portable Markdown at any time.
+- 🧠 **Agent-first:** agents read a compact routing index, then open only the article it points to.
+- 📝 **Staged writes:** each proposal is checked against live canon before it lands; conflicts wait for review instead of overwriting.
+- 🔒 **Encrypted at rest:** article bodies use a per-brain key. The master key never touches the database or backups.
+- 🔎 **Hybrid search:** Rementum fuses routing metadata, PostgreSQL full-text, and local multilingual embeddings.
+- 🤝 **Coordinated agents:** leased tasks and maintenance proposals flow back through the same staged protocol.
+- 📦 **Yours to keep:** self-hosted, open source, and exportable as Markdown whenever you want.
 
-## Architecture
+## How it works
+
+An agent never loads the whole brain. It reads a compact index, opens the one article it needs, and
+proposes changes through a staged protocol that checks for conflicts before anything replaces the
+current version.
 
 ```mermaid
-flowchart LR
-    A["MCP clients<br/>Claude · Codex · Cursor"] -->|OAuth over HTTP| B(Caddy)
-    U["Browser"] -->|session| B
-    B --> API["Fastify API<br/>REST · MCP · OAuth"]
-    B --> WEB["Next.js web"]
-    API --> DB[("PostgreSQL<br/>+ pgvector")]
-    WEB --> API
-    WORK["Worker<br/>maintenance · compaction"] --> DB
-    API -->|embeddings| EMB["Local embeddings"]
-    WORK -.->|opt-in| LLM["AI provider"]
+flowchart TD
+    IDX[Agent reads the routing index] --> ART[Opens the one article it needs]
+    ART --> STG[Stages a write against a base version]
+    STG --> CHK{Base still the current version?}
+    CHK -->|yes| PRM[Promote]
+    CHK -->|no| PRK[Parked as a conflict]
+    PRK -->|reviewer resolves| PRM
+    PRM --> VER[New immutable version + audit event]
+    VER -.->|opt-in| CMP[Worker compacts title, summary, body]
 ```
 
-Article summaries are generated locally by default. Workspace owners can opt into deferred title,
+Rementum writes article summaries locally by default. Workspace owners can opt into deferred title,
 summary, and body compaction through an OpenAI-compatible provider.
 
 ## Quick start
@@ -69,22 +72,22 @@ requirements, backups, and recovery.
 
 ## Security
 
-Article and version bodies are encrypted at rest. External LLM capability and workspace compaction are
-**off by default**; when both are enabled, the worker sends a version's title and body to the provider
-in plaintext to compact it. Routing metadata and embeddings stay searchable and must be treated as
-sensitive derived data. The master key is never stored in the database or backups.
+Rementum encrypts article and version bodies at rest. External LLM capability and workspace compaction
+are **off by default**. With both on, the worker sends a version's title and body to the provider in
+plaintext to compact it. Treat routing metadata and embeddings as sensitive derived data; they stay
+searchable. Rementum never stores the master key in the database or backups.
 
-Read [SECURITY.md](SECURITY.md) and the [security checklist](docs/security.md) before storing private
-knowledge, and report vulnerabilities privately rather than in an issue.
+Read [SECURITY.md](SECURITY.md) and the [security checklist](docs/security.md) before you store private
+knowledge. Report vulnerabilities through the process in SECURITY.md, not a public issue.
 
-## Documentation & contributing
+## Documentation and contributing
 
-Full docs live at **[rementum.dev/docs](https://rementum.dev/docs/)** (configuration, backups, upgrades,
-security, and agent connections) and in [`docs/`](docs/index.md). For local setup and checks, read
-[docs/development.md](docs/development.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+The full docs live at **[rementum.dev/docs](https://rementum.dev/docs/)** and in
+[`docs/`](docs/index.md): configuration, backups, upgrades, security, and agent connections. For local
+setup and checks, read [docs/development.md](docs/development.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
-> **Status:** active development toward a production beta. REST and MCP contracts are versioned;
-> backward compatibility is not promised until 1.0.
+> **Status:** active development toward a production beta. REST and MCP contracts are versioned. We
+> don't promise backward compatibility until 1.0.
 
 ## License
 
