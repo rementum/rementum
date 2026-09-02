@@ -41,3 +41,17 @@ describe("ArticleMarkdown", () => {
     expect(html).not.toContain("javascript:");
   });
 });
+
+describe("images", () => {
+  it("renders a remote image as a link instead of loading it", () => {
+    const html = renderToStaticMarkup(
+      createElement(ArticleMarkdown, {
+        body: "Diagram: ![the diagram](https://attacker.example/pixel.png)",
+      }),
+    );
+    expect(html).not.toContain("<img");
+    expect(html).toContain('href="https://attacker.example/pixel.png"');
+    expect(html).toContain(">the diagram<");
+    expect(html).toContain('rel="noreferrer noopener nofollow"');
+  });
+});
