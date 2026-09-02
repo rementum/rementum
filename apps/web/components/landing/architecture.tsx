@@ -7,10 +7,10 @@ import { RevealGroup, RevealItem } from "./reveal";
 import { SectionHead } from "./section-head";
 
 const NODES = [
-  ["Clients", "Codex, Claude Code, OpenCode"],
-  ["Gateway", "Caddy, OAuth, MCP"],
-  ["Application", "Fastify, Next.js, local summaries or AI compaction"],
-  ["Storage", "PostgreSQL, pgvector, Markdown"],
+  ["Connect", "An MCP client authenticates per agent over OAuth"],
+  ["Propose", "The agent stages each change against a base version"],
+  ["Check", "Rementum parks conflicts before they overwrite canon"],
+  ["Version", "Promotion records an immutable, audited version"],
 ] as const;
 
 export function Architecture() {
@@ -28,9 +28,9 @@ export function Architecture() {
       </LazyCanvas>
       <div className="pointer-events-none relative mx-auto w-full max-w-6xl px-6">
         <div className="pointer-events-auto">
-          <SectionHead kicker="Self-hosted" title="Run it on your own stack.">
-            You control OAuth, MCP, search, embeddings, and storage. Article generation stays local
-            unless you enable an OpenAI-compatible AI provider to compact staged knowledge.
+          <SectionHead kicker="Architecture" title="How a change reaches canon.">
+            A client authenticates per agent, stages each change, and Rementum versions it only
+            after a conflict check. You host every part yourself.
           </SectionHead>
         </div>
         <RevealGroup className="pointer-events-auto grid gap-3 md:grid-cols-4" role="list">
