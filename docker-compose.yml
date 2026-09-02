@@ -1,5 +1,9 @@
+# Every service refuses privilege escalation, and the services that run as an unprivileged
+# user on a high port also drop every Linux capability. Caddy binds 80 and 443 as root, and
+# PostgreSQL, migrate, backup, and restore run one-off root commands, so those keep theirs.
 services:
   caddy:
+    security_opt: ["no-new-privileges:true"]
     image: caddy:2.10.2-alpine
     restart: unless-stopped
     ports:
@@ -21,6 +25,8 @@ services:
         condition: service_healthy
 
   web:
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -46,6 +52,8 @@ services:
       retries: 10
 
   docs:
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     build:
       context: .
       dockerfile: deploy/docs/Dockerfile
@@ -57,6 +65,7 @@ services:
       retries: 10
 
   migrate:
+    security_opt: ["no-new-privileges:true"]
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -74,6 +83,8 @@ services:
   # a superuser connection string inside the API would bypass row-level security for
   # anyone who found a way to read that process's environment.
   api:
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -100,6 +111,8 @@ services:
       retries: 10
 
   worker:
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
@@ -127,6 +140,8 @@ services:
         condition: service_completed_successfully
 
   embeddings:
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     build:
       context: .
       dockerfile: apps/embeddings/Dockerfile
@@ -152,6 +167,7 @@ services:
       retries: 30
 
   postgres:
+    security_opt: ["no-new-privileges:true"]
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
@@ -171,6 +187,7 @@ services:
       retries: 20
 
   backup:
+    security_opt: ["no-new-privileges:true"]
     profiles: ["backup"]
     build:
       context: .
@@ -194,6 +211,7 @@ services:
         condition: service_healthy
 
   restore:
+    security_opt: ["no-new-privileges:true"]
     profiles: ["restore"]
     build:
       context: .

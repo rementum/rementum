@@ -7,6 +7,9 @@ docker compose -f docker-compose.yml -f compose.production.yml ps
 docker compose -f docker-compose.yml -f compose.production.yml logs -f api web worker
 ```
 
+Caddy's access log redacts email verification, password reset, and invitation tokens from the
+logged URL, so it can be shipped to a log system without carrying account-creating secrets.
+
 The public probes are:
 
 - `/healthz` checks PostgreSQL and the embedding service.
