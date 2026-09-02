@@ -93,13 +93,15 @@ integration("embedding model changes", () => {
       );
       expect(staleModel).toEqual([]);
 
+      // A wide window: on a database reused between local runs, older unindexed rows
+      // would otherwise push this article out of the worker's first page.
       const unindexedForA = await database.sql<Array<{ article_id: string }>>`
-        SELECT article_id FROM owl_worker_unindexed_articles(100, 'model-a')
+        SELECT article_id FROM owl_worker_unindexed_articles(10000, 'model-a')
       `;
       expect(unindexedForA.map((row) => row.article_id)).not.toContain(promoted.article.id);
 
       const unindexedForB = await database.sql<Array<{ article_id: string }>>`
-        SELECT article_id FROM owl_worker_unindexed_articles(100, 'model-b')
+        SELECT article_id FROM owl_worker_unindexed_articles(10000, 'model-b')
       `;
       expect(unindexedForB.map((row) => row.article_id)).toContain(promoted.article.id);
     } finally {

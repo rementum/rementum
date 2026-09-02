@@ -93,6 +93,50 @@ integration("promotion protocol", () => {
     }
   });
 
+  it("lists writes awaiting review across the workspace with per-brain counts", async () => {
+    if (!databaseUrl) return;
+    const database = createDatabaseClient(databaseUrl, 2);
+    const auth = new AuthRepository(database);
+    const store = new PostgresStore(database);
+    const service = new RementumService(store, embeddings, Buffer.alloc(32, 7));
+    try {
+      const { ownerActor, brainId, owner, suffix } = await seed(store, auth, service);
+      const other = await service.createBrain(
+        {
+          workspaceId: owner.workspaceId,
+          slug: `queue-${suffix}`,
+          name: "Queue brain",
+          description: "",
+          instructions: "",
+        },
+        ownerActor,
+      );
+      await service.stageWrite(createInput(brainId, "first"), ownerActor);
+      await service.stageWrite(createInput(brainId, "second"), ownerActor);
+      const promotedLater = await service.stageWrite(createInput(brainId, "third"), ownerActor);
+      await service.promoteWrite(
+        { writeId: promotedLater.id, decision: "promote", decisionSummary: "ok" },
+        ownerActor,
+      );
+      await service.stageWrite(createInput(other.brain.id, "elsewhere"), ownerActor);
+
+      const queue = await service.listWorkspaceReviewQueue(owner.workspaceId, ownerActor);
+      expect(queue.items.map((item) => item.slug).sort()).toEqual(["elsewhere", "first", "second"]);
+      expect(queue.items.find((item) => item.slug === "elsewhere")?.brainName).toBe("Queue brain");
+      expect(queue.counts.sort((a, b) => a.brainId.localeCompare(b.brainId))).toEqual(
+        [
+          { brainId, pending: 2, conflicted: 0 },
+          { brainId: other.brain.id, pending: 1, conflicted: 0 },
+        ].sort((a, b) => a.brainId.localeCompare(b.brainId)),
+      );
+      expect(
+        (await service.listWorkspaceReviewQueue(owner.workspaceId, ownerActor, 1)).items,
+      ).toHaveLength(1);
+    } finally {
+      await database.close();
+    }
+  });
+
   it("keeps idempotency keys race safe and inside their brain", async () => {
     if (!databaseUrl) return;
     const database = createDatabaseClient(databaseUrl, 4);
@@ -234,6 +278,57 @@ integration("promotion protocol", () => {
       await service.scanMaintenance(brainId, ownerActor);
       const after = await store.getMaintenanceCandidate(stale.id, ownerActor);
       expect(after?.status).toBe("dismissed");
+    } finally {
+      await database.close();
+    }
+  });
+});
+
+integration("row-level security on deletes", () => {
+  it("lets a viewer read a brain but not delete from it at the database layer", async () => {
+    if (!databaseUrl) return;
+    const database = createDatabaseClient(databaseUrl, 2);
+    const auth = new AuthRepository(database);
+    const store = new PostgresStore(database);
+    const service = new RementumService(store, embeddings, Buffer.alloc(32, 7));
+    try {
+      const { ownerActor, brainId, suffix } = await seed(store, auth, service);
+      const write = await service.stageWrite(createInput(brainId, "guarded"), ownerActor);
+      const promoted = await service.promoteWrite(
+        { writeId: write.id, decision: "promote", decisionSummary: "ok" },
+        ownerActor,
+      );
+      const invitation = await service.proposeInvite(
+        brainId,
+        `viewer-${suffix}@example.test`,
+        "viewer",
+        ownerActor,
+      );
+      const accepted = await auth.acceptBrainInvitation(
+        hashContent(invitation.token),
+        null,
+        "Viewer",
+        "viewer-hash",
+      );
+      const viewer = await store.loadActor(accepted.userId, "integration-test");
+      expect(viewer.brainRoles.get(brainId)).toBe("viewer");
+      expect((await service.readArticle(promoted.article.id, viewer)).body).toBe("A durable body.");
+
+      const deleted = await database.sql.begin(async (tx) => {
+        await setActorConfig(tx, viewer);
+        const articles =
+          await tx`DELETE FROM articles WHERE id = ${promoted.article.id} RETURNING id`;
+        const versions =
+          await tx`DELETE FROM article_versions WHERE article_id = ${promoted.article.id} RETURNING id`;
+        const members =
+          await tx`DELETE FROM brain_members WHERE brain_id = ${brainId} RETURNING user_id`;
+        return articles.length + versions.length + members.length;
+      });
+      expect(deleted).toBe(0);
+      expect(await store.getArticle(promoted.article.id, ownerActor)).not.toBeNull();
+      expect(
+        (await store.loadActor(ownerActor.userId, "integration-test")).brainRoles.get(brainId),
+      ).toBe("owner");
     } finally {
       await database.close();
     }
