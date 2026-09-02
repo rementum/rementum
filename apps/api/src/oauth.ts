@@ -175,8 +175,8 @@ export async function registerOauthRoutes(
   });
 
   app.post("/oauth/interaction/:uid/login", loginRateLimit, async (request, reply) => {
-    const body = request.body as { email?: string; password?: string };
-    const user = await verifyCredentials(body.email ?? "", body.password ?? "");
+    const body = loginFormFields(request.body);
+    const user = await verifyCredentials(body.email, body.password);
     if (!user) {
       return html(reply.code(401)).send(
         interactionPage(
@@ -260,6 +260,21 @@ export async function registerOauthRoutes(
     };
   });
   app.get("/.well-known/jwks.json", async () => runtime.publicJwks);
+}
+
+/**
+ * The sign-in form body is whatever the browser (or anything else) posted. A repeated
+ * field arrives as an array, and calling `.trim()` on it used to crash the request with a
+ * 500; anything that is not a plain string is treated as a wrong password instead.
+ */
+export function loginFormFields(body: unknown): { email: string; password: string } {
+  const parsed = z
+    .object({
+      email: z.string().max(320).default(""),
+      password: z.string().max(1000).default(""),
+    })
+    .safeParse(body ?? {});
+  return parsed.success ? parsed.data : { email: "", password: "" };
 }
 
 export function workspaceIdFromResource(resource: string, publicUrl: string): string | null {
