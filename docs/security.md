@@ -33,6 +33,10 @@ limited to the workspace and optional brain/article identifiers, OAuth client id
 name, and timestamp. It does not retain tool arguments, prompts, queries, outputs, errors, IP
 addresses, or user ids. Use encrypted disks and encrypted backups.
 
+Every version body is sealed with additional authenticated data that names its brain, article, and
+version number, and readers recompute that value from the row's position rather than trusting a
+stored copy, so ciphertext moved between versions or articles fails to decrypt.
+
 ## Article generation mode
 
 The default local mode preserves submitted titles and bodies, derives routing summaries inside the
