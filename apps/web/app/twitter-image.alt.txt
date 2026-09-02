@@ -1,0 +1,1 @@
+Rementum — self-hosted, versioned memory for AI agents

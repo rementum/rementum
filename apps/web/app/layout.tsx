@@ -5,7 +5,7 @@ import { AppNavigation } from "../components/app-navigation";
 import { PublicNav } from "../components/public-nav";
 import { StickyBanner } from "../components/pui";
 import { hasSession, publicAuthConfig, workspaceContext } from "../lib/api";
-import { GITHUB_URL } from "../lib/site";
+import { GITHUB_URL, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
 import "./globals.css";
 
 // Fonts are vendored (Inter + JetBrains Mono, OFL) and loaded from disk so the production
@@ -24,12 +24,59 @@ const jetbrainsMono = localFont({
   display: "swap",
 });
 
+// metadataBase makes every relative Open Graph and canonical URL absolute; the file-based
+// opengraph-image.png / twitter-image.png and icon.svg / apple-icon.png are picked up automatically.
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Rementum",
+    default: "Rementum — Self-hosted, versioned memory for AI agents",
     template: "%s | Rementum",
   },
-  description: "One versioned brain behind every agent.",
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: "technology",
+  keywords: [
+    "AI agent memory",
+    "shared memory for AI agents",
+    "Model Context Protocol",
+    "MCP server",
+    "self-hosted knowledge base",
+    "versioned Markdown",
+    "agent knowledge base",
+    "Claude",
+    "Codex",
+    "Cursor",
+    "open source",
+    "pgvector",
+  ],
+  formatDetection: { telephone: false, address: false, email: false },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    url: SITE_URL,
+    title: "Rementum — Self-hosted, versioned memory for AI agents",
+    description: SITE_DESCRIPTION,
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Rementum — Self-hosted, versioned memory for AI agents",
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
 };
 
 // Deep Graphite / Ivory tint the browser chrome to match the surface behind the page.
