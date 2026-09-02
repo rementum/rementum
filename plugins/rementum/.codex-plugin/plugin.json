@@ -12,7 +12,7 @@
   "keywords": ["memory", "knowledge", "mcp", "agents"],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Rementum",
+    "displayName": "Rementum Memory",
     "shortDescription": "Durable shared memory for coding agents",
     "longDescription": "Load relevant project context, preserve verified decisions, import knowledge, and maintain shared brains through Rementum.",
     "developerName": "Rementum",

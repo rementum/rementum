@@ -3,9 +3,13 @@
   "owner": {
     "name": "Rementum"
   },
+  "metadata": {
+    "description": "Durable shared memory for coding agents."
+  },
   "plugins": [
     {
       "name": "rementum",
+      "displayName": "Rementum Memory",
       "source": "plugins/rementum",
       "description": "Load context and preserve verified project knowledge through Rementum.",
       "version": "0.1.0",
