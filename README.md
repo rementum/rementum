@@ -39,7 +39,7 @@ proposes changes through a staged protocol that checks for conflicts before anyt
 current version.
 
 ```mermaid
-flowchart TD
+flowchart LR
     IDX[Agent reads the routing index] --> ART[Opens the one article it needs]
     ART --> STG[Stages a write against a base version]
     STG --> CHK{Base still the current version?}
