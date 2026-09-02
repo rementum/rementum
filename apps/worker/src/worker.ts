@@ -131,8 +131,14 @@ async function runPass() {
   const brains = await database.sql<Array<{ brain_id: string; owner_id: string }>>`
     SELECT * FROM owl_worker_brains()
   `;
+  // One brain that cannot be scanned must not stop the rest from being scanned, and must
+  // not abort the reindex and retry stages that follow.
   for (const brain of brains) {
-    await service.scanMaintenance(brain.brain_id, await actorFor(brain.owner_id));
+    try {
+      await service.scanMaintenance(brain.brain_id, await actorFor(brain.owner_id));
+    } catch (error) {
+      process.stderr.write(`Scanning ${brain.brain_id} failed: ${(error as Error).message}\n`);
+    }
   }
   // An article indexed under a different embedding model counts as unindexed, so switching
   // models re-embeds the whole corpus through this same pass. While the embedding service is
@@ -201,28 +207,41 @@ async function runCompactionPass() {
 }
 
 let stopping = false;
-const stop = async () => {
+let wake: (() => void) | null = null;
+// Closing the pool from the signal handler cut queries off mid-pass and left the loop
+// asleep for up to an hour before it noticed. The handler now only asks the loop to stop
+// and interrupts its sleep; the pool closes once the pass in flight has finished.
+const stop = () => {
   stopping = true;
-  await database.close();
+  wake?.();
 };
-process.on("SIGINT", () => void stop());
-process.on("SIGTERM", () => void stop());
+process.on("SIGINT", stop);
+process.on("SIGTERM", stop);
 
 let nextMaintenanceAt = 0;
 while (!stopping) {
   try {
     if (Date.now() >= nextMaintenanceAt) {
-      await runPass();
+      // Scheduled before the pass runs: a failing pass used to leave the deadline in the
+      // past, so the loop retried the whole pass on every poll tick.
       nextMaintenanceAt = Date.now() + intervalMs;
+      await runPass();
     }
     if (articleGenerator) await runCompactionPass();
   } catch (error) {
     process.stderr.write(`Worker pass failed: ${(error as Error).stack ?? error}\n`);
   }
-  await new Promise((resolve) =>
-    setTimeout(resolve, articleGenerator ? compactionPollMs : intervalMs),
-  );
+  if (stopping) break;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, articleGenerator ? compactionPollMs : intervalMs);
+    wake = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+  });
+  wake = null;
 }
+await database.close();
 
 function required(name: string): string {
   const value = process.env[name];
