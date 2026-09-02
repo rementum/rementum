@@ -6,6 +6,7 @@ import { FeatureGrid } from "../components/landing/feature-grid";
 import { LandingFooter } from "../components/landing/footer";
 import { Hero } from "../components/landing/hero";
 import { MotionProvider } from "../components/landing/motion-provider";
+import { Pricing } from "../components/landing/pricing";
 import { ScrollProgress } from "../components/landing/scroll-progress";
 import { SectionHead } from "../components/landing/section-head";
 import { Stepper } from "../components/landing/stepper";
@@ -29,6 +30,7 @@ export default async function Home() {
         <WorkflowLanding />
         <FeatureGrid />
         <Architecture />
+        <Pricing />
         <ConnectTeaser />
         <CTASection githubUrl={GITHUB_URL} />
         <LandingFooter githubUrl={GITHUB_URL} signupEnabled={authConfig.signupEnabled} />

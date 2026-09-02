@@ -35,7 +35,7 @@ export function CTASection({ githubUrl }: { githubUrl: string }) {
                 href={githubUrl}
                 iconNode={<IconGitHub className="size-[18px]" />}
                 title="Star us on GitHub"
-                subtitle="AGPL-3.0 · self-hosted"
+                subtitle="Free · self-hosted"
               />
             </div>
           </div>

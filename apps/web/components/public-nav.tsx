@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { DOCS_URL } from "../lib/site";
 import { BrandMark } from "./brand";
 import { Button } from "./pui";
 import { ThemeToggle } from "./ui/theme-toggle";
@@ -9,7 +10,9 @@ const LINKS = [
   { href: "/#workflow", label: "How it works" },
   { href: "/#features", label: "Features" },
   { href: "/#architecture", label: "Architecture" },
+  { href: "/#pricing", label: "Pricing" },
   { href: "/#connect", label: "Connect" },
+  { href: DOCS_URL, label: "Docs" },
 ];
 
 export function PublicNav({ signupEnabled }: { signupEnabled: boolean }) {
