@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {
+  contentAad,
   decrypt,
   encrypt,
   generateDataKey,
@@ -126,8 +127,8 @@ function setup(attempts = 1) {
 }
 
 describe("deferred article compaction", () => {
-  it("replaces the exact encrypted version with generated content", async () => {
-    const { brain, claim, generated, generator, service, store, version } = setup();
+  it("seals the generated content as the next version rather than over the source", async () => {
+    const { brain, claim, generated, generator, service, store } = setup();
 
     await expect(service.compactClaimedJob(claim, actor)).resolves.toMatchObject({
       articleId,
@@ -140,7 +141,9 @@ describe("deferred article compaction", () => {
     const complete = vi.mocked(store.completeCompaction).mock.calls[0];
     if (!complete) throw new Error("Missing compaction completion call");
     const key = unwrapDataKey(brain.wrappedKey, masterKey, brain.id);
-    expect(decrypt(complete[3], key, version.bodyAad).toString("utf8")).toBe(generated.body);
+    const sealed = complete[3](2);
+    expect(sealed.bodyAad).toBe(contentAad(brainId, articleId, 2));
+    expect(decrypt(sealed.body, key, sealed.bodyAad).toString("utf8")).toBe(generated.body);
     expect(complete[4]).toBe(hashContent(generated.body));
   });
 

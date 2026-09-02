@@ -846,23 +846,28 @@ export class RementumService {
       if (error instanceof ArticleGenerationError) throw error;
       throw new ArticleGenerationError();
     }
-    const encrypted = encrypt(generated.body, key, bodyAad);
     const result = await this.store.completeCompaction(
       job.id,
       claim.claimId,
       generated,
-      encrypted,
+      (nextVersion) => ({
+        body: encrypt(generated.body, key, contentAad(brain.id, job.articleId, nextVersion)),
+        bodyAad: contentAad(brain.id, job.articleId, nextVersion),
+      }),
       hashContent(generated.body),
       actor,
     );
     if (!result) return null;
     await this.store.audit(actor, "article.compacted", `article:${result.articleId}`, {
       version: result.version,
+      sourceVersion: job.articleVersion,
       attempt: job.attempts,
       current: result.current,
     });
     if (result.current) {
-      await this.store.clearEmbeddings(result.articleId, result.version, actor);
+      // Search ranks the current version only; the superseded version's vectors would
+      // just take space.
+      await this.store.clearEmbeddings(result.articleId, job.articleVersion, actor);
       await this.indexPromotedArticle(result.articleId, actor).catch(() => undefined);
     }
     return result;
@@ -923,6 +928,82 @@ export class RementumService {
       role,
     });
     return { ...invitation, expiresAt: expiresAt.toISOString(), token };
+  }
+
+  /**
+   * An invitation an agent proposes carries no token until a brain owner approves it in
+   * the web UI. Agents act under a person's identity, so the owner role alone cannot tell
+   * the person's own intent from an instruction planted in an article the agent read.
+   */
+  async requestInvite(
+    brainId: string,
+    email: string,
+    role: "editor" | "commenter" | "viewer",
+    actor: Actor,
+  ) {
+    requireBrainRole(actor, brainId, ["owner"]);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const invitation = await this.store.createInvitation(
+      brainId,
+      email.trim().toLowerCase(),
+      role,
+      null,
+      expiresAt,
+      actor,
+      actor.clientId,
+    );
+    await this.store.audit(actor, "invitation.proposed", `brain:${brainId}`, {
+      invitationId: invitation.id,
+      role,
+    });
+    return { id: invitation.id, expiresAt: expiresAt.toISOString(), awaitingApproval: true };
+  }
+
+  async listBrainInvitations(brainId: string, actor: Actor) {
+    requireBrainRole(actor, brainId, ["owner"]);
+    return this.store.listBrainInvitations(brainId, actor);
+  }
+
+  async approveInvite(invitationId: string, actor: Actor) {
+    const invitation = await this.store.getBrainInvitation(invitationId, actor);
+    if (!invitation) throw new NotFoundError("Invitation");
+    requireBrainRole(actor, invitation.brainId, ["owner"]);
+    if (!invitation.awaitingApproval) {
+      throw new ConflictError("This invitation already has a link");
+    }
+    const token = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const approved = await this.store.approveInvitation(
+      invitationId,
+      hashContent(token),
+      expiresAt,
+      actor,
+    );
+    await this.store.audit(actor, "invitation.approved", `brain:${approved.brainId}`, {
+      invitationId,
+      role: approved.role,
+      proposedByClient: invitation.proposedByClient,
+    });
+    return { ...approved, token };
+  }
+
+  async getBrainInvitationOrThrow(invitationId: string, actor: Actor) {
+    const invitation = await this.store.getBrainInvitation(invitationId, actor);
+    if (!invitation) throw new NotFoundError("Invitation");
+    requireBrainRole(actor, invitation.brainId, ["owner"]);
+    return invitation;
+  }
+
+  async revokeInvite(invitationId: string, actor: Actor) {
+    const invitation = await this.store.getBrainInvitation(invitationId, actor);
+    if (!invitation) throw new NotFoundError("Invitation");
+    requireBrainRole(actor, invitation.brainId, ["owner"]);
+    const revoked = await this.store.revokeInvitation(invitationId, actor);
+    await this.store.audit(actor, "invitation.revoked", `brain:${revoked.brainId}`, {
+      invitationId,
+      awaitingApproval: invitation.awaitingApproval,
+    });
+    return revoked;
   }
 
   private async indexPromotedArticle(articleId: string, actor: Actor): Promise<void> {

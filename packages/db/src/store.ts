@@ -1,5 +1,6 @@
 import {
   type BrainArticleCount,
+  type BrainInvitation,
   type BrainListSort,
   type BrainRole,
   type CreateBrainInput,
@@ -25,6 +26,7 @@ import {
   type ClaimedCompactionJob,
   type CompactionJobRecord,
   ConflictError,
+  canTransitionTask,
   type DataStore,
   type ExportedVersion,
   ForbiddenError,
@@ -1284,11 +1286,15 @@ export class PostgresStore implements DataStore {
     });
   }
 
+  // The compact result used to overwrite the submitted version in place, which made the
+  // provider's output the only copy of the article: a model that dropped facts, or
+  // followed instructions planted in the body, destroyed them. It now becomes the next
+  // version, so the submitted one stays in the encrypted history like any other edit.
   async completeCompaction(
     jobId: string,
     claimId: string,
     generated: GeneratedArticle,
-    encrypted: CipherEnvelope,
+    sealVersion: (version: number) => SealedBody,
     bodyHash: string,
     actor: Actor,
   ): Promise<{ current: boolean; articleId: string; version: number } | null> {
@@ -1305,35 +1311,45 @@ export class PostgresStore implements DataStore {
         await tx`DELETE FROM article_compaction_jobs WHERE id = ${jobId}`;
         return null;
       }
-      await tx`
-        UPDATE article_versions SET
-          body_ciphertext = ${decode(encrypted.ciphertext)},
-          body_nonce = ${decode(encrypted.nonce)},
-          body_tag = ${decode(encrypted.tag)},
-          cipher_version = ${encrypted.version},
-          body_hash = ${bodyHash}
-        WHERE article_id = ${job.article_id} AND version = ${job.article_version}
-      `;
       const [article] = await tx<any[]>`
         SELECT * FROM articles WHERE id = ${job.article_id} FOR UPDATE
       `;
       if (!article) throw new NotFoundError("Article");
-      const current = Number(article.current_version) === Number(job.article_version);
-      if (current) {
-        await tx`
-          UPDATE articles SET
-            title = ${generated.title}, summary = ${generated.summary},
-            compaction_status = 'compacted', compaction_attempts = ${job.attempts},
-            compaction_error = NULL, compacted_at = now(), updated_at = now()
-          WHERE id = ${job.article_id}
-        `;
+      const sourceVersion = Number(job.article_version);
+      // A newer version has its own job; the superseded source is left as it is.
+      if (Number(article.current_version) !== sourceVersion) {
+        await tx`DELETE FROM article_compaction_jobs WHERE id = ${jobId}`;
+        return { current: false, articleId: job.article_id as string, version: sourceVersion };
       }
+      const version = sourceVersion + 1;
+      const sealed = sealVersion(version);
+      await tx`
+        INSERT INTO article_versions (
+          brain_id, article_id, version, body_ciphertext, body_nonce, body_tag, cipher_version,
+          body_aad, body_hash, change_summary, sources, actor_id, client_id
+        )
+        SELECT source.brain_id, source.article_id, ${version}, ${decode(sealed.body.ciphertext)},
+          ${decode(sealed.body.nonce)}, ${decode(sealed.body.tag)}, ${sealed.body.version},
+          ${sealed.bodyAad}, ${bodyHash}, ${`Compacted version ${sourceVersion}`}, source.sources,
+          ${actor.userId}, ${actor.clientId}
+        FROM article_versions source
+        WHERE source.article_id = ${job.article_id} AND source.version = ${sourceVersion}
+      `;
+      await tx`
+        INSERT INTO article_sources (article_id, version, source_id)
+        SELECT article_id, ${version}, source_id FROM article_sources
+        WHERE article_id = ${job.article_id} AND version = ${sourceVersion}
+        ON CONFLICT DO NOTHING
+      `;
+      await tx`
+        UPDATE articles SET
+          title = ${generated.title}, summary = ${generated.summary}, current_version = ${version},
+          compaction_status = 'compacted', compaction_attempts = ${job.attempts},
+          compaction_error = NULL, compacted_at = now(), updated_at = now()
+        WHERE id = ${job.article_id}
+      `;
       await tx`DELETE FROM article_compaction_jobs WHERE id = ${jobId}`;
-      return {
-        current,
-        articleId: job.article_id as string,
-        version: Number(job.article_version),
-      };
+      return { current: true, articleId: job.article_id as string, version };
     });
   }
 
@@ -1591,6 +1607,7 @@ export class PostgresStore implements DataStore {
         )
         UPDATE tasks t SET
           claimed_by = ${actor.userId}, claimed_client_id = ${actor.clientId},
+          last_claimed_by = ${actor.userId}, last_claimed_client_id = ${actor.clientId},
           lease_expires_at = now() + (${leaseSeconds} * interval '1 second'),
           status = 'claimed', updated_at = now()
         FROM candidate WHERE t.id = candidate.id RETURNING t.*
@@ -1633,6 +1650,24 @@ export class PostgresStore implements DataStore {
       const [current] = await tx<any[]>`SELECT * FROM tasks WHERE id = ${taskId} FOR UPDATE`;
       if (!current) throw new NotFoundError("Task");
       const status = patch.status ?? current.status;
+      if (!canTransitionTask(current.status, status)) {
+        throw new ConflictError(`A ${current.status} task cannot move to ${status}`, {
+          from: current.status,
+          to: status,
+        });
+      }
+      // Agents act under their user's identity, so the client id is what tells the agent
+      // that worked on a task apart from a person approving it in the browser. The last
+      // claimant is remembered because releasing a claim clears the live one.
+      if (
+        status === "approved" &&
+        current.status !== "approved" &&
+        actor.clientId !== WEB_SESSION_CLIENT_ID &&
+        current.last_claimed_by === actor.userId &&
+        current.last_claimed_client_id === actor.clientId
+      ) {
+        throw new ForbiddenError("The client that worked on a task cannot approve it");
+      }
       // A task reopened or closed while claimed kept its lease, and claimTask refuses a
       // live lease, so nobody else could pick the reopened task up until it lapsed.
       const releaseLease =
@@ -1885,13 +1920,15 @@ export class PostgresStore implements DataStore {
     });
   }
 
+  /** A null token hash records a proposal that an owner has yet to approve. */
   async createInvitation(
     brainId: string,
     email: string,
     role: BrainRole,
-    tokenHash: string,
+    tokenHash: string | null,
     expiresAt: Date,
     actor: Actor,
+    proposedByClient: string | null = null,
   ) {
     return this.withActor(actor, async (tx) => {
       const [brain] = await tx<any[]>`SELECT workspace_id FROM brains WHERE id = ${brainId}`;
@@ -1899,14 +1936,67 @@ export class PostgresStore implements DataStore {
       const [row] = await tx<any[]>`
         INSERT INTO invitations (
           workspace_id, brain_id, email, workspace_role, brain_role,
-          token_hash, expires_at, invited_by
+          token_hash, expires_at, invited_by, proposed_by_client
         ) VALUES (
           ${brain.workspace_id}, ${brainId}, ${email}, 'member', ${role},
-          ${tokenHash}, ${expiresAt.toISOString()}, ${actor.userId}
+          ${tokenHash}, ${expiresAt.toISOString()}, ${actor.userId}, ${proposedByClient}
         ) RETURNING id, expires_at
       `;
       if (!row) throw new Error("Invitation insert did not return a row");
       return { id: row.id as string, expiresAt: asDate(row.expires_at) };
+    });
+  }
+
+  async listBrainInvitations(brainId: string, actor: Actor): Promise<BrainInvitation[]> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<any[]>`
+        SELECT * FROM invitations
+        WHERE brain_id = ${brainId} AND accepted_at IS NULL AND revoked_at IS NULL
+          AND expires_at > now()
+        ORDER BY created_at DESC
+      `;
+      return rows.map(mapBrainInvitation);
+    });
+  }
+
+  async getBrainInvitation(invitationId: string, actor: Actor): Promise<BrainInvitation | null> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        SELECT * FROM invitations
+        WHERE id = ${invitationId} AND accepted_at IS NULL AND revoked_at IS NULL
+          AND expires_at > now()
+      `;
+      return row ? mapBrainInvitation(row) : null;
+    });
+  }
+
+  async approveInvitation(
+    invitationId: string,
+    tokenHash: string,
+    expiresAt: Date,
+    actor: Actor,
+  ): Promise<BrainInvitation> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        UPDATE invitations SET token_hash = ${tokenHash}, expires_at = ${expiresAt.toISOString()}
+        WHERE id = ${invitationId} AND token_hash IS NULL AND accepted_at IS NULL
+          AND revoked_at IS NULL
+        RETURNING *
+      `;
+      if (!row) throw new NotFoundError("Invitation awaiting approval");
+      return mapBrainInvitation(row);
+    });
+  }
+
+  async revokeInvitation(invitationId: string, actor: Actor): Promise<BrainInvitation> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        UPDATE invitations SET revoked_at = now()
+        WHERE id = ${invitationId} AND accepted_at IS NULL AND revoked_at IS NULL
+        RETURNING *
+      `;
+      if (!row) throw new NotFoundError("Pending invitation");
+      return mapBrainInvitation(row);
     });
   }
 
@@ -2580,6 +2670,19 @@ function mapCompactionJob(row: any): CompactionJobRecord {
     lastError: row.last_error ?? null,
     createdAt: asDate(row.created_at),
     updatedAt: asDate(row.updated_at),
+  };
+}
+
+function mapBrainInvitation(row: any): BrainInvitation {
+  return {
+    id: row.id,
+    brainId: row.brain_id,
+    email: row.email,
+    role: row.brain_role,
+    expiresAt: asDate(row.expires_at).toISOString(),
+    createdAt: asDate(row.created_at).toISOString(),
+    awaitingApproval: row.token_hash === null,
+    proposedByClient: row.proposed_by_client ?? null,
   };
 }
 

@@ -56,6 +56,23 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
       { brainId, articleCount: 2, latestArticleUpdatedAt: "2026-08-27T10:00:00.000Z" },
     ]),
     listWorkspaceReviewQueue: vi.fn(async () => ({ items: [], counts: [] })),
+    listBrainInvitations: vi.fn(async () => []),
+    approveInvite: vi.fn(async () => ({
+      id: "00000000-0000-4000-8000-000000000010",
+      brainId,
+      email: "invited@example.test",
+      role: "viewer",
+      expiresAt: "2026-01-09T00:00:00.000Z",
+      createdAt: "2026-01-02T00:00:00.000Z",
+      awaitingApproval: false,
+      proposedByClient: "agent",
+      token: "approved-token",
+    })),
+    getBrainInvitationOrThrow: vi.fn(async () => ({
+      id: "00000000-0000-4000-8000-000000000010",
+      brainId,
+    })),
+    revokeInvite: vi.fn(async () => ({ id: "00000000-0000-4000-8000-000000000010", brainId })),
     getMcpAnalytics: vi.fn(async (_workspaceId, range, _actor, filteredBrainId) => ({
       scope: { workspaceId, brainId: filteredBrainId ?? null },
       range,
@@ -689,6 +706,44 @@ describe("workspaces and connections", () => {
     });
     const on = await configured.app.inject({ method: "GET", url: "/api/v1/workspaces" });
     expect(on.json()[0].llmCompactionAvailable).toBe(true);
+  });
+
+  it("approves a proposed invitation, mints the link, and revokes on request", async () => {
+    const invitationId = "00000000-0000-4000-8000-000000000010";
+    const approved = await context.app.inject({
+      method: "POST",
+      url: `/api/v1/brains/${brainId}/invitations/${invitationId}/approve`,
+    });
+    expect(approved.statusCode).toBe(200);
+    expect(approved.json()).toMatchObject({
+      id: invitationId,
+      acceptanceUrl: `${publicUrl}/invite/approved-token`,
+      emailSent: true,
+    });
+    expect(context.mailer.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "invited@example.test" }),
+    );
+
+    const otherBrain = "00000000-0000-4000-8000-000000000099";
+    const wrongBrain = await context.app.inject({
+      method: "POST",
+      url: `/api/v1/brains/${otherBrain}/invitations/${invitationId}/approve`,
+    });
+    expect(wrongBrain.statusCode).toBe(404);
+
+    const revoked = await context.app.inject({
+      method: "DELETE",
+      url: `/api/v1/brains/${brainId}/invitations/${invitationId}`,
+    });
+    expect(revoked.statusCode).toBe(204);
+    expect(context.service.revokeInvite).toHaveBeenCalledWith(invitationId, expect.anything());
+
+    const listed = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/brains/${brainId}/invitations`,
+    });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json()).toEqual([]);
   });
 
   it("serves the workspace review queue with a bounded limit", async () => {

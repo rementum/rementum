@@ -61,7 +61,7 @@ apps/worker      loop: maintenance scans, reindexing, LLM compaction jobs
 apps/embeddings  local granite-embedding-97m-multilingual-r2 over @huggingface/transformers
 packages/contracts  Zod schemas — the single source of truth for REST, MCP tools, and web types
 packages/core       RementumService (all domain logic), crypto, imports, search ranking
-packages/db         PostgresStore, AuthRepository, drizzle schema, SQL migrations
+packages/db         PostgresStore, AuthRepository, SQL migrations (the only schema definition)
 ```
 
 Dependency direction is strict: `contracts` → `core` → `db` are consumed by the apps; `core` never
@@ -123,7 +123,8 @@ make re-staging safe.
 Off by default, and needs two switches: instance-level (`REMENTUM_LLM_*`) and per-workspace
 (`llmCompactionEnabled`). When on, promotion stores the submitted body encrypted and queues the
 version; the worker claims jobs through `owl_worker_claim_compaction`, sends title + body to the
-OpenAI-compatible provider **in plaintext**, and overwrites the same version with the compact result.
+OpenAI-compatible provider **in plaintext**, and stores the compact result as the article's next
+version so the submitted version stays in history.
 After three failures the submitted body stays canonical and the article is marked failed. Changing
 anything here changes the documented security boundary in `README.md` and `docs/security.md` — update
 those in the same change.

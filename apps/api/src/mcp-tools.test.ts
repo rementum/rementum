@@ -128,7 +128,11 @@ function stubService(overrides: Record<string, unknown> = {}): RementumService {
     linkTaskArticle: vi.fn(async () => ({ ok: true })),
     scanMaintenance: vi.fn(async () => []),
     listMaintenance: vi.fn(async () => []),
-    proposeInvite: vi.fn(async () => ({ id: "invite-id", token: "invite-token" })),
+    requestInvite: vi.fn(async () => ({
+      id: "invite-id",
+      expiresAt: "2026-01-09T00:00:00.000Z",
+      awaitingApproval: true,
+    })),
     recordMcpToolCall: vi.fn(async () => undefined),
     ...overrides,
   } as unknown as RementumService;
@@ -270,7 +274,7 @@ const cases: ToolCase[] = [
     tool: "propose_invite",
     scope: "brain:write",
     args: { brainId, email: "invited@example.test", role: "editor" },
-    method: "proposeInvite",
+    method: "requestInvite",
     expect: [brainId, "invited@example.test", "editor", expect.anything()],
   },
   { tool: "list_tasks", scope: "task:read", args: { brainId }, method: "listTasks" },
@@ -1264,5 +1268,24 @@ describe("tool failures", () => {
     expect(text).not.toContain("ECONNREFUSED");
     expect(JSON.parse(text)).toEqual({ code: "internal", message: "Internal server error" });
     expect(onToolError).toHaveBeenCalledWith(expect.any(Error), "read_article");
+  });
+});
+
+describe("propose_invite", () => {
+  it("never hands the agent a token; the proposal waits for an owner", async () => {
+    const service = stubService();
+    const client = await connect(service);
+    const response = await client.callTool({
+      name: "propose_invite",
+      arguments: { brainId, email: "invited@example.test", role: "viewer" },
+    });
+    expect(response.isError).not.toBe(true);
+    const text = (response as { content: Array<{ text: string }> }).content[0]?.text ?? "";
+    expect(text).not.toContain("token");
+    expect(JSON.parse(text)).toEqual({
+      id: "invite-id",
+      expiresAt: "2026-01-09T00:00:00.000Z",
+      awaitingApproval: true,
+    });
   });
 });

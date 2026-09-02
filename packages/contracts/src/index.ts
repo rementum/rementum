@@ -199,6 +199,19 @@ export const updateWorkspaceSchema = z
   });
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
 
+export const brainInvitationSchema = z.object({
+  id: idSchema,
+  brainId: idSchema,
+  email: z.string(),
+  role: z.enum(["editor", "commenter", "viewer"]),
+  expiresAt: z.iso.datetime(),
+  createdAt: z.iso.datetime(),
+  // True while an agent's proposal waits for a brain owner; no token exists yet.
+  awaitingApproval: z.boolean(),
+  proposedByClient: z.string().nullable(),
+});
+export type BrainInvitation = z.infer<typeof brainInvitationSchema>;
+
 export const createTeamInvitationSchema = z.object({
   email: z.email(),
   role: z.enum(["admin", "member"]).default("member"),

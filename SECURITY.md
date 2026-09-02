@@ -20,7 +20,8 @@ Until 1.0, only the most recent release receives security fixes.
 - Nothing is sent to a provider until both `REMENTUM_LLM_ENABLED=true` is configured and an owner
   or admin enables compaction on a workspace. Then promotion stores the submitted body encrypted
   and queues that exact version; the worker later sends its title and body to the configured
-  OpenAI-compatible provider in plaintext and overwrites the same version with the compact result.
+  OpenAI-compatible provider in plaintext and stores the compact result as the next version, keeping
+  the submitted version in the article's encrypted history.
   After three failures the submitted body remains canonical and the article is marked failed.
 - The API and worker containers of the reference stack never receive the PostgreSQL superuser
   credentials; only the migration, backup, and restore services do.

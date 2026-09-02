@@ -891,7 +891,7 @@ export function createMcpServer(
     {
       title: "Propose a brain invitation",
       description:
-        "Owner-only. Creates a seven-day invitation token for a teammate; the user must choose how to deliver it.",
+        "Owner-only. Records a proposal to invite someone to the brain. No link exists until a brain owner approves the proposal in the Rementum web UI, which is where the invitation is sent from; tell the user to approve it there.",
       inputSchema: z.object({
         brainId: z.uuid(),
         email: z.email(),
@@ -901,7 +901,7 @@ export function createMcpServer(
     },
     ({ brainId, email, role }) =>
       scoped(actor, "brain:write", () =>
-        result(service.proposeInvite(brainId, email, role, actor)),
+        result(service.requestInvite(brainId, email, role, actor)),
       ),
   );
 

@@ -284,6 +284,94 @@ integration("promotion protocol", () => {
   });
 });
 
+integration("agent-proposed invitations", () => {
+  it("cannot be accepted until an owner approves, and can be revoked", async () => {
+    if (!databaseUrl) return;
+    const database = createDatabaseClient(databaseUrl, 2);
+    const auth = new AuthRepository(database);
+    const store = new PostgresStore(database);
+    const service = new RementumService(store, embeddings, Buffer.alloc(32, 7));
+    try {
+      const { ownerActor, brainId, suffix } = await seed(store, auth, service);
+      const agent = { ...ownerActor, clientId: "agent-client" };
+      const proposal = await service.requestInvite(
+        brainId,
+        `guest-${suffix}@example.test`,
+        "viewer",
+        agent,
+      );
+      expect(proposal.awaitingApproval).toBe(true);
+      expect(proposal).not.toHaveProperty("token");
+      const listed = await service.listBrainInvitations(brainId, ownerActor);
+      expect(listed).toMatchObject([
+        { id: proposal.id, awaitingApproval: true, proposedByClient: "agent-client" },
+      ]);
+
+      const approved = await service.approveInvite(proposal.id, ownerActor);
+      expect(approved.awaitingApproval).toBe(false);
+      expect(await auth.inspectBrainInvitation(hashContent(approved.token))).toMatchObject({
+        brainId,
+        role: "viewer",
+      });
+      await expect(service.approveInvite(proposal.id, ownerActor)).rejects.toBeInstanceOf(
+        ConflictError,
+      );
+
+      await service.revokeInvite(proposal.id, ownerActor);
+      expect(await auth.inspectBrainInvitation(hashContent(approved.token))).toBeNull();
+      expect(await service.listBrainInvitations(brainId, ownerActor)).toEqual([]);
+      await expect(
+        auth.acceptBrainInvitation(hashContent(approved.token), null, "Guest", "guest-hash"),
+      ).rejects.toThrow();
+    } finally {
+      await database.close();
+    }
+  });
+});
+
+integration("task approval", () => {
+  it("refuses approval by the client that worked on the task and enforces transitions", async () => {
+    if (!databaseUrl) return;
+    const database = createDatabaseClient(databaseUrl, 2);
+    const auth = new AuthRepository(database);
+    const store = new PostgresStore(database);
+    const service = new RementumService(store, embeddings, Buffer.alloc(32, 7));
+    try {
+      const { ownerActor, brainId } = await seed(store, auth, service);
+      const agent = { ...ownerActor, clientId: "agent-a" };
+      const otherAgent = { ...ownerActor, clientId: "agent-b" };
+      const human = { ...ownerActor, clientId: "rementum-web" };
+      const task = await service.createTask(
+        { brainId, title: "T", brief: "B", priority: 0, articleIds: [], links: [] },
+        agent,
+      );
+      // A task cannot be approved before it was reviewed.
+      await expect(
+        service.updateTask(task.id, { status: "approved" }, human),
+      ).rejects.toBeInstanceOf(ConflictError);
+      await service.claimTask(brainId, task.id, 600, agent);
+      await service.releaseTask(task.id, false, agent);
+      await service.updateTask(task.id, { status: "review" }, agent);
+      // The agent that held the claim cannot approve its own work, even after release.
+      await expect(
+        service.updateTask(task.id, { status: "approved" }, agent),
+      ).rejects.toMatchObject({ code: "forbidden" });
+      // Another client, or the person in the browser, can.
+      const approved = await service.updateTask(task.id, { status: "approved" }, otherAgent);
+      expect(approved.status).toBe("approved");
+      await expect(service.updateTask(task.id, { status: "review" }, human)).rejects.toBeInstanceOf(
+        ConflictError,
+      );
+      expect((await service.updateTask(task.id, { status: "completed" }, human)).status).toBe(
+        "completed",
+      );
+      expect((await service.updateTask(task.id, { status: "open" }, human)).status).toBe("open");
+    } finally {
+      await database.close();
+    }
+  });
+});
+
 integration("row-level security on deletes", () => {
   it("lets a viewer read a brain but not delete from it at the database layer", async () => {
     if (!databaseUrl) return;

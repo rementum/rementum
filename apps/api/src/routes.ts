@@ -687,6 +687,44 @@ export async function registerApiRoutes(
     });
   });
 
+  app.get("/api/v1/brains/:brainId/invitations", async (request) => {
+    const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
+    return service.listBrainInvitations(brainId, await authorize(request, "brain:read"));
+  });
+
+  // Agents propose invitations over MCP without a token; approving here is the human step
+  // that mints the link, so the acceptance URL is only ever shown to a signed-in owner.
+  app.post("/api/v1/brains/:brainId/invitations/:invitationId/approve", async (request) => {
+    const actor = await authorize(request, "brain:write");
+    const { brainId, invitationId } = z
+      .object({ brainId: z.uuid(), invitationId: z.uuid() })
+      .parse(request.params);
+    const invitation = await service.approveInvite(invitationId, actor);
+    if (invitation.brainId !== brainId) throw new DomainError("not_found", "Invitation", 404);
+    const acceptanceUrl = `${publicUrl}/invite/${invitation.token}`;
+    const emailSent = await sendInvitationEmail(
+      mailer,
+      request,
+      invitation.email,
+      "You were invited to a Rementum brain",
+      "Open the shared brain",
+      acceptanceUrl,
+      `brain-invite/${invitation.id}`,
+    );
+    return { id: invitation.id, expiresAt: invitation.expiresAt, acceptanceUrl, emailSent };
+  });
+
+  app.delete("/api/v1/brains/:brainId/invitations/:invitationId", async (request, reply) => {
+    const actor = await authorize(request, "brain:write");
+    const { brainId, invitationId } = z
+      .object({ brainId: z.uuid(), invitationId: z.uuid() })
+      .parse(request.params);
+    const invitation = await service.getBrainInvitationOrThrow(invitationId, actor);
+    if (invitation.brainId !== brainId) throw new DomainError("not_found", "Invitation", 404);
+    await service.revokeInvite(invitationId, actor);
+    return reply.code(204).send();
+  });
+
   app.post("/api/v1/brains/:brainId/imports/preview", bulkRateLimit, async (request) => {
     const actor = await authorize(request, "brain:write");
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);

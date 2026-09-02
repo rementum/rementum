@@ -2,6 +2,7 @@ import type {
   Article,
   ArticleSummary,
   BrainArticleCount,
+  BrainInvitation,
   BrainListSort,
   BrainRole,
   CompactionState,
@@ -367,11 +368,16 @@ export interface DataStore {
   cancelWorkspaceCompactions(workspaceId: string, actor: Actor): Promise<string[]>;
   getCompactionJob(jobId: string, actor: Actor): Promise<CompactionJobRecord | null>;
   extendCompactionLease(jobId: string, claimId: string, leaseSeconds: number): Promise<boolean>;
+  /**
+   * Stores the compact result as the article's next version, sealed by `sealVersion` for
+   * the number the store assigns, so the submitted version stays in history. Returns
+   * `current: false` without writing when the source version is no longer current.
+   */
   completeCompaction(
     jobId: string,
     claimId: string,
     generated: GeneratedArticle,
-    encrypted: CipherEnvelope,
+    sealVersion: (version: number) => SealedBody,
     bodyHash: string,
     actor: Actor,
   ): Promise<{ current: boolean; articleId: string; version: number } | null>;
@@ -472,10 +478,20 @@ export interface DataStore {
     brainId: string,
     email: string,
     role: BrainRole,
+    tokenHash: string | null,
+    expiresAt: Date,
+    actor: Actor,
+    proposedByClient?: string | null,
+  ): Promise<{ id: string; expiresAt: Date }>;
+  listBrainInvitations(brainId: string, actor: Actor): Promise<BrainInvitation[]>;
+  getBrainInvitation(invitationId: string, actor: Actor): Promise<BrainInvitation | null>;
+  approveInvitation(
+    invitationId: string,
     tokenHash: string,
     expiresAt: Date,
     actor: Actor,
-  ): Promise<{ id: string; expiresAt: Date }>;
+  ): Promise<BrainInvitation>;
+  revokeInvitation(invitationId: string, actor: Actor): Promise<BrainInvitation>;
   audit(
     actor: Actor,
     action: string,

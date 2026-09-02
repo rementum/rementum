@@ -200,7 +200,15 @@ integration("account and team authorization", () => {
         summary: "The article was compacted in the background.",
         body: "# Compacted title\n\nGenerated compact body.",
         compaction: { status: "compacted", attempts: 1 },
+        currentVersion: 2,
       });
+      // The submitted version stays in history; only the current version was replaced.
+      const history = await llmService.listArticleHistory(promoted.article.id, ownerActor);
+      expect(history.map((entry) => entry.version)).toEqual([2, 1]);
+      expect(history[1]?.bodyHash).toBe(
+        hashContent("The original body remains readable while compaction is queued."),
+      );
+      expect(history[0]?.changeSummary).toBe("Compacted version 1");
       const cancelledWrite = await llmService.stageWrite(
         {
           brainId: secondBrain.brain.id,
