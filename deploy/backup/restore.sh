@@ -14,7 +14,9 @@ test -f "$work/manifest.json"
 test -f "$work/database.dump"
 test -f "$work/blobs.tar"
 
-pg_restore --clean --if-exists --no-owner --no-acl --dbname "$REMENTUM_DATABASE_ADMIN_URL" "$work/database.dump"
+# ACLs are restored on purpose: they carry the application role's grants and default
+# privileges, which a fresh instance has no other way to get back.
+pg_restore --clean --if-exists --no-owner --dbname "$REMENTUM_DATABASE_ADMIN_URL" "$work/database.dump"
 mkdir -p "$REMENTUM_BLOB_DIR"
 tar -C "$REMENTUM_BLOB_DIR" -xf "$work/blobs.tar"
 printf 'Restore completed. Run the deployment command to apply pending migrations.\n'

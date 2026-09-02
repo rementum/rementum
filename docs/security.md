@@ -22,6 +22,10 @@ PostgreSQL or the embedding service to the public network.
 - Escrow `REMENTUM_MASTER_KEY` outside the server and outside database backups.
 - Use generated database, cookie, and OAuth signing keys.
 - Keep provider keys and Resend keys out of source control and support logs.
+- Leave the superuser blanks in `docker-compose.yml` in place: the `api` and `worker` services
+  override `REMENTUM_DATABASE_ADMIN_URL` and `REMENTUM_POSTGRES_SUPER_PASSWORD` with empty values
+  so a superuser connection, which bypasses row-level security, never exists inside those
+  containers. Only `migrate`, `backup`, and `restore` receive it.
 
 Rementum encrypts article content at the application layer. PostgreSQL still stores routing
 summaries, titles, links, audit metadata, MCP usage metadata, and embeddings. MCP usage metadata is

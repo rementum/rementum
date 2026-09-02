@@ -104,7 +104,7 @@ REMENTUM_MAIL_FROM='Rementum <rementum@example.com>'
 | Variable | Purpose |
 | --- | --- |
 | `REMENTUM_POSTGRES_PASSWORD` | Application database role password |
-| `REMENTUM_POSTGRES_SUPER_PASSWORD` | Migration and backup database password |
+| `REMENTUM_POSTGRES_SUPER_PASSWORD` | Migration and backup database password; never handed to the API or worker containers |
 | `REMENTUM_EMBEDDING_MODEL` | Model loaded by the embedding service |
 | `REMENTUM_EMBEDDING_DTYPE` | Optional weight precision override, such as `fp32` or `q8` |
 | `REMENTUM_EMBEDDING_POOLING` | Optional pooling override (`cls` or `mean`) for unrecognized models |

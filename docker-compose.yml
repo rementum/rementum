@@ -56,6 +56,10 @@ services:
       postgres:
         condition: service_healthy
 
+  # Only migrate, backup, and restore need the PostgreSQL superuser. The shared .env carries
+  # it for them, so the long-running services blank it (and the secrets they never read):
+  # a superuser connection string inside the API would bypass row-level security for
+  # anyone who found a way to read that process's environment.
   api:
     build:
       context: .
@@ -63,6 +67,8 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      REMENTUM_DATABASE_ADMIN_URL: ""
+      REMENTUM_POSTGRES_SUPER_PASSWORD: ""
       REMENTUM_DATABASE_URL: postgres://owl_app:${REMENTUM_POSTGRES_PASSWORD:?set REMENTUM_POSTGRES_PASSWORD in .env}@postgres:5432/owl
       REMENTUM_EMBEDDINGS_URL: http://embeddings:8790
       REMENTUM_BLOB_DIR: /data/blobs
@@ -87,6 +93,14 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      REMENTUM_DATABASE_ADMIN_URL: ""
+      REMENTUM_POSTGRES_SUPER_PASSWORD: ""
+      REMENTUM_COOKIE_KEYS: ""
+      REMENTUM_JWT_JWKS: ""
+      REMENTUM_RESEND_API_KEY: ""
+      REMENTUM_MAIL_FROM: ""
+      REMENTUM_TURNSTILE_SITE_KEY: ""
+      REMENTUM_TURNSTILE_SECRET_KEY: ""
       REMENTUM_DATABASE_URL: postgres://owl_app:${REMENTUM_POSTGRES_PASSWORD:?set REMENTUM_POSTGRES_PASSWORD in .env}@postgres:5432/owl
       REMENTUM_EMBEDDINGS_URL: http://embeddings:8790
       REMENTUM_BLOB_DIR: /data/blobs
@@ -150,6 +164,12 @@ services:
       dockerfile: deploy/backup/Dockerfile
     env_file: .env
     environment:
+      REMENTUM_MASTER_KEY: ""
+      REMENTUM_COOKIE_KEYS: ""
+      REMENTUM_JWT_JWKS: ""
+      REMENTUM_LLM_API_KEY: ""
+      REMENTUM_RESEND_API_KEY: ""
+      REMENTUM_TURNSTILE_SECRET_KEY: ""
       REMENTUM_DATABASE_ADMIN_URL: postgres://postgres:${REMENTUM_POSTGRES_SUPER_PASSWORD:?set REMENTUM_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
       REMENTUM_BLOB_DIR: /data/blobs
       REMENTUM_BACKUP_DIR: /backups
@@ -168,6 +188,12 @@ services:
     env_file: .env
     entrypoint: ["/usr/local/bin/rementum-restore"]
     environment:
+      REMENTUM_MASTER_KEY: ""
+      REMENTUM_COOKIE_KEYS: ""
+      REMENTUM_JWT_JWKS: ""
+      REMENTUM_LLM_API_KEY: ""
+      REMENTUM_RESEND_API_KEY: ""
+      REMENTUM_TURNSTILE_SECRET_KEY: ""
       REMENTUM_DATABASE_ADMIN_URL: postgres://postgres:${REMENTUM_POSTGRES_SUPER_PASSWORD:?set REMENTUM_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
       REMENTUM_BLOB_DIR: /data/blobs
       REMENTUM_BACKUP_AGE_IDENTITY_FILE: /run/secrets/age-identity

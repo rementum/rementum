@@ -5,5 +5,11 @@ node_modules
 **/.next
 coverage
 .env
+**/.env*
+!.env.example
 data
 backups
+.claude
+.pnpm-store
+site
+model-cache

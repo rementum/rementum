@@ -6,6 +6,11 @@ www.{$REMENTUM_DOMAIN:localhost} {
 
 {$REMENTUM_DOMAIN:localhost} {
 	encode zstd gzip
+	# The API accepts archives of up to 100 MB plus multipart overhead; nothing larger is
+	# legitimate, so it is refused at the edge before any service buffers it.
+	request_body {
+		max_size 110MB
+	}
 	log {
 		output stdout
 		format json

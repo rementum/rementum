@@ -116,7 +116,9 @@ export async function buildOauthRuntime(
   };
 
   const provider = new Provider(issuer, configuration);
-  provider.proxy = true;
+  // Believe X-Forwarded-* only when the API sits behind proxies it trusts; with an empty
+  // list the API is exposed directly and a client could forge its scheme and host.
+  provider.proxy = Boolean(config.REMENTUM_TRUSTED_PROXIES);
   provider.on("server_error", (_ctx, error) => {
     console.error("OAuth provider error", error);
   });

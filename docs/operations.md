@@ -70,6 +70,11 @@ The command writes `rementum-<UTC timestamp>.tar.age` under `REMENTUM_BACKUP_HOS
 archive to storage outside the Rementum host. Store `.env`, or at least `REMENTUM_MASTER_KEY`, in a
 separate encrypted secrets system.
 
+The dump keeps the database grants for the application role, so an archive restores into an empty
+instance as a database the API can use. Archives created before this behaviour restore without
+those grants; after restoring one, run each migration's `GRANT` statements again or migrate a fresh
+database and restore over it.
+
 ## Upgrade
 
 Set `REMENTUM_BACKUP_AGE_RECIPIENT` as described above, then update the instance with one command:
@@ -154,6 +159,10 @@ Start the stack and apply migrations:
 ./scripts/deploy.sh
 curl --fail https://memory.example.com/healthz
 ```
+
+The API and worker containers are started without the PostgreSQL superuser credentials; only the
+`migrate`, `backup`, and `restore` services receive them. `./scripts/create-owner.sh` therefore
+runs the owner command through the `migrate` service.
 
 The database dump contains the vector index. The worker fills embeddings for articles that lack an
 index row after services start.
