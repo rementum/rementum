@@ -7,18 +7,18 @@ import { Reveal } from "./reveal";
 import { SectionHead } from "./section-head";
 
 const ADVANTAGES = [
-  "Free forever — no seats, usage caps, or paywalled features",
+  "Free forever, with no seats, usage caps, or paywalled features",
   "Your data stays on your server; the master key never leaves it",
   "Unlimited brains, workspaces, agents, and versions",
   "Full source under AGPL-3.0 to audit, fork, and extend",
-  "Bring your own AI provider, or run entirely on local models",
+  "Bring your own AI provider, or run on local models alone",
 ];
 
 const CONSIDERATIONS = [
   "You provide the Linux host, a domain, and open ports 80 and 443",
   "You run updates, encrypted backups, and the occasional migration",
   "Scaling and uptime are yours to size and monitor",
-  "No hosted SaaS tier — self-hosting is the only path today",
+  "No hosted SaaS tier; self-hosting is the only path today",
 ];
 
 export function Pricing() {
@@ -36,8 +36,8 @@ export function Pricing() {
           </>
         }
       >
-        Rementum is open source. There is no paid tier and no per-seat billing — you run it on your
-        own hardware and own every byte.
+        Rementum is open source, with no paid tier and no per-seat billing. You run it on your own
+        hardware and own every byte.
       </SectionHead>
       <Reveal>
         <div className="grid overflow-clip rounded-window border border-line bg-surface/60 shadow-card md:grid-cols-[minmax(0,300px)_1fr]">
