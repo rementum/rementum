@@ -16,8 +16,10 @@ web session and never displays an OAuth consent screen.
 
 MCP exposes the tools. The Rementum skills teach coding agents when to load context, how to stage and
 promote durable writes, and how to import or maintain a brain safely. The plugin distributes
-`brain-context`, `brain-write`, `brain-import`, and `brain-maintenance` across projects. The MCP
-connection remains workspace-specific, so install the plugin and add the URL copied from **Teams**.
+`brain-context`, `brain-write`, `brain-import`, and `brain-maintenance` across projects. Plugin
+pickers list it as **Rementum Memory**, published by Rementum; the install id stays `rementum`. The
+MCP connection remains workspace-specific, so install the plugin and add the URL copied from
+**Teams**.
 
 ## Claude Code
 
@@ -54,9 +56,9 @@ new thread after installing or updating the plugin.
 
 Rementum is an Agent Plugin. For a team installation, open **Dashboard → Plugins**, add a marketplace
 with **Import from Repo**, and use `https://github.com/rementum/rementum`. Enable **Auto Refresh**
-after installing the Cursor GitHub App, then make the plugin Default On or Required as appropriate.
-Cursor will load the four shared skills from `plugins/rementum/plugin.json` through the repository's
-Cursor marketplace.
+after installing the Cursor GitHub App, then make **Rementum Memory** Default On or Required as
+appropriate. Cursor lists the plugin under that name, with Rementum as its publisher, and loads the
+four shared skills from `plugins/rementum/plugin.json` through the repository's Cursor marketplace.
 
 Add the workspace server to the MCP configuration:
 

@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const skills = ["brain-context", "brain-write", "brain-import", "brain-maintenance"];
 const hostedWorkspaceUrl = "https://rementum.dev/mcp/workspace/WORKSPACE_UUID";
+const pluginDisplayName = "Rementum Memory";
+const marketplaceDescription = "Durable shared memory for coding agents.";
 
 function read(relativePath: string): string {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -31,8 +33,12 @@ describe("agent plugin distribution", () => {
     const claude = readJson("plugins/rementum/.claude-plugin/plugin.json");
     const portable = readJson("plugins/rementum/plugin.json");
 
-    expect(codex).toMatchObject({ name: "rementum", skills: "./skills/" });
-    expect(claude).toMatchObject({ name: "rementum" });
+    expect(codex).toMatchObject({
+      name: "rementum",
+      skills: "./skills/",
+      interface: { displayName: pluginDisplayName, developerName: "Rementum" },
+    });
+    expect(claude).toMatchObject({ name: "rementum", displayName: pluginDisplayName });
     expect(portable).toMatchObject({
       $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       name: "rementum",
@@ -47,17 +53,48 @@ describe("agent plugin distribution", () => {
         {
           name: "rementum",
           source: { source: "local", path: "./plugins/rementum" },
+          interface: { displayName: pluginDisplayName },
         },
       ],
     });
     expect(readJson(".claude-plugin/marketplace.json")).toMatchObject({
       name: "rementum",
-      plugins: [{ name: "rementum", source: "./plugins/rementum" }],
+      description: marketplaceDescription,
+      owner: { name: "Rementum" },
+      plugins: [{ name: "rementum", displayName: pluginDisplayName, source: "./plugins/rementum" }],
     });
     expect(readJson(".cursor-plugin/marketplace.json")).toMatchObject({
       name: "rementum",
-      plugins: [{ name: "rementum", source: "plugins/rementum", version: "0.1.0" }],
+      owner: { name: "Rementum" },
+      metadata: { description: marketplaceDescription },
+      plugins: [
+        {
+          name: "rementum",
+          displayName: pluginDisplayName,
+          source: "plugins/rementum",
+          version: "0.1.0",
+        },
+      ],
     });
+  });
+
+  it("keeps every host's plugin title distinct from its publisher", () => {
+    // Cursor, Claude Code, and Codex each print the publisher (marketplace owner, author, or
+    // developerName) right next to the title, so a title equal to the publisher reads as
+    // "Rementum Rementum" in their plugin pickers.
+    const claude = readJson("plugins/rementum/.claude-plugin/plugin.json");
+    const codex = readJson("plugins/rementum/.codex-plugin/plugin.json");
+    const publishers = [
+      (readJson(".claude-plugin/marketplace.json").owner as { name: string }).name,
+      (readJson(".cursor-plugin/marketplace.json").owner as { name: string }).name,
+      (claude.author as { name: string }).name,
+      (codex.interface as { developerName: string }).developerName,
+    ];
+
+    for (const publisher of publishers) {
+      expect(publisher).toBe("Rementum");
+      expect(pluginDisplayName).not.toBe(publisher);
+    }
   });
 
   it("defaults integration examples to the hosted workspace endpoint", () => {
