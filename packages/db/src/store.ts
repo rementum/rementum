@@ -8,6 +8,7 @@ import {
   type McpAnalytics,
   type McpAnalyticsRange,
   type PromoteWriteInput,
+  type ReviewQueue,
   type RoutingIndexSort,
   type SearchArticlesInput,
   type SourceInput,
@@ -924,6 +925,58 @@ export class PostgresStore implements DataStore {
         ORDER BY created_at DESC LIMIT 500
       `;
       return rows.map(mapWrite);
+    });
+  }
+
+  /**
+   * Writes awaiting review across every readable brain in a workspace, plus per-brain
+   * counts. The dashboard used to list every brain's writes one request at a time and
+   * count them in the browser, which was a request per brain on every page view.
+   */
+  async listWorkspaceReviewQueue(
+    workspaceId: string,
+    actor: Actor,
+    limit: number,
+  ): Promise<ReviewQueue> {
+    return this.withActor(actor, async (tx) => {
+      const items = await tx<any[]>`
+        SELECT w.id, w.brain_id, b.name AS brain_name, w.operation, w.slug, w.title, w.status,
+               w.change_summary, w.created_at
+        FROM staged_writes w
+        JOIN brains b ON b.id = w.brain_id
+        WHERE b.workspace_id = ${workspaceId} AND b.deleted_at IS NULL
+          AND w.status IN ('pending', 'conflicted')
+        ORDER BY (w.status = 'conflicted') DESC, w.created_at DESC
+        LIMIT ${limit}
+      `;
+      const counts = await tx<any[]>`
+        SELECT w.brain_id,
+               count(*) FILTER (WHERE w.status = 'pending')::int AS pending,
+               count(*) FILTER (WHERE w.status = 'conflicted')::int AS conflicted
+        FROM staged_writes w
+        JOIN brains b ON b.id = w.brain_id
+        WHERE b.workspace_id = ${workspaceId} AND b.deleted_at IS NULL
+          AND w.status IN ('pending', 'conflicted')
+        GROUP BY w.brain_id
+      `;
+      return {
+        items: items.map((row) => ({
+          id: row.id,
+          brainId: row.brain_id,
+          brainName: row.brain_name,
+          operation: row.operation,
+          slug: row.slug,
+          title: row.title,
+          status: row.status,
+          changeSummary: row.change_summary,
+          createdAt: asDate(row.created_at).toISOString(),
+        })),
+        counts: counts.map((row) => ({
+          brainId: row.brain_id,
+          pending: Number(row.pending),
+          conflicted: Number(row.conflicted),
+        })),
+      };
     });
   }
 

@@ -51,6 +51,26 @@ export const compactionStateSchema = z.enum([
 ]);
 export type CompactionState = z.infer<typeof compactionStateSchema>;
 
+export const reviewQueueItemSchema = z.object({
+  id: idSchema,
+  brainId: idSchema,
+  brainName: z.string(),
+  operation: z.enum(["create", "update", "append"]),
+  slug: slugSchema,
+  title: z.string(),
+  status: z.enum(["pending", "conflicted"]),
+  changeSummary: z.string(),
+  createdAt: z.string(),
+});
+export const reviewQueueSchema = z.object({
+  items: z.array(reviewQueueItemSchema),
+  counts: z.array(
+    z.object({ brainId: idSchema, pending: z.number().int(), conflicted: z.number().int() }),
+  ),
+});
+export type ReviewQueueItem = z.infer<typeof reviewQueueItemSchema>;
+export type ReviewQueue = z.infer<typeof reviewQueueSchema>;
+
 export const taskStatusSchema = z.enum([
   "open",
   "claimed",
@@ -143,7 +163,6 @@ export const teamSchema = z.object({
   id: idSchema,
   slug: slugSchema,
   name: z.string(),
-  llmCompactionEnabled: z.boolean(),
   role: teamRoleSchema,
   createdAt: z.iso.datetime(),
 });
@@ -155,6 +174,7 @@ export const workspaceSchema = z.object({
   slug: slugSchema,
   name: z.string(),
   role: teamRoleSchema,
+  llmCompactionEnabled: z.boolean(),
   createdAt: z.iso.datetime(),
 });
 export type Workspace = z.infer<typeof workspaceSchema>;

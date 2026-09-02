@@ -623,6 +623,11 @@ export class RementumService {
     return this.store.listStagedWrites(brainId, actor, status);
   }
 
+  async listWorkspaceReviewQueue(workspaceId: string, actor: Actor, limit = 200) {
+    requireWorkspaceRole(actor, workspaceId, ["owner", "admin", "member"]);
+    return this.store.listWorkspaceReviewQueue(workspaceId, actor, limit);
+  }
+
   async reviewStagedWrite(writeId: string, actor: Actor) {
     const write = await this.getWriteStatus(writeId, actor);
     requireBrainRole(actor, write.brainId, ["owner", "editor"]);

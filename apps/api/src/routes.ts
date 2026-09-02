@@ -548,6 +548,17 @@ export async function registerApiRoutes(
       await service.listStagedWrites(brainId, status, await authorize(request, "brain:read")),
     );
   });
+  app.get("/api/v1/workspaces/:workspaceId/review-queue", async (request) => {
+    const { workspaceId } = z.object({ workspaceId: z.uuid() }).parse(request.params);
+    const { limit } = z
+      .object({ limit: z.coerce.number().int().min(1).max(500).default(200) })
+      .parse(request.query);
+    return service.listWorkspaceReviewQueue(
+      workspaceId,
+      await authorize(request, "brain:read"),
+      limit,
+    );
+  });
   app.post("/api/v1/writes/:writeId/promote", async (request) => {
     const { writeId } = z.object({ writeId: z.uuid() }).parse(request.params);
     return sanitize(

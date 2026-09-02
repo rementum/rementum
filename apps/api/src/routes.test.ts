@@ -55,6 +55,7 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
     countArticlesByBrain: vi.fn(async () => [
       { brainId, articleCount: 2, latestArticleUpdatedAt: "2026-08-27T10:00:00.000Z" },
     ]),
+    listWorkspaceReviewQueue: vi.fn(async () => ({ items: [], counts: [] })),
     getMcpAnalytics: vi.fn(async (_workspaceId, range, _actor, filteredBrainId) => ({
       scope: { workspaceId, brainId: filteredBrainId ?? null },
       range,
@@ -688,6 +689,33 @@ describe("workspaces and connections", () => {
     });
     const on = await configured.app.inject({ method: "GET", url: "/api/v1/workspaces" });
     expect(on.json()[0].llmCompactionAvailable).toBe(true);
+  });
+
+  it("serves the workspace review queue with a bounded limit", async () => {
+    const response = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/workspaces/${workspaceId}/review-queue?limit=25`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ items: [], counts: [] });
+    expect(context.service.listWorkspaceReviewQueue).toHaveBeenCalledWith(
+      workspaceId,
+      expect.anything(),
+      25,
+    );
+
+    const invalid = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/workspaces/${workspaceId}/review-queue?limit=5000`,
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    context.authenticate.mockResolvedValue(actorWith("team:read"));
+    const forbidden = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/workspaces/${workspaceId}/review-queue`,
+    });
+    expect(forbidden.statusCode).toBe(403);
   });
 
   it("validates and forwards workspace analytics filters", async () => {

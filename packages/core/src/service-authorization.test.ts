@@ -96,6 +96,23 @@ describe("promotion", () => {
   });
 });
 
+describe("review queue", () => {
+  it("requires membership of the workspace", async () => {
+    const { service, store } = setup();
+    const listWorkspaceReviewQueue = vi.fn(async () => ({ items: [], counts: [] }));
+    (store as unknown as { listWorkspaceReviewQueue: unknown }).listWorkspaceReviewQueue =
+      listWorkspaceReviewQueue;
+    await expect(
+      service.listWorkspaceReviewQueue("00000000-0000-4000-8000-000000000099", actor("owner")),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(service.listWorkspaceReviewQueue(workspaceId, actor(null))).resolves.toEqual({
+      items: [],
+      counts: [],
+    });
+    expect(listWorkspaceReviewQueue).toHaveBeenCalledWith(workspaceId, expect.anything(), 200);
+  });
+});
+
 describe("maintenance", () => {
   it("checks the brain role before a candidate is changed", async () => {
     const { service, store } = setup();

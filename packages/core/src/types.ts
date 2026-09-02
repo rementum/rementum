@@ -11,6 +11,7 @@ import type {
   McpAnalytics,
   McpAnalyticsRange,
   PromoteWriteInput,
+  ReviewQueue,
   RoutingIndexSort,
   SearchArticlesInput,
   SourceInput,
@@ -347,6 +348,7 @@ export interface DataStore {
     status?: StagedWriteRecord["status"],
   ): Promise<StagedWriteRecord[]>;
   withdrawStagedWrite(id: string, actor: Actor): Promise<StagedWriteRecord>;
+  listWorkspaceReviewQueue(workspaceId: string, actor: Actor, limit: number): Promise<ReviewQueue>;
   /**
    * `sealVersion` re-encrypts the staged body for the version number the store assigns, so
    * the stored ciphertext is bound to its final position rather than to the staged write.
