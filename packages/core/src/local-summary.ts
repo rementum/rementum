@@ -65,5 +65,12 @@ export function clipSentence(value: string, maxChars: number): string {
   const clipped = (boundary > Math.floor(maxChars / 2) ? slice.slice(0, boundary) : slice)
     .trimEnd()
     .replace(/[.!?…]+$/u, "");
-  return `${clipped.slice(0, maxChars - 1)}…`;
+  return `${wholeCodePoints(clipped.slice(0, maxChars - 1))}…`;
+}
+
+// Space-less scripts are cut at a UTF-16 index, which can land between the halves of a
+// surrogate pair; the stray half would reach PostgreSQL as U+FFFD.
+function wholeCodePoints(value: string): string {
+  const last = value.charCodeAt(value.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? value.slice(0, -1) : value;
 }

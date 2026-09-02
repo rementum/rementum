@@ -211,7 +211,7 @@ export const stageWriteSchema = z
     operation: writeOperationSchema,
     articleId: idSchema.optional(),
     slug: slugSchema,
-    title: z.string().min(1).max(240),
+    title: z.string().trim().min(1).max(240),
     keywords: z.array(z.string().min(1).max(80)).max(40).default([]),
     kind: articleKindSchema.default("canonical"),
     body: z.string().min(1).max(2_000_000),
@@ -288,7 +288,7 @@ export type Task = z.infer<typeof taskSchema>;
 
 export const createTaskSchema = z.object({
   brainId: idSchema,
-  title: z.string().min(1).max(240),
+  title: z.string().trim().min(1).max(240),
   brief: z.string().min(1).max(20_000),
   priority: z.number().int().min(-100).max(100).default(0),
   articleIds: z.array(idSchema).max(100).default([]),
