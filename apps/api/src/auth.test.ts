@@ -26,6 +26,7 @@ async function setup() {
     loadActor: vi.fn(async () => ({
       userId,
       clientId: "test-client",
+      systemOwner: false,
       teamRoles: new Map([["00000000-0000-4000-8000-000000000003", "owner"]]),
       workspaceRoles: new Map([[workspaceId, "owner"]]),
       brainRoles: new Map(),

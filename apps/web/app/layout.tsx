@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { AppNavigation } from "../components/app-navigation";
 import { PublicNav } from "../components/public-nav";
 import { StickyBanner } from "../components/pui";
-import { hasSession, publicAuthConfig, workspaceContext } from "../lib/api";
+import { publicAuthConfig, sessionInfo, workspaceContext } from "../lib/api";
 import { GITHUB_URL, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
 import "./globals.css";
 
@@ -105,7 +105,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const cookieStore = await cookies();
   const theme = cookieStore.get("rementum_theme")?.value === "light" ? "light" : "dark";
   const sidebarCollapsed = cookieStore.get("rementum_sidebar")?.value === "collapsed";
-  const signedIn = await hasSession();
+  const session = await sessionInfo();
+  const signedIn = session.authenticated;
   const context = signedIn ? await workspaceContext() : null;
   const authConfig = signedIn ? null : await publicAuthConfig();
 
@@ -128,6 +129,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               workspaces={context?.workspaces ?? []}
               activeWorkspaceId={context?.activeWorkspace?.id ?? null}
               initialCollapsed={sidebarCollapsed}
+              systemOwner={session.systemOwner}
             />
             <div className="min-w-0 flex-1">{children}</div>
           </div>

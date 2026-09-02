@@ -134,7 +134,7 @@ integration("account and team HTTP flows", () => {
         headers: { cookie: sessionCookie },
       });
       expect(session.statusCode).toBe(200);
-      expect(session.json()).toEqual({ authenticated: true });
+      expect(session.json()).toEqual({ authenticated: true, systemOwner: false });
 
       const teams = await app.inject({
         method: "GET",

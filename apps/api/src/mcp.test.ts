@@ -17,6 +17,7 @@ async function connectedClient(scopes: string, service: RementumService) {
     {
       userId: "00000000-0000-4000-8000-000000000001",
       clientId: "test-client",
+      systemOwner: false,
       teamRoles: new Map(),
       workspaceRoles: new Map(),
       brainRoles: new Map(),

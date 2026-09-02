@@ -42,6 +42,15 @@ export function IconTeams(props: IconProps) {
   );
 }
 
+export function IconShield(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 1.75 13.25 3.6v4.05c0 3.15-2.2 5.55-5.25 6.6-3.05-1.05-5.25-3.45-5.25-6.6V3.6Z" />
+      <path d="m5.75 8.1 1.5 1.5 3-3.1" />
+    </Icon>
+  );
+}
+
 export function IconConnections(props: IconProps) {
   return (
     <Icon {...props}>

@@ -19,6 +19,7 @@ async function createApp() {
     {
       userId: "00000000-0000-4000-8000-000000000003",
       clientId: "modern-client",
+      systemOwner: false,
       teamRoles: new Map(),
       workspaceRoles: new Map([[workspaceId, "owner"]]),
       brainRoles: new Map([[brainId, "owner"]]),

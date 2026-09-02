@@ -43,10 +43,12 @@ export async function registerWebSessionRoutes(
     return reply.code(204).send();
   });
 
+  // The web app reads this once per render to decide whether the instance panel is
+  // shown; the API still checks the flag itself on every admin route.
   app.get("/api/v1/auth/session", async (request) => {
     const session = await resolveWebSession(request, auth);
     if (!session) throw new DomainError("unauthorized", "A valid web session is required", 401);
-    return { authenticated: true };
+    return { authenticated: true, systemOwner: session.systemOwner };
   });
 
   app.delete("/api/v1/auth/session", async (request, reply) => {
@@ -61,7 +63,7 @@ export async function registerWebSessionRoutes(
 export async function resolveWebSession(
   request: FastifyRequest,
   auth: AuthRepository,
-): Promise<{ userId: string } | null> {
+): Promise<{ userId: string; systemOwner: boolean } | null> {
   const token = webSessionToken(request);
   return token ? auth.findWebSession(hashContent(token)) : null;
 }

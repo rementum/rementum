@@ -6,6 +6,7 @@ import {
   type CreateTeamInput,
   type CreateWorkspaceInput,
   EMBEDDING_BATCH_LIMIT,
+  type ListInstanceUsersInput,
   type McpAnalyticsRange,
   type PromoteWriteInput,
   type RoutingIndexSort,
@@ -811,6 +812,24 @@ export class RementumService {
     return this.store.getMcpAnalytics(workspaceId, range, actor, brainId);
   }
 
+  async getInstanceOverview(actor: Actor) {
+    requireSystemOwner(actor);
+    return this.store.getInstanceOverview(actor);
+  }
+
+  // Listing every account crosses tenant lines, so the read is audited like a brain
+  // read; the overview is counts only and is not.
+  async listInstanceUsers(input: ListInstanceUsersInput, actor: Actor) {
+    requireSystemOwner(actor);
+    const page = await this.store.listInstanceUsers(input, actor);
+    await this.store.audit(actor, "instance.accounts_listed", `user:${actor.userId}`, {
+      query: input.query,
+      offset: input.offset,
+      returned: page.items.length,
+    });
+    return page;
+  }
+
   async reindexArticle(articleId: string, actor: Actor) {
     const article = await this.store.getArticle(articleId, actor);
     if (!article) throw new NotFoundError("Article");
@@ -1047,6 +1066,13 @@ export function requireWorkspaceRole(actor: Actor, workspaceId: string, allowed:
 export function requireTeamRole(actor: Actor, teamId: string, allowed: string[]): void {
   const role = actor.teamRoles.get(teamId);
   if (!role || !allowed.includes(role)) throw new ForbiddenError();
+}
+
+/** Instance administration is for the system owner only; no team or brain role reaches it. */
+export function requireSystemOwner(actor: Actor): void {
+  if (!actor.systemOwner) {
+    throw new ForbiddenError("Only the instance owner can perform this action");
+  }
 }
 
 export function resolveWorkspaceId(workspaceId: string | undefined, actor: Actor): string {

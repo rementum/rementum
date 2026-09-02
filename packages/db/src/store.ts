@@ -5,6 +5,9 @@ import {
   type BrainRole,
   type CreateBrainInput,
   type CreateTaskInput,
+  type InstanceOverview,
+  type InstanceUsersPage,
+  type ListInstanceUsersInput,
   type MaintenanceCandidate,
   type McpAnalytics,
   type McpAnalyticsRange,
@@ -69,12 +72,19 @@ export class PostgresStore implements DataStore {
           workspaceRoles: Record<string, TeamRole>;
           brainRoles: Record<string, BrainRole>;
         };
+        system_owner: boolean | null;
       }>
-    >`SELECT owl_actor_context(${userId}::uuid) AS context`;
+    >`
+      SELECT owl_actor_context(${userId}::uuid) AS context,
+        (
+          SELECT system_owner FROM users WHERE id = ${userId}::uuid AND disabled_at IS NULL
+        ) AS system_owner
+    `;
     if (!row) throw new NotFoundError("User");
     return {
       userId,
       clientId,
+      systemOwner: row.system_owner === true,
       teamRoles: new Map(Object.entries(row.context.teamRoles ?? {})),
       workspaceRoles: new Map(Object.entries(row.context.workspaceRoles ?? {})),
       brainRoles: new Map(Object.entries(row.context.brainRoles ?? {})),
@@ -128,8 +138,12 @@ export class PostgresStore implements DataStore {
     });
     const teamRole = actor.teamRoles.get(scoped.teamId);
     if (!teamRole) throw new ForbiddenError();
+    // A bearer token is audience-bound to one workspace. Instance authority is not part
+    // of what it was granted, so it does not travel with the narrowed actor even when the
+    // person behind the token is the system owner.
     return {
       ...actor,
+      systemOwner: false,
       teamRoles: new Map([[scoped.teamId, teamRole]]),
       workspaceRoles: new Map([[workspaceId, workspaceRole]]),
       brainRoles: new Map(
@@ -2423,6 +2437,111 @@ export class PostgresStore implements DataStore {
       ${page ? tx`LIMIT ${page.limit} OFFSET ${page.offset}` : tx``}
     `;
     return rows.map(mapMaintenance);
+  }
+
+  async getInstanceOverview(actor: Actor): Promise<InstanceOverview> {
+    const row = await this.asSystemOwner(actor, async (tx) => {
+      const [result] = await tx<Array<{ overview: any }>>`
+        SELECT owl_instance_overview() AS overview
+      `;
+      return result?.overview;
+    });
+    if (!row) throw new NotFoundError("Instance overview");
+    const count = (value: unknown) => Number(value ?? 0);
+    return {
+      generatedAt: asDate(row.generatedAt).toISOString(),
+      timeZone: "UTC",
+      accounts: {
+        total: count(row.accounts?.total),
+        verified: count(row.accounts?.verified),
+        unverified: count(row.accounts?.unverified),
+        disabled: count(row.accounts?.disabled),
+        systemOwners: count(row.accounts?.systemOwners),
+        newLast7Days: count(row.accounts?.newLast7Days),
+        newLast30Days: count(row.accounts?.newLast30Days),
+        activeLast7Days: count(row.accounts?.activeLast7Days),
+        activeLast30Days: count(row.accounts?.activeLast30Days),
+      },
+      knowledge: {
+        teams: count(row.knowledge?.teams),
+        workspaces: count(row.knowledge?.workspaces),
+        brains: count(row.knowledge?.brains),
+        articles: count(row.knowledge?.articles),
+        versions: count(row.knowledge?.versions),
+        pendingWrites: count(row.knowledge?.pendingWrites),
+        conflictedWrites: count(row.knowledge?.conflictedWrites),
+        openTasks: count(row.knowledge?.openTasks),
+        claimedTasks: count(row.knowledge?.claimedTasks),
+      },
+      usage: {
+        mcpCallsLast24Hours: count(row.usage?.mcpCallsLast24Hours),
+        mcpCallsLast7Days: count(row.usage?.mcpCallsLast7Days),
+        mcpCallsLast30Days: count(row.usage?.mcpCallsLast30Days),
+        mcpCallsTotal: count(row.usage?.mcpCallsTotal),
+        activeClientsLast30Days: count(row.usage?.activeClientsLast30Days),
+        webSessions: count(row.usage?.webSessions),
+        mcpConnections: count(row.usage?.mcpConnections),
+      },
+      compaction: {
+        queued: count(row.compaction?.queued),
+        processing: count(row.compaction?.processing),
+        failed: count(row.compaction?.failed),
+      },
+      storage: { databaseBytes: count(row.storage?.databaseBytes) },
+      daily: (row.daily ?? []).map((item: any) => ({
+        date: String(item.date),
+        signups: count(item.signups),
+        calls: count(item.calls),
+      })),
+    };
+  }
+
+  async listInstanceUsers(input: ListInstanceUsersInput, actor: Actor): Promise<InstanceUsersPage> {
+    // The pattern is matched with ILIKE inside the function; the wildcards are escaped
+    // here so a search for "a_b" finds that address rather than any three characters.
+    const search = input.query.replace(/[\\%_]/g, (char) => `\\${char}`);
+    const row = await this.asSystemOwner(actor, async (tx) => {
+      const [result] = await tx<Array<{ page: any }>>`
+        SELECT owl_instance_users(${search}, ${input.limit}, ${input.offset}) AS page
+      `;
+      return result?.page;
+    });
+    if (!row) throw new NotFoundError("Instance accounts");
+    const mapTimestamp = (value: Date | string | null) =>
+      value === null || value === undefined ? null : asDate(value).toISOString();
+    return {
+      items: (row.items ?? []).map((item: any) => ({
+        id: String(item.id),
+        email: String(item.email),
+        displayName: String(item.displayName ?? ""),
+        systemOwner: item.systemOwner === true,
+        emailVerifiedAt: mapTimestamp(item.emailVerifiedAt),
+        disabledAt: mapTimestamp(item.disabledAt),
+        createdAt: asDate(item.createdAt).toISOString(),
+        teams: Number(item.teams ?? 0),
+        lastActiveAt: mapTimestamp(item.lastActiveAt),
+        mcpConnections: Number(item.mcpConnections ?? 0),
+      })),
+      total: Number(row.total ?? 0),
+      query: input.query,
+      limit: input.limit,
+      offset: input.offset,
+    };
+  }
+
+  /**
+   * Runs an instance-wide read. The definer functions check `users.system_owner` for
+   * `app.user_id` themselves and raise insufficient_privilege otherwise; that refusal is
+   * the database layer's own verdict, so it surfaces as the same 403 the service gives.
+   */
+  private async asSystemOwner<T>(actor: Actor, callback: (tx: Tx) => Promise<T>): Promise<T> {
+    if (!actor.systemOwner) throw new ForbiddenError();
+    try {
+      return await this.withActor(actor, callback);
+    } catch (error) {
+      if ((error as { code?: unknown }).code === "42501") throw new ForbiddenError();
+      throw error;
+    }
   }
 
   private async withActor<T>(

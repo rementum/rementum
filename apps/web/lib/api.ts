@@ -1,18 +1,42 @@
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-export async function hasSession() {
+export interface SessionInfo {
+  authenticated: boolean;
+  /** Instance owner, the only account the instance panel is shown to. */
+  systemOwner: boolean;
+}
+
+const signedOut: SessionInfo = { authenticated: false, systemOwner: false };
+
+export async function sessionInfo(): Promise<SessionInfo> {
   const token = (await cookies()).get("rementum_session")?.value;
-  if (!token) return false;
+  if (!token) return signedOut;
   try {
     const response = await fetch(`${apiBase()}/api/v1/auth/session`, {
       headers: await sessionHeaders(token),
       cache: "no-store",
     });
-    return response.ok;
+    if (!response.ok) return signedOut;
+    const body = (await response.json().catch(() => ({}))) as Partial<SessionInfo>;
+    return { authenticated: true, systemOwner: body.systemOwner === true };
   } catch {
-    return false;
+    return signedOut;
   }
+}
+
+export async function hasSession() {
+  return (await sessionInfo()).authenticated;
+}
+
+/**
+ * Gate for the instance panel pages. Anyone else gets the same 404 a missing page gives,
+ * so the panel's existence is not advertised; the API refuses them on its own regardless.
+ */
+export async function requireInstanceOwner(): Promise<void> {
+  const session = await sessionInfo();
+  if (!session.authenticated) redirect("/auth/login");
+  if (!session.systemOwner) notFound();
 }
 
 export async function api<T>(path: string): Promise<T> {

@@ -8,6 +8,9 @@ import type {
   CompactionState,
   CreateBrainInput,
   CreateTaskInput,
+  InstanceOverview,
+  InstanceUsersPage,
+  ListInstanceUsersInput,
   MaintenanceCandidate,
   McpAnalytics,
   McpAnalyticsRange,
@@ -26,6 +29,12 @@ import type { CipherEnvelope, WrappedKey } from "./crypto.js";
 export interface Actor {
   userId: string;
   clientId: string | null;
+  /**
+   * The instance owner flag from `users.system_owner`: the account `create-owner` made.
+   * It is instance authority, not tenant authority, so an actor narrowed to one MCP
+   * workspace never carries it.
+   */
+  systemOwner: boolean;
   teamRoles: Map<string, TeamRole>;
   workspaceRoles: Map<string, TeamRole>;
   brainRoles: Map<string, BrainRole>;
@@ -474,6 +483,9 @@ export interface DataStore {
     actor: Actor,
     brainId?: string,
   ): Promise<McpAnalytics>;
+  /** Instance-wide; the store refuses an actor that is not a system owner. */
+  getInstanceOverview(actor: Actor): Promise<InstanceOverview>;
+  listInstanceUsers(input: ListInstanceUsersInput, actor: Actor): Promise<InstanceUsersPage>;
   createInvitation(
     brainId: string,
     email: string,

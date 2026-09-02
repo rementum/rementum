@@ -23,7 +23,7 @@ async function harness(configOverride: Partial<AppConfig> = {}): Promise<Harness
   const auth = {
     createWebSession: vi.fn(async () => undefined),
     revokeWebSession: vi.fn(async () => undefined),
-    findWebSession: vi.fn(async () => ({ userId })),
+    findWebSession: vi.fn(async () => ({ userId, systemOwner: false })),
   } as unknown as AuthRepository;
   const verifyCredentials = vi.fn(async () => ({
     id: userId,
@@ -188,13 +188,24 @@ describe("turnstile protection", () => {
 });
 
 describe("session lifetime", () => {
+  it("tells the web app when the session belongs to the instance owner", async () => {
+    vi.mocked(context.auth.findWebSession).mockResolvedValueOnce({ userId, systemOwner: true });
+    const response = await context.app.inject({
+      method: "GET",
+      url: "/api/v1/auth/session",
+      headers: { cookie: `${WEB_SESSION_COOKIE}=${"s".repeat(43)}` },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ authenticated: true, systemOwner: true });
+  });
+
   it("reports an authenticated session for a well-formed cookie", async () => {
     const response = await context.app.inject({
       method: "GET",
       url: "/api/v1/auth/session",
       cookies: { [WEB_SESSION_COOKIE]: "s".repeat(43) },
     });
-    expect(response.json()).toEqual({ authenticated: true });
+    expect(response.json()).toEqual({ authenticated: true, systemOwner: false });
   });
 
   it("rejects a session the repository does not know", async () => {

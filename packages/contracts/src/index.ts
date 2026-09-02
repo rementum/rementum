@@ -483,3 +483,90 @@ export const mcpAnalyticsSchema = z.object({
   ),
 });
 export type McpAnalytics = z.infer<typeof mcpAnalyticsSchema>;
+
+export const listInstanceUsersSchema = z.object({
+  query: z.string().trim().max(200).default(""),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type ListInstanceUsersInput = z.infer<typeof listInstanceUsersSchema>;
+
+const countSchema = z.number().int().nonnegative();
+
+// Instance-wide figures for the system owner's panel. Everything here is a count over
+// metadata the database already holds in plaintext; no body, argument, address, or token
+// is aggregated, and a figure that would need one does not belong in this object.
+export const instanceOverviewSchema = z.object({
+  generatedAt: z.iso.datetime(),
+  timeZone: z.literal("UTC"),
+  accounts: z.object({
+    total: countSchema,
+    verified: countSchema,
+    unverified: countSchema,
+    disabled: countSchema,
+    systemOwners: countSchema,
+    newLast7Days: countSchema,
+    newLast30Days: countSchema,
+    activeLast7Days: countSchema,
+    activeLast30Days: countSchema,
+  }),
+  knowledge: z.object({
+    teams: countSchema,
+    workspaces: countSchema,
+    brains: countSchema,
+    articles: countSchema,
+    versions: countSchema,
+    pendingWrites: countSchema,
+    conflictedWrites: countSchema,
+    openTasks: countSchema,
+    claimedTasks: countSchema,
+  }),
+  usage: z.object({
+    mcpCallsLast24Hours: countSchema,
+    mcpCallsLast7Days: countSchema,
+    mcpCallsLast30Days: countSchema,
+    mcpCallsTotal: countSchema,
+    activeClientsLast30Days: countSchema,
+    webSessions: countSchema,
+    mcpConnections: countSchema,
+  }),
+  compaction: z.object({
+    queued: countSchema,
+    processing: countSchema,
+    failed: countSchema,
+  }),
+  storage: z.object({
+    databaseBytes: countSchema,
+  }),
+  daily: z.array(
+    z.object({
+      date: z.iso.date(),
+      signups: countSchema,
+      calls: countSchema,
+    }),
+  ),
+});
+export type InstanceOverview = z.infer<typeof instanceOverviewSchema>;
+
+export const instanceUserSchema = z.object({
+  id: idSchema,
+  email: z.string(),
+  displayName: z.string(),
+  systemOwner: z.boolean(),
+  emailVerifiedAt: z.iso.datetime().nullable(),
+  disabledAt: z.iso.datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  teams: countSchema,
+  lastActiveAt: z.iso.datetime().nullable(),
+  mcpConnections: countSchema,
+});
+export type InstanceUser = z.infer<typeof instanceUserSchema>;
+
+export const instanceUsersPageSchema = z.object({
+  items: z.array(instanceUserSchema),
+  total: countSchema,
+  query: z.string(),
+  limit: countSchema,
+  offset: countSchema,
+});
+export type InstanceUsersPage = z.infer<typeof instanceUsersPageSchema>;

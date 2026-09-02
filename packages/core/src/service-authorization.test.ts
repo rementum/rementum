@@ -28,6 +28,7 @@ function actor(role: BrainRole | null, overrides: Partial<Actor> = {}): Actor {
   return {
     userId,
     clientId: "test",
+    systemOwner: false,
     teamRoles: new Map([[teamId, "owner"]]),
     workspaceRoles: new Map([[workspaceId, "owner"]]),
     brainRoles: role ? new Map([[brainId, role]]) : new Map(),
@@ -618,3 +619,46 @@ function exportedVersionsFor(limit: number) {
     bodyAad: "",
   }));
 }
+
+describe("instance administration", () => {
+  it("refuses everyone but the instance owner, whatever their team role", async () => {
+    const { service, store } = setup();
+    const getInstanceOverview = vi.fn(async () => ({ accounts: { total: 1 } }));
+    const listInstanceUsers = vi.fn(async () => ({ items: [], total: 0 }));
+    Object.assign(store, { getInstanceOverview, listInstanceUsers });
+    await expect(service.getInstanceOverview(actor("owner"))).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+    await expect(
+      service.listInstanceUsers({ query: "", limit: 50, offset: 0 }, actor("owner")),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(getInstanceOverview).not.toHaveBeenCalled();
+    expect(listInstanceUsers).not.toHaveBeenCalled();
+    expect(store.audit).not.toHaveBeenCalled();
+  });
+
+  it("passes the instance owner through and audits the account listing", async () => {
+    const { service, store } = setup();
+    const owner = actor(null, { systemOwner: true });
+    const listInstanceUsers = vi.fn(async () => ({
+      items: [{ id: userId }],
+      total: 1,
+      query: "ada",
+      limit: 50,
+      offset: 0,
+    }));
+    Object.assign(store, {
+      getInstanceOverview: vi.fn(async () => ({ accounts: { total: 1 } })),
+      listInstanceUsers,
+    });
+    await expect(service.getInstanceOverview(owner)).resolves.toEqual({ accounts: { total: 1 } });
+    const page = await service.listInstanceUsers({ query: "ada", limit: 50, offset: 0 }, owner);
+    expect(page.total).toBe(1);
+    expect(listInstanceUsers).toHaveBeenCalledWith({ query: "ada", limit: 50, offset: 0 }, owner);
+    expect(store.audit).toHaveBeenCalledWith(owner, "instance.accounts_listed", `user:${userId}`, {
+      query: "ada",
+      offset: 0,
+      returned: 1,
+    });
+  });
+});

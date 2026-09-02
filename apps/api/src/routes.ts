@@ -7,6 +7,7 @@ import {
   createTeamInvitationSchema,
   createTeamSchema,
   createWorkspaceSchema,
+  listInstanceUsersSchema,
   mcpAnalyticsRangeSchema,
   promoteWriteSchema,
   routingIndexSortSchema,
@@ -658,6 +659,20 @@ export async function registerApiRoutes(
     const revoked = await authRepository.revokeConnection(actor.userId, grantId);
     return revoked ? reply.code(204).send() : reply.code(404).send();
   });
+
+  // Instance administration is read-only and answers browser sessions only: no OAuth
+  // scope names it, and the authenticator refuses bearer tokens outside the MCP endpoint,
+  // so an agent can never reach it. The system-owner flag is checked by the service and
+  // again inside the database functions that read across tenants.
+  app.get("/api/v1/admin/overview", async (request) =>
+    service.getInstanceOverview(await authenticate(request)),
+  );
+  app.get("/api/v1/admin/accounts", async (request) =>
+    service.listInstanceUsers(
+      listInstanceUsersSchema.parse(request.query),
+      await authenticate(request),
+    ),
+  );
 
   app.post("/api/v1/brains/:brainId/invitations", async (request, reply) => {
     const actor = await authorize(request, "brain:write");
