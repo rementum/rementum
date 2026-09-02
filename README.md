@@ -1,31 +1,58 @@
-# Rementum
+<div align="center">
 
 ![Rementum](docs/assets/rementum-banner.png)
 
-Rementum is an open-source, self-hosted shared brain for AI agents. It gives Claude,
-ChatGPT, Codex, Cursor, and any remote MCP client one versioned, auditable body of knowledge.
+# Rementum
 
-The product is deliberately agent-first:
+**One versioned, auditable brain behind every AI agent.**
 
-- Knowledge lives in linked Markdown articles with a compact routing index.
-- Every canonical change is staged, versioned, attributed, and conflict checked.
-- Article bodies are encrypted with a per-brain key.
-- Rementum creates a one-sentence routing summary locally. Workspace owners can opt into deferred
-  title, summary, and Markdown-body compaction through an OpenAI-compatible AI provider.
-- Search combines routing metadata, PostgreSQL full-text search, and local multilingual
-  embeddings.
-- Agents coordinate work through leased tasks and write maintenance proposals back through
-  the same staged protocol.
-- The whole brain exports as portable Markdown.
+Self-hosted shared memory for Claude, Codex, Cursor, and any remote MCP client.
 
-## Status
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-2b7a5c.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-ESM-3178c6.svg)](https://www.typescriptlang.org/)
+[![PostgreSQL + pgvector](https://img.shields.io/badge/PostgreSQL-pgvector-336791.svg)](https://github.com/pgvector/pgvector)
+[![MCP-native](https://img.shields.io/badge/MCP-native-8a6b2f.svg)](https://modelcontextprotocol.io/)
 
-This repository is under active development toward a production beta. The REST and MCP
-contracts are versioned, but backward compatibility is not promised until 1.0.
+[Documentation](https://rementum.dev/docs/) · [Install](docs/installation.md) · [Security](docs/security.md) · [Contributing](CONTRIBUTING.md)
 
-## Self-host
+</div>
 
-Point a domain at a Linux host with Docker Compose, open ports 80 and 443, then run:
+---
+
+Rementum gives your agents a memory they can trust. Knowledge lives in linked, encrypted Markdown
+articles, and **every canonical change is staged, versioned, attributed, and conflict-checked** before
+it replaces what came before — so agents can write to shared memory without silently overwriting it.
+
+## Why Rementum
+
+- 🧠 **Agent-first** — a compact routing index lets agents find the right article, then open only that one.
+- 📝 **Staged writes** — proposals are reviewed against live canon; conflicts are parked, not merged blindly.
+- 🔒 **Encrypted at rest** — article bodies use a per-brain key; the master key never touches the database or backups.
+- 🔎 **Hybrid search** — routing metadata, PostgreSQL full-text, and local multilingual embeddings, fused.
+- 🤝 **Coordinated agents** — leased tasks and maintenance proposals flow back through the same staged protocol.
+- 📦 **Yours to keep** — self-hosted, open source, and exportable as portable Markdown at any time.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A["MCP clients<br/>Claude · Codex · Cursor"] -->|OAuth over HTTP| B(Caddy)
+    U["Browser"] -->|session| B
+    B --> API["Fastify API<br/>REST · MCP · OAuth"]
+    B --> WEB["Next.js web"]
+    API --> DB[("PostgreSQL<br/>+ pgvector")]
+    WEB --> API
+    WORK["Worker<br/>maintenance · compaction"] --> DB
+    API -->|embeddings| EMB["Local embeddings"]
+    WORK -.->|opt-in| LLM["AI provider"]
+```
+
+Article summaries are generated locally by default. Workspace owners can opt into deferred title,
+summary, and body compaction through an OpenAI-compatible provider.
+
+## Quick start
+
+Point a domain at a Linux host with Docker Compose, open ports 80 and 443, then:
 
 ```bash
 git clone https://github.com/rementum/rementum.git
@@ -33,64 +60,32 @@ cd rementum
 ./scripts/install.sh
 ```
 
-The installer generates the instance secrets, builds the stack, runs migrations, waits for health
-checks, and creates the first owner. Caddy provisions HTTPS. See the
-[installation guide](docs/installation.md) for requirements and recovery steps.
+The installer generates instance secrets, builds the stack, runs migrations, waits for health checks,
+creates the first owner, and lets Caddy provision HTTPS. Update an installed instance later with
+`./scripts/update.sh`, which backs up, fast-forwards, migrates, and rebuilds.
 
-After configuring encrypted backups, update an installed instance with:
+See the [installation guide](docs/installation.md) and [operations guide](docs/operations.md) for
+requirements, backups, and recovery.
 
-```bash
-./scripts/update.sh
-```
+## Security
 
-It backs up the instance, fast-forwards the source, runs migrations, rebuilds the services, and
-waits for their health checks. See the [operations guide](docs/operations.md) for backup setup and
-recovery.
+Article and version bodies are encrypted at rest. External LLM capability and workspace compaction are
+**off by default**; when both are enabled, the worker sends a version's title and body to the provider
+in plaintext to compact it. Routing metadata and embeddings stay searchable and must be treated as
+sensitive derived data. The master key is never stored in the database or backups.
 
-## Documentation
+Read [SECURITY.md](SECURITY.md) and the [security checklist](docs/security.md) before storing private
+knowledge, and report vulnerabilities privately rather than in an issue.
 
-The [documentation site](https://rementum.dev/docs/) covers configuration, backups, upgrades,
-security, and agent connections. Every instance serves the guide for its own version at `/docs`.
-Build it locally with:
+## Documentation & contributing
 
-```bash
-python3 -m pip install -r docs/requirements.txt
-mkdocs build --strict
-```
+Full docs live at **[rementum.dev/docs](https://rementum.dev/docs/)** (configuration, backups, upgrades,
+security, and agent connections) and in [`docs/`](docs/index.md). For local setup and checks, read
+[docs/development.md](docs/development.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
-For development setup and checks, read [docs/development.md](docs/development.md).
-
-## Security boundary
-
-Article bodies and version bodies are encrypted at rest. External LLM capability and workspace
-compaction are both disabled by default. When both are enabled, promotion stores the submitted body
-encrypted and queues the exact version; the worker later sends its title and body to the provider in
-plaintext. On success the same version is overwritten with the compact generated body, so the
-submitted body is no longer retained. After three failures the submitted body remains canonical and
-the article is marked failed. Routing metadata and embeddings remain searchable and must be treated
-as sensitive derived data. The master key is not stored in the database or included in backups.
-
-See [SECURITY.md](SECURITY.md) and the [security checklist](docs/security.md) before storing private
-knowledge.
-
-## Backup
-
-Set `REMENTUM_BACKUP_AGE_RECIPIENT` to an age public recipient and run:
-
-```bash
-docker compose --profile backup run --rm backup
-```
-
-The encrypted archive contains PostgreSQL, local blobs, and a versioned manifest. It never contains
-`REMENTUM_MASTER_KEY`; escrow that key separately. Read [the operations guide](docs/operations.md)
-before you test a restore.
-
-## Contributing
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and the pull request checklist. Report
-security vulnerabilities privately as described in [SECURITY.md](SECURITY.md) rather than in an
-issue.
+> **Status:** active development toward a production beta. REST and MCP contracts are versioned;
+> backward compatibility is not promised until 1.0.
 
 ## License
 
-AGPL-3.0-only. See [LICENSE](LICENSE).
+[AGPL-3.0-only](LICENSE).
