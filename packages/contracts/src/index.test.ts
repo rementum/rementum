@@ -170,3 +170,21 @@ describe("externalUrlSchema", () => {
     ).toThrow(/http and https/);
   });
 });
+
+describe("titles", () => {
+  it("rejects whitespace-only titles for writes and tasks", () => {
+    const write = {
+      brainId: "00000000-0000-4000-8000-000000000001",
+      operation: "create",
+      slug: "a",
+      title: "   ",
+      body: "Body",
+      changeSummary: "c",
+    };
+    expect(stageWriteSchema.safeParse(write).success).toBe(false);
+    expect(stageWriteSchema.safeParse({ ...write, title: " Padded " }).data?.title).toBe("Padded");
+    expect(
+      createTaskSchema.safeParse({ brainId: write.brainId, title: " \t", brief: "b" }).success,
+    ).toBe(false);
+  });
+});

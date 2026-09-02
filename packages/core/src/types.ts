@@ -2,6 +2,7 @@ import type {
   Article,
   ArticleSummary,
   BrainArticleCount,
+  BrainInvitation,
   BrainListSort,
   BrainRole,
   CompactionState,
@@ -11,6 +12,7 @@ import type {
   McpAnalytics,
   McpAnalyticsRange,
   PromoteWriteInput,
+  ReviewQueue,
   RoutingIndexSort,
   SearchArticlesInput,
   SourceInput,
@@ -114,6 +116,9 @@ export interface VersionRecord {
   clientId: string | null;
   createdAt: Date;
 }
+
+/** A version without its ciphertext, for history listings that never decrypt. */
+export type VersionSummary = Omit<VersionRecord, "body" | "bodyAad">;
 
 /** Everything one article view needs, read together. */
 export interface ArticleBundle {
@@ -223,6 +228,11 @@ export interface ArticleGenerator {
 
 export type ResolvedStageWriteInput = StageWriteInput & GeneratedArticle;
 
+export interface SealedBody {
+  body: CipherEnvelope;
+  bodyAad: string;
+}
+
 export interface DataStore {
   createTeam(
     name: string,
@@ -311,7 +321,7 @@ export interface DataStore {
     version: number,
     actor: Actor,
   ): Promise<Array<SourceInput & { id: string }>>;
-  listArticleVersions(articleId: string, actor: Actor): Promise<VersionRecord[]>;
+  listArticleVersions(articleId: string, actor: Actor): Promise<VersionSummary[]>;
   /** Null when the article is not visible; throws when its brain or version is missing. */
   readArticleBundle(articleId: string, actor: Actor): Promise<ArticleBundle | null>;
   listCurrentVersions(brainId: string, actor: Actor, limit: number): Promise<ExportedVersion[]>;
@@ -342,20 +352,32 @@ export interface DataStore {
     status?: StagedWriteRecord["status"],
   ): Promise<StagedWriteRecord[]>;
   withdrawStagedWrite(id: string, actor: Actor): Promise<StagedWriteRecord>;
+  listWorkspaceReviewQueue(workspaceId: string, actor: Actor, limit: number): Promise<ReviewQueue>;
+  /**
+   * `sealVersion` re-encrypts the staged body for the version number the store assigns, so
+   * the stored ciphertext is bound to its final position rather than to the staged write.
+   */
   promoteStagedWrite(
     input: PromoteWriteInput,
     actor: Actor,
     llmAvailable: boolean,
+    sealVersion: (write: StagedWriteRecord, version: number) => SealedBody,
   ): Promise<{ write: StagedWriteRecord; article: ArticleRecord; version: VersionRecord }>;
   queueWorkspaceCurrentCompactions(workspaceId: string, actor: Actor): Promise<number>;
   queueArticleCompaction(articleId: string, actor: Actor): Promise<ArticleRecord>;
   cancelWorkspaceCompactions(workspaceId: string, actor: Actor): Promise<string[]>;
   getCompactionJob(jobId: string, actor: Actor): Promise<CompactionJobRecord | null>;
+  extendCompactionLease(jobId: string, claimId: string, leaseSeconds: number): Promise<boolean>;
+  /**
+   * Stores the compact result as the article's next version, sealed by `sealVersion` for
+   * the number the store assigns, so the submitted version stays in history. Returns
+   * `current: false` without writing when the source version is no longer current.
+   */
   completeCompaction(
     jobId: string,
     claimId: string,
     generated: GeneratedArticle,
-    encrypted: CipherEnvelope,
+    sealVersion: (version: number) => SealedBody,
     bodyHash: string,
     actor: Actor,
   ): Promise<{ current: boolean; articleId: string; version: number } | null>;
@@ -422,6 +444,7 @@ export interface DataStore {
     actor: Actor,
     page?: { limit: number; offset: number },
   ): Promise<MaintenanceCandidate[]>;
+  getMaintenanceCandidate(candidateId: string, actor: Actor): Promise<MaintenanceCandidate | null>;
   updateMaintenance(
     candidateId: string,
     status: "resolved" | "dismissed",
@@ -455,10 +478,20 @@ export interface DataStore {
     brainId: string,
     email: string,
     role: BrainRole,
+    tokenHash: string | null,
+    expiresAt: Date,
+    actor: Actor,
+    proposedByClient?: string | null,
+  ): Promise<{ id: string; expiresAt: Date }>;
+  listBrainInvitations(brainId: string, actor: Actor): Promise<BrainInvitation[]>;
+  getBrainInvitation(invitationId: string, actor: Actor): Promise<BrainInvitation | null>;
+  approveInvitation(
+    invitationId: string,
     tokenHash: string,
     expiresAt: Date,
     actor: Actor,
-  ): Promise<{ id: string; expiresAt: Date }>;
+  ): Promise<BrainInvitation>;
+  revokeInvitation(invitationId: string, actor: Actor): Promise<BrainInvitation>;
   audit(
     actor: Actor,
     action: string,

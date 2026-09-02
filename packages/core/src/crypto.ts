@@ -25,7 +25,12 @@ export interface WrappedKey extends CipherEnvelope {
 }
 
 export function parseMasterKey(value: string): Buffer {
-  const decoded = Buffer.from(value, "base64");
+  // Node's decoder skips characters outside the alphabet, so a mistyped key could still
+  // decode to 32 bytes and only fail later, as "wrong master key", against every brain.
+  const trimmed = value.trim();
+  const decoded = /^[A-Za-z0-9+/]{43}=?$/.test(trimmed)
+    ? Buffer.from(trimmed, "base64")
+    : Buffer.alloc(0);
   if (decoded.length !== 32) {
     throw new DomainError(
       "invalid_master_key",

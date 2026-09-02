@@ -6,4 +6,5 @@ export * from "./local-summary.js";
 export * from "./markdown.js";
 export * from "./search.js";
 export * from "./service.js";
+export * from "./tasks.js";
 export * from "./types.js";

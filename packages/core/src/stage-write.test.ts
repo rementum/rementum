@@ -41,7 +41,7 @@ function brain(): BrainRecord {
 }
 
 function write(summary: string, title = "Title"): StagedWriteRecord {
-  return { id: "write-id", summary, title } as StagedWriteRecord;
+  return { id: "write-id", brainId, summary, title } as StagedWriteRecord;
 }
 
 function setup(
@@ -177,5 +177,32 @@ describe("deferred article compaction", () => {
       summary: "Canonical body",
     });
     expect(store.createStagedWrite).toHaveBeenCalledOnce();
+  });
+
+  it("refuses an idempotency key that already names a write in another brain", async () => {
+    const { service, store } = setup();
+    vi.mocked(store.getStagedWriteByIdempotencyKey).mockResolvedValueOnce({
+      id: "other-write",
+      brainId: "00000000-0000-4000-8000-000000000099",
+    } as StagedWriteRecord);
+    await expect(
+      service.stageWrite(
+        {
+          brainId,
+          operation: "create",
+          slug: "reused",
+          title: "Reused key",
+          keywords: [],
+          kind: "canonical",
+          body: "Body",
+          changeSummary: "reuse",
+          sources: [],
+          acknowledgePotentialConflicts: false,
+          idempotencyKey: "shared-key",
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: "conflict", detail: { writeId: "other-write" } });
+    expect(store.createStagedWrite).not.toHaveBeenCalled();
   });
 });

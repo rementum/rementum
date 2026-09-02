@@ -174,3 +174,15 @@ needs a separate signed-in web session.
 Write memory with `stage_write`. Review its conflict result before you promote the pending write.
 Staging never waits for an external LLM. In an opted-in workspace, `read_article` shows the deferred
 compaction status after promotion, while the submitted body stays usable.
+
+`propose_invite` records a proposal only. No invitation link exists until a brain owner approves the
+proposal on the brain page in the web UI, where the link is issued and sent; an agent can never hand
+out access by itself.
+
+A tool that cannot complete returns an `isError` result whose text block is one JSON object:
+`code`, `message`, and, when the failure carries one, `detail`. `stage_write` reports unacknowledged
+potential conflicts as `code: "conflict"` with `detail.potentialConflicts`; `promote_staged_write`
+reports a base-version mismatch the same way with `detail.currentVersion`, and a slug already taken
+by another article with `detail.articleId`. Validation failures use `code: "validation"` and list the
+rejected fields in `detail.issues`. Internal faults arrive as `code: "internal"` with no further
+detail; the server log has the cause.

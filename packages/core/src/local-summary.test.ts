@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLocalSummary, LocalArticleGenerator } from "./local-summary.js";
+import { clipSentence, createLocalSummary, LocalArticleGenerator } from "./local-summary.js";
 
 describe("local routing summaries", () => {
   it("creates a compact plain-text summary without an external provider", async () => {
@@ -32,6 +32,30 @@ describe("local routing summaries", () => {
         body: "Use local summaries by default. Enable an LLM only when compaction is wanted.",
       }),
     ).toBe("Use local summaries by default.");
+  });
+
+  it("never cuts a clipped summary between the halves of a surrogate pair", () => {
+    const clipped = clipSentence("😀".repeat(400), 300);
+    expect(clipped.endsWith("…")).toBe(true);
+    expect(clipped).not.toContain("\uFFFD");
+    expect([...clipped.slice(0, -1)].every((char) => char === "😀")).toBe(true);
+    expect(clipped.length).toBeLessThanOrEqual(300);
+  });
+
+  it("summarises hostile bodies in linear time", () => {
+    const bodies = [
+      "<".repeat(600_000),
+      "![".repeat(300_000),
+      "[".repeat(600_000),
+      `# a${" ".repeat(600_000)}b`,
+      `[[${"|".repeat(300_000)}`,
+    ];
+    for (const body of bodies) {
+      const started = performance.now();
+      const summary = createLocalSummary({ title: "a", body });
+      expect(summary.length).toBeLessThanOrEqual(300);
+      expect(performance.now() - started).toBeLessThan(2_000);
+    }
   });
 
   it("falls back to the title when the body has no prose", () => {

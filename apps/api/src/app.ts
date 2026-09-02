@@ -8,7 +8,7 @@ import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import { parseMasterKey, RementumService } from "@rementum/core";
 import { AuthRepository, createDatabaseClient, PostgresStore } from "@rementum/db";
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
 import { createAuthenticator } from "./auth.js";
 import type { AppConfig } from "./config.js";
 import { createCredentialVerifier } from "./credentials.js";
@@ -20,6 +20,33 @@ import { registerProblemDetails } from "./problems.js";
 import { registerApiRoutes } from "./routes.js";
 import { registerWebSessionRoutes } from "./web-session.js";
 
+export const REQUEST_BODY_LIMIT = 2_500_000;
+
+/** A caller-supplied request id is kept only when it is short and plain. */
+export function requestId(header: string | string[] | undefined): string {
+  return typeof header === "string" && /^[A-Za-z0-9._-]{1,64}$/.test(header)
+    ? header
+    : crypto.randomUUID();
+}
+
+/**
+ * Invitation tokens travel in the path of the routes that inspect them, and the request
+ * log would otherwise become the only plaintext store of seven-day, account-creating
+ * secrets. The database keeps their hashes; the log gets a placeholder.
+ */
+export function redactRequestUrl(url: string): string {
+  return url.replace(/(\/api\/v1\/(?:team-)?invitations\/)[^/?#]+/, "$1[redacted]");
+}
+
+function serializeRequest(request: FastifyRequest) {
+  return {
+    method: request.method,
+    url: redactRequestUrl(request.url),
+    host: request.host,
+    remoteAddress: request.ip,
+  };
+}
+
 export async function buildApp(
   config: AppConfig,
   overrides: { mailer?: TransactionalMailer | null } = {},
@@ -29,10 +56,15 @@ export async function buildApp(
     mkdir(config.REMENTUM_EXPORT_DIR, { recursive: true }),
   ]);
   const app = Fastify({
-    logger: { level: config.REMENTUM_LOG_LEVEL },
-    bodyLimit: 2_000_000,
+    logger: {
+      level: config.REMENTUM_LOG_LEVEL,
+      serializers: { req: serializeRequest },
+    },
+    // The contracts allow a two-million-character body, and its JSON envelope needs room
+    // beyond that; the previous limit rejected schema-valid maximal writes with a 413.
+    bodyLimit: REQUEST_BODY_LIMIT,
     trustProxy: config.REMENTUM_TRUSTED_PROXIES || false,
-    genReqId: (request) => String(request.headers["x-request-id"] ?? crypto.randomUUID()),
+    genReqId: (request) => requestId(request.headers["x-request-id"]),
   });
   const database = createDatabaseClient(config.REMENTUM_DATABASE_URL);
   const store = new PostgresStore(database);

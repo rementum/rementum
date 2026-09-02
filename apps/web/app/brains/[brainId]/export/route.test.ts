@@ -9,6 +9,7 @@ vi.mock("next/headers", () => ({
       return value === undefined ? undefined : { name, value };
     },
   }),
+  headers: async () => new Headers(),
 }));
 
 const { GET } = await import("./route");

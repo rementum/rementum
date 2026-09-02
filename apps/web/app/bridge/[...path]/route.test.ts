@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const cookieJar = new Map<string, string>();
 
+const incomingHeaders = new Headers();
+
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => {
@@ -10,6 +12,7 @@ vi.mock("next/headers", () => ({
       return value === undefined ? undefined : { name, value };
     },
   }),
+  headers: async () => incomingHeaders,
 }));
 
 const { DELETE, GET, POST } = await import("./route");
@@ -31,6 +34,7 @@ function params(...path: string[]) {
 beforeEach(() => {
   cookieJar.clear();
   cookieJar.set("rementum_session", token);
+  for (const key of [...incomingHeaders.keys()]) incomingHeaders.delete(key);
   fetchMock.mockReset();
   fetchMock.mockResolvedValue(
     new Response(JSON.stringify({ ok: true }), {
@@ -117,6 +121,67 @@ describe("session bridge", () => {
     );
     expect(response.status).toBe(404);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("passes the client address chain through so the API can rate limit per client", async () => {
+    incomingHeaders.set("x-forwarded-for", "203.0.113.7, 10.0.0.2");
+    await GET(request("GET", "/bridge/teams"), params("teams"));
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.get("x-forwarded-for")).toBe("203.0.113.7, 10.0.0.2");
+  });
+
+  it("refuses a body whose declared length exceeds what the API would accept", async () => {
+    const response = await POST(
+      request("POST", "/bridge/writes", {
+        headers: {
+          origin: site,
+          "content-type": "application/json",
+          "content-length": String(2_500_001),
+        },
+        body: "{}",
+      }),
+      params("writes"),
+    );
+    expect(response.status).toBe(413);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("lets an archive upload through the higher import limit", async () => {
+    const response = await POST(
+      request("POST", "/bridge/brains/brain-id/imports/stage", {
+        headers: {
+          origin: site,
+          "content-type": "multipart/form-data; boundary=x",
+          "content-length": String(50 * 1024 * 1024),
+        },
+        body: "--x--",
+      }),
+      params("brains", "brain-id", "imports", "stage"),
+    );
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a body it cannot bound because it arrives chunked", async () => {
+    const response = await POST(
+      request("POST", "/bridge/writes", {
+        headers: {
+          origin: site,
+          "content-type": "application/json",
+          "transfer-encoding": "chunked",
+        },
+        body: "{}",
+      }),
+      params("writes"),
+    );
+    expect(response.status).toBe(411);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends no address chain when the edge proxy set none", async () => {
+    await GET(request("GET", "/bridge/teams"), params("teams"));
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.has("x-forwarded-for")).toBe(false);
   });
 
   it("defaults the response content type when the API omits one", async () => {

@@ -6,7 +6,12 @@ const configSchema = z
     PORT: z.coerce.number().int().min(1).max(65535).default(8787),
     REMENTUM_PUBLIC_URL: z.url().default("http://localhost:8787"),
     REMENTUM_DATABASE_URL: z.string().min(1),
-    REMENTUM_DATABASE_ADMIN_URL: z.string().min(1).optional(),
+    // The Compose stack blanks this in the API container so the superuser never reaches
+    // it; an empty value therefore means "not configured", like the other optional keys.
+    REMENTUM_DATABASE_ADMIN_URL: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
     REMENTUM_MASTER_KEY: z.string().min(1),
     REMENTUM_COOKIE_KEYS: z.string().min(16),
     REMENTUM_JWT_JWKS: z.string().optional(),

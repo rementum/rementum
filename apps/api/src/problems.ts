@@ -12,7 +12,14 @@ import { workspaceIdFromMcpPath } from "./auth.js";
 export function registerProblemDetails(app: FastifyInstance, publicUrl: string): void {
   const origin = publicUrl.replace(/\/$/, "");
   app.setErrorHandler((error: FastifyError, request, reply) => {
-    request.log.error(error);
+    // A client's own mistake (validation, a stale session, a missing brain) is not an
+    // incident; logging every one at error level buried the faults that are.
+    const failureStatus = error instanceof DomainError ? error.status : error.statusCode;
+    if (typeof failureStatus === "number" && failureStatus >= 400 && failureStatus < 500) {
+      request.log.info({ err: error }, "Request failed");
+    } else {
+      request.log.error(error);
+    }
     if (error instanceof ZodError) {
       return reply
         .code(400)

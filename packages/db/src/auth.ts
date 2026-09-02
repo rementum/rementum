@@ -112,6 +112,24 @@ export class AuthRepository {
     })) as { user: UserRecord; teamId: string; workspaceId: string } | null;
   }
 
+  /**
+   * Re-registers an address whose account was never verified: the new password and name
+   * replace the old ones and the caller issues a fresh verification. A verified account
+   * is left untouched and null is returned, exactly as for an address that is free.
+   */
+  async reclaimUnverifiedAccount(
+    email: string,
+    displayName: string,
+    passwordHash: string,
+  ): Promise<UserRecord | null> {
+    const [row] = await this.client.sql<any[]>`
+      UPDATE users SET password_hash = ${passwordHash}, display_name = ${displayName}
+      WHERE lower(email) = lower(${email}) AND email_verified_at IS NULL AND disabled_at IS NULL
+      RETURNING *
+    `;
+    return row ? mapUser(row) : null;
+  }
+
   async createAuthToken(
     userId: string,
     purpose: "verify_email" | "reset_password",
@@ -267,6 +285,20 @@ export class AuthRepository {
       VALUES (${brainId}, ${userId}, ${role})
       ON CONFLICT (brain_id, user_id) DO UPDATE SET role = excluded.role
     `;
+  }
+
+  /**
+   * Removes OAuth records past their expiry. Nothing else ever deleted them, so every access
+   * token and code issued stayed in the table and each grant lookup scanned all of them.
+   */
+  async pruneExpiredOauthRecords(olderThanSeconds = 24 * 60 * 60): Promise<number> {
+    const rows = await this.client.sql<Array<{ id: string }>>`
+      DELETE FROM oauth_records
+      WHERE expires_at IS NOT NULL
+        AND expires_at < now() - (${olderThanSeconds} * interval '1 second')
+      RETURNING id
+    `;
+    return rows.length;
   }
 
   async listConnections(userId: string) {

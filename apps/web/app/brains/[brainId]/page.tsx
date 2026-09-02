@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { BrainDangerZone } from "../../../components/brain-danger-zone";
+import { type BrainInvitation, BrainInvitations } from "../../../components/brain-invitations";
 import { BrainNav } from "../../../components/brain-nav";
 import { InviteMemberForm } from "../../../components/invite-member-form";
 import { PrefToggle } from "../../../components/pref-toggle";
@@ -58,6 +59,11 @@ export default async function BrainPage({
     data = await fetchAt(page);
   }
   const offset = (page - 1) * PAGE_SIZE;
+  // Only owners can see or act on invitations; anyone else would get a 403 here.
+  const invitations =
+    data.role === "owner"
+      ? await api<BrainInvitation[]>(`/api/v1/brains/${brainId}/invitations`)
+      : [];
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
       <div className="grid gap-8 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -117,6 +123,9 @@ export default async function BrainPage({
               <InviteMemberForm brainId={brainId} />
             </div>
           </details>
+          {data.role === "owner" ? (
+            <BrainInvitations brainId={brainId} invitations={invitations} />
+          ) : null}
           {data.role === "owner" ? (
             <BrainDangerZone brainId={brainId} name={data.brain.name} />
           ) : null}

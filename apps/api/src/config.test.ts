@@ -127,6 +127,18 @@ describe("development identity header", () => {
   });
 });
 
+describe("database configuration", () => {
+  it("treats a blanked admin URL as not configured", () => {
+    expect(
+      loadConfig({ ...baseEnv, REMENTUM_DATABASE_ADMIN_URL: "" }).REMENTUM_DATABASE_ADMIN_URL,
+    ).toBeUndefined();
+    expect(
+      loadConfig({ ...baseEnv, REMENTUM_DATABASE_ADMIN_URL: "postgres://postgres@db/owl" })
+        .REMENTUM_DATABASE_ADMIN_URL,
+    ).toBe("postgres://postgres@db/owl");
+  });
+});
+
 describe("reverse proxy configuration", () => {
   it("trusts only private proxies by default so public clients cannot forge an address", () => {
     expect(loadConfig(baseEnv).REMENTUM_TRUSTED_PROXIES).toBe("loopback,uniquelocal");

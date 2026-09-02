@@ -14,11 +14,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@rementum/contracts": "workspace:*",
     "@iarna/toml": "^2.2.5",
-    "gray-matter": "^4.0.3",
+    "@rementum/contracts": "workspace:*",
+    "js-yaml": "^4.3.2",
     "jszip": "^3.10.1",
     "marked": "^17.0.3",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9"
   }
 }

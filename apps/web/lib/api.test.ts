@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const cookieJar = new Map<string, string>();
 
+const incomingHeaders = new Headers();
+
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => {
@@ -9,11 +11,15 @@ vi.mock("next/headers", () => ({
       return value === undefined ? undefined : { name, value };
     },
   }),
+  headers: async () => incomingHeaders,
 }));
 
 vi.mock("next/navigation", () => ({
   redirect: (path: string) => {
     throw new Error(`REDIRECT:${path}`);
+  },
+  notFound: () => {
+    throw new Error("NOT_FOUND");
   },
 }));
 
@@ -31,6 +37,7 @@ function respond(status: number, body: unknown): Response {
 
 beforeEach(() => {
   cookieJar.clear();
+  for (const key of [...incomingHeaders.keys()]) incomingHeaders.delete(key);
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
   vi.stubEnv("REMENTUM_API_INTERNAL_URL", "http://api:8787/");
@@ -97,6 +104,25 @@ describe("api", () => {
     cookieJar.set("rementum_session", token);
     fetchMock.mockResolvedValueOnce(respond(401, { error: "unauthorized" }));
     await expect(api("/api/v1/teams")).rejects.toThrow("REDIRECT:/auth/login");
+  });
+
+  it("forwards the client address chain the edge proxy recorded", async () => {
+    cookieJar.set("rementum_session", token);
+    incomingHeaders.set("x-forwarded-for", "203.0.113.7");
+    fetchMock.mockResolvedValueOnce(respond(200, []));
+    await api("/api/v1/teams");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://api:8787/api/v1/teams",
+      expect.objectContaining({
+        headers: { cookie: `rementum_session=${token}`, "x-forwarded-for": "203.0.113.7" },
+      }),
+    );
+  });
+
+  it("renders the not-found page for a resource the API cannot find", async () => {
+    cookieJar.set("rementum_session", token);
+    fetchMock.mockResolvedValueOnce(respond(404, { code: "not_found" }));
+    await expect(api("/api/v1/articles/missing")).rejects.toThrow("NOT_FOUND");
   });
 
   it("surfaces any other API failure with its status and body", async () => {

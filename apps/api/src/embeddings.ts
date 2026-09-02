@@ -11,13 +11,16 @@ export class HttpEmbeddingClient implements EmbeddingClient {
   constructor(private readonly baseUrl: string) {}
 
   async embedQuery(value: string): Promise<{ model: string; vector: number[] }> {
-    const { model, vectors } = await this.embed("query", [value]);
+    // A search degrades to full-text ranking when this fails, and that fallback is only
+    // useful if it arrives quickly: while the embedder is loading or wedged, every search
+    // would otherwise wait the full passage timeout before answering.
+    const { model, vectors } = await this.embed("query", [value], 5_000);
     return { model, vector: vectors[0] ?? [] };
   }
 
   async embedPassages(values: string[]): Promise<{ model: string; vectors: number[][] }> {
     if (!values.length) return { model: "", vectors: [] };
-    return this.embed("passage", values);
+    return this.embed("passage", values, 30_000);
   }
 
   async healthy(): Promise<boolean> {
@@ -34,12 +37,13 @@ export class HttpEmbeddingClient implements EmbeddingClient {
   private async embed(
     kind: "query" | "passage",
     texts: string[],
+    timeoutMs: number,
   ): Promise<{ model: string; vectors: number[][] }> {
     const response = await fetch(`${this.baseUrl}/embed`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ kind, texts }),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) throw new Error(`Embedding service returned ${response.status}`);
     const { model, vectors } = responseSchema.parse(await response.json());

@@ -1,5 +1,5 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
-import type { RementumService } from "@rementum/core";
+import { ConflictError, type RementumService } from "@rementum/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { allAccessScopes, withAccessScopes } from "./access.js";
 import { createMcpServer, sanitize } from "./mcp.js";
@@ -128,7 +128,11 @@ function stubService(overrides: Record<string, unknown> = {}): RementumService {
     linkTaskArticle: vi.fn(async () => ({ ok: true })),
     scanMaintenance: vi.fn(async () => []),
     listMaintenance: vi.fn(async () => []),
-    proposeInvite: vi.fn(async () => ({ id: "invite-id", token: "invite-token" })),
+    requestInvite: vi.fn(async () => ({
+      id: "invite-id",
+      expiresAt: "2026-01-09T00:00:00.000Z",
+      awaitingApproval: true,
+    })),
     recordMcpToolCall: vi.fn(async () => undefined),
     ...overrides,
   } as unknown as RementumService;
@@ -270,7 +274,7 @@ const cases: ToolCase[] = [
     tool: "propose_invite",
     scope: "brain:write",
     args: { brainId, email: "invited@example.test", role: "editor" },
-    method: "proposeInvite",
+    method: "requestInvite",
     expect: [brainId, "invited@example.test", "editor", expect.anything()],
   },
   { tool: "list_tasks", scope: "task:read", args: { brainId }, method: "listTasks" },
@@ -1195,5 +1199,93 @@ describe("sanitize", () => {
     expect(sanitize(null)).toBeNull();
     expect(sanitize(7)).toBe(7);
     expect(sanitize("plain")).toBe("plain");
+  });
+});
+
+describe("tool failures", () => {
+  it("reports a domain failure with its code and detail", async () => {
+    const service = stubService({
+      stageWrite: vi.fn(async () => {
+        throw new ConflictError("Potentially conflicting articles must be acknowledged", {
+          potentialConflicts: [{ articleId, slug: "architecture", similarity: 0.9 }],
+        });
+      }),
+    });
+    const client = await connect(service);
+    const response = await client.callTool({
+      name: "stage_write",
+      arguments: {
+        brainId,
+        operation: "create",
+        slug: "new-article",
+        title: "New article",
+        body: "Body",
+        changeSummary: "create",
+      },
+    });
+    expect(response).toMatchObject({ isError: true });
+    const content = (response as { content: Array<{ type: string; text: string }> }).content;
+    expect(JSON.parse(content[0]?.text ?? "{}")).toEqual({
+      code: "conflict",
+      message: "Potentially conflicting articles must be acknowledged",
+      detail: { potentialConflicts: [{ articleId, slug: "architecture", similarity: 0.9 }] },
+    });
+  });
+
+  it("hides internal failures from the client and hands them to the logger", async () => {
+    const onToolError = vi.fn();
+    const service = stubService({
+      readArticle: vi.fn(async () => {
+        throw new Error('connect ECONNREFUSED postgres:5432 for table "article_versions"');
+      }),
+    });
+    const actor = withAccessScopes(
+      {
+        userId: "00000000-0000-4000-8000-000000000009",
+        clientId: "test-client",
+        teamRoles: new Map(),
+        workspaceRoles: new Map([[workspaceId, "owner"]]),
+        brainRoles: new Map([[brainId, "owner"]]),
+      },
+      allAccessScopes.join(" "),
+      workspaceId,
+    );
+    const server = createMcpServer(
+      service,
+      actor,
+      "https://rementum.example.test",
+      undefined,
+      onToolError,
+    );
+    const client = new Client({ name: "failure-test", version: "1.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    open.push({ client, server });
+
+    const response = await client.callTool({ name: "read_article", arguments: { articleId } });
+    expect(response).toMatchObject({ isError: true });
+    const text = (response as { content: Array<{ text: string }> }).content[0]?.text ?? "";
+    expect(text).not.toContain("ECONNREFUSED");
+    expect(JSON.parse(text)).toEqual({ code: "internal", message: "Internal server error" });
+    expect(onToolError).toHaveBeenCalledWith(expect.any(Error), "read_article");
+  });
+});
+
+describe("propose_invite", () => {
+  it("never hands the agent a token; the proposal waits for an owner", async () => {
+    const service = stubService();
+    const client = await connect(service);
+    const response = await client.callTool({
+      name: "propose_invite",
+      arguments: { brainId, email: "invited@example.test", role: "viewer" },
+    });
+    expect(response.isError).not.toBe(true);
+    const text = (response as { content: Array<{ text: string }> }).content[0]?.text ?? "";
+    expect(text).not.toContain("token");
+    expect(JSON.parse(text)).toEqual({
+      id: "invite-id",
+      expiresAt: "2026-01-09T00:00:00.000Z",
+      awaitingApproval: true,
+    });
   });
 });

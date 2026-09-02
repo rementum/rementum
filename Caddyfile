@@ -6,9 +6,23 @@ www.{$REMENTUM_DOMAIN:localhost} {
 
 {$REMENTUM_DOMAIN:localhost} {
 	encode zstd gzip
+	# The API accepts archives of up to 100 MB plus multipart overhead; nothing larger is
+	# legitimate, so it is refused at the edge before any service buffers it.
+	request_body {
+		max_size 110MB
+	}
 	log {
 		output stdout
-		format json
+		# Email verification and password reset tokens travel in the query string, invitation
+		# tokens in the path; the access log would otherwise be the plaintext store of every
+		# account-creating secret. Tokens are 43 base64url characters, so the length floor
+		# leaves fixed segments such as /invitations/accept readable.
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "(/(?:team-)?invite/|/api/v1/(?:team-)?invitations/|[?&]token=)[A-Za-z0-9_%-]{32,}" "$1[redacted]"
+			}
+		}
 	}
 
 	@backend path /api/* /mcp/* /.well-known/* /oauth/* /healthz /readyz /metrics

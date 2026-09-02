@@ -11,6 +11,7 @@ import {
   createEmbedder,
   embeddingDimensions,
   embeddingSpaceId,
+  MAX_TEXTS_PER_REQUEST,
   resolveModelSpec,
 } from "./embedder.js";
 
@@ -32,7 +33,7 @@ const app = Fastify({ logger: true, bodyLimit: 2_000_000 });
 
 const requestSchema = z.object({
   kind: z.enum(["query", "passage"]),
-  texts: z.array(z.string().min(1).max(20_000)).min(1).max(64),
+  texts: z.array(z.string().min(1).max(20_000)).min(1).max(MAX_TEXTS_PER_REQUEST),
 });
 
 // Calling the generic pipeline() overload directly trips TS2590 (the AllTasks union is too

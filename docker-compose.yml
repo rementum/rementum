@@ -1,5 +1,9 @@
+# Every service refuses privilege escalation, and the services that run as an unprivileged
+# user on a high port also drop every Linux capability. Caddy binds 80 and 443 as root, and
+# PostgreSQL, migrate, backup, and restore run one-off root commands, so those keep theirs.
 services:
   caddy:
+    security_opt: ["no-new-privileges:true"]
     image: caddy:2.10.2-alpine
     restart: unless-stopped
     ports:
@@ -21,6 +25,8 @@ services:
         condition: service_healthy
 
   web:
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -46,6 +52,8 @@ services:
       retries: 10
 
   docs:
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     build:
       context: .
       dockerfile: deploy/docs/Dockerfile
@@ -57,6 +65,7 @@ services:
       retries: 10
 
   migrate:
+    security_opt: ["no-new-privileges:true"]
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -69,13 +78,21 @@ services:
       postgres:
         condition: service_healthy
 
+  # Only migrate, backup, and restore need the PostgreSQL superuser. The shared .env carries
+  # it for them, so the long-running services blank it (and the secrets they never read):
+  # a superuser connection string inside the API would bypass row-level security for
+  # anyone who found a way to read that process's environment.
   api:
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     env_file: .env
     environment:
+      REMENTUM_DATABASE_ADMIN_URL: ""
+      REMENTUM_POSTGRES_SUPER_PASSWORD: ""
       REMENTUM_DATABASE_URL: postgres://owl_app:${REMENTUM_POSTGRES_PASSWORD:?set REMENTUM_POSTGRES_PASSWORD in .env}@postgres:5432/owl
       REMENTUM_EMBEDDINGS_URL: http://embeddings:8790
       REMENTUM_BLOB_DIR: /data/blobs
@@ -94,12 +111,22 @@ services:
       retries: 10
 
   worker:
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
     restart: unless-stopped
     env_file: .env
     environment:
+      REMENTUM_DATABASE_ADMIN_URL: ""
+      REMENTUM_POSTGRES_SUPER_PASSWORD: ""
+      REMENTUM_COOKIE_KEYS: ""
+      REMENTUM_JWT_JWKS: ""
+      REMENTUM_RESEND_API_KEY: ""
+      REMENTUM_MAIL_FROM: ""
+      REMENTUM_TURNSTILE_SITE_KEY: ""
+      REMENTUM_TURNSTILE_SECRET_KEY: ""
       REMENTUM_DATABASE_URL: postgres://owl_app:${REMENTUM_POSTGRES_PASSWORD:?set REMENTUM_POSTGRES_PASSWORD in .env}@postgres:5432/owl
       REMENTUM_EMBEDDINGS_URL: http://embeddings:8790
       REMENTUM_BLOB_DIR: /data/blobs
@@ -113,6 +140,8 @@ services:
         condition: service_completed_successfully
 
   embeddings:
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     build:
       context: .
       dockerfile: apps/embeddings/Dockerfile
@@ -138,6 +167,7 @@ services:
       retries: 30
 
   postgres:
+    security_opt: ["no-new-privileges:true"]
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
@@ -157,12 +187,19 @@ services:
       retries: 20
 
   backup:
+    security_opt: ["no-new-privileges:true"]
     profiles: ["backup"]
     build:
       context: .
       dockerfile: deploy/backup/Dockerfile
     env_file: .env
     environment:
+      REMENTUM_MASTER_KEY: ""
+      REMENTUM_COOKIE_KEYS: ""
+      REMENTUM_JWT_JWKS: ""
+      REMENTUM_LLM_API_KEY: ""
+      REMENTUM_RESEND_API_KEY: ""
+      REMENTUM_TURNSTILE_SECRET_KEY: ""
       REMENTUM_DATABASE_ADMIN_URL: postgres://postgres:${REMENTUM_POSTGRES_SUPER_PASSWORD:?set REMENTUM_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
       REMENTUM_BLOB_DIR: /data/blobs
       REMENTUM_BACKUP_DIR: /backups
@@ -174,6 +211,7 @@ services:
         condition: service_healthy
 
   restore:
+    security_opt: ["no-new-privileges:true"]
     profiles: ["restore"]
     build:
       context: .
@@ -181,6 +219,12 @@ services:
     env_file: .env
     entrypoint: ["/usr/local/bin/rementum-restore"]
     environment:
+      REMENTUM_MASTER_KEY: ""
+      REMENTUM_COOKIE_KEYS: ""
+      REMENTUM_JWT_JWKS: ""
+      REMENTUM_LLM_API_KEY: ""
+      REMENTUM_RESEND_API_KEY: ""
+      REMENTUM_TURNSTILE_SECRET_KEY: ""
       REMENTUM_DATABASE_ADMIN_URL: postgres://postgres:${REMENTUM_POSTGRES_SUPER_PASSWORD:?set REMENTUM_POSTGRES_SUPER_PASSWORD in .env}@postgres:5432/owl
       REMENTUM_BLOB_DIR: /data/blobs
       REMENTUM_BACKUP_AGE_IDENTITY_FILE: /run/secrets/age-identity

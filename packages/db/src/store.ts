@@ -1,5 +1,6 @@
 import {
   type BrainArticleCount,
+  type BrainInvitation,
   type BrainListSort,
   type BrainRole,
   type CreateBrainInput,
@@ -8,6 +9,7 @@ import {
   type McpAnalytics,
   type McpAnalyticsRange,
   type PromoteWriteInput,
+  type ReviewQueue,
   type RoutingIndexSort,
   type SearchArticlesInput,
   type SourceInput,
@@ -24,6 +26,7 @@ import {
   type ClaimedCompactionJob,
   type CompactionJobRecord,
   ConflictError,
+  canTransitionTask,
   type DataStore,
   type ExportedVersion,
   ForbiddenError,
@@ -32,12 +35,14 @@ import {
   NotFoundError,
   type ResolvedStageWriteInput,
   reciprocalRankFusion,
+  type SealedBody,
   type SearchHit,
   type StagedWriteRecord,
   type TeamInvitationRecord,
   type TeamMemberRecord,
   type TeamRecord,
   type VersionRecord,
+  type VersionSummary,
   type WorkspaceRecord,
   type WrappedKey,
 } from "@rementum/core";
@@ -95,6 +100,17 @@ export class PostgresStore implements DataStore {
       ownerId: row.owner_id,
       claimId: row.claim_id,
     };
+  }
+
+  async extendCompactionLease(
+    jobId: string,
+    claimId: string,
+    leaseSeconds: number,
+  ): Promise<boolean> {
+    const [row] = await this.client.sql<Array<{ extended: boolean }>>`
+      SELECT owl_worker_extend_compaction_lease(${jobId}, ${claimId}, ${leaseSeconds}) AS extended
+    `;
+    return row?.extended === true;
   }
 
   async scopeActorToWorkspace(actor: Actor, workspaceId: string): Promise<Actor> {
@@ -225,7 +241,9 @@ export class PostgresStore implements DataStore {
     actor: Actor,
   ): Promise<WorkspaceRecord> {
     return this.withActor(actor, async (tx) => {
-      const [existing] = await tx<any[]>`SELECT * FROM workspaces WHERE id = ${workspaceId}`;
+      const [existing] = await tx<any[]>`
+        SELECT * FROM workspaces WHERE id = ${workspaceId} FOR UPDATE
+      `;
       if (!existing) throw new NotFoundError("Workspace");
       const [row] = await tx<any[]>`
         UPDATE workspaces SET
@@ -357,6 +375,27 @@ export class PostgresStore implements DataStore {
         RETURNING user_id
       `;
       if (!rows.length) throw new NotFoundError("Removable team member");
+      // Brains the member solely owned would be left with no owner row, which drops them
+      // out of every worker pass. The team owner, who already acts as their owner, takes
+      // the row over before the member's memberships go.
+      await tx`
+        INSERT INTO brain_members (brain_id, user_id, role)
+        SELECT b.id, tm.user_id, 'owner'
+        FROM brains b
+        JOIN workspaces w ON w.id = b.workspace_id
+        JOIN team_members tm ON tm.team_id = w.team_id AND tm.role = 'owner'
+        WHERE w.team_id = ${teamId}
+          AND EXISTS (
+            SELECT 1 FROM brain_members owned
+            WHERE owned.brain_id = b.id AND owned.user_id = ${userId} AND owned.role = 'owner'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM brain_members other
+            WHERE other.brain_id = b.id AND other.role = 'owner'
+              AND other.user_id NOT IN (${userId}, tm.user_id)
+          )
+        ON CONFLICT (brain_id, user_id) DO UPDATE SET role = 'owner'
+      `;
       await tx`
         DELETE FROM brain_members bm
         USING brains b, workspaces w
@@ -643,12 +682,30 @@ export class PostgresStore implements DataStore {
     });
   }
 
-  async listArticleVersions(articleId: string, actor: Actor): Promise<VersionRecord[]> {
+  // History never decrypts, so the ciphertext of every version stays in the database
+  // instead of crossing to the API only to be stripped before the response.
+  async listArticleVersions(articleId: string, actor: Actor): Promise<VersionSummary[]> {
     return this.withActor(actor, async (tx) => {
       const rows = await tx<any[]>`
-        SELECT * FROM article_versions WHERE article_id = ${articleId} ORDER BY version DESC
+        SELECT id, brain_id, article_id, version, body_hash, change_summary, sources, actor_id,
+               client_id, created_at
+        FROM article_versions WHERE article_id = ${articleId} ORDER BY version DESC
       `;
-      return rows.map(mapVersion);
+      return rows.map((row) => {
+        const {
+          body: _body,
+          bodyAad: _bodyAad,
+          ...summary
+        } = mapVersion({
+          ...row,
+          body_ciphertext: Buffer.alloc(0),
+          body_nonce: Buffer.alloc(0),
+          body_tag: Buffer.alloc(0),
+          cipher_version: 1,
+          body_aad: "",
+        });
+        return summary;
+      });
     });
   }
 
@@ -826,13 +883,8 @@ export class PostgresStore implements DataStore {
     potentialConflicts: StagedWriteRecord["potentialConflicts"],
   ): Promise<StagedWriteRecord> {
     return this.withActor(actor, async (tx) => {
-      if (input.idempotencyKey) {
-        const [existing] = await tx<any[]>`
-          SELECT * FROM staged_writes
-          WHERE staged_by = ${actor.userId} AND idempotency_key = ${input.idempotencyKey}
-        `;
-        if (existing) return mapWrite(existing);
-      }
+      // Two concurrent stagings with one key both pass a check-then-insert; the unique
+      // index then fails the loser. Let the index decide and read the winner back instead.
       const [row] = await tx<any[]>`
         INSERT INTO staged_writes (
           id, brain_id, article_id, operation, slug, title, summary, keywords, kind,
@@ -848,10 +900,17 @@ export class PostgresStore implements DataStore {
           ${JSON.stringify(potentialConflicts)}::jsonb,
           ${input.acknowledgePotentialConflicts}, ${actor.userId}, ${actor.clientId},
           ${input.idempotencyKey ?? null}
-        ) RETURNING *
+        )
+        ON CONFLICT (staged_by, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+        RETURNING *
       `;
-      if (!row) throw new Error("Staged write insert did not return a row");
-      return mapWrite(row);
+      if (row) return mapWrite(row);
+      const [existing] = await tx<any[]>`
+        SELECT * FROM staged_writes
+        WHERE staged_by = ${actor.userId} AND idempotency_key = ${input.idempotencyKey ?? null}
+      `;
+      if (!existing) throw new Error("Staged write insert did not return a row");
+      return mapWrite(existing);
     });
   }
 
@@ -890,6 +949,58 @@ export class PostgresStore implements DataStore {
     });
   }
 
+  /**
+   * Writes awaiting review across every readable brain in a workspace, plus per-brain
+   * counts. The dashboard used to list every brain's writes one request at a time and
+   * count them in the browser, which was a request per brain on every page view.
+   */
+  async listWorkspaceReviewQueue(
+    workspaceId: string,
+    actor: Actor,
+    limit: number,
+  ): Promise<ReviewQueue> {
+    return this.withActor(actor, async (tx) => {
+      const items = await tx<any[]>`
+        SELECT w.id, w.brain_id, b.name AS brain_name, w.operation, w.slug, w.title, w.status,
+               w.change_summary, w.created_at
+        FROM staged_writes w
+        JOIN brains b ON b.id = w.brain_id
+        WHERE b.workspace_id = ${workspaceId} AND b.deleted_at IS NULL
+          AND w.status IN ('pending', 'conflicted')
+        ORDER BY (w.status = 'conflicted') DESC, w.created_at DESC
+        LIMIT ${limit}
+      `;
+      const counts = await tx<any[]>`
+        SELECT w.brain_id,
+               count(*) FILTER (WHERE w.status = 'pending')::int AS pending,
+               count(*) FILTER (WHERE w.status = 'conflicted')::int AS conflicted
+        FROM staged_writes w
+        JOIN brains b ON b.id = w.brain_id
+        WHERE b.workspace_id = ${workspaceId} AND b.deleted_at IS NULL
+          AND w.status IN ('pending', 'conflicted')
+        GROUP BY w.brain_id
+      `;
+      return {
+        items: items.map((row) => ({
+          id: row.id,
+          brainId: row.brain_id,
+          brainName: row.brain_name,
+          operation: row.operation,
+          slug: row.slug,
+          title: row.title,
+          status: row.status,
+          changeSummary: row.change_summary,
+          createdAt: asDate(row.created_at).toISOString(),
+        })),
+        counts: counts.map((row) => ({
+          brainId: row.brain_id,
+          pending: Number(row.pending),
+          conflicted: Number(row.conflicted),
+        })),
+      };
+    });
+  }
+
   async withdrawStagedWrite(id: string, actor: Actor): Promise<StagedWriteRecord> {
     return this.withActor(actor, async (tx) => {
       const [row] = await tx<any[]>`
@@ -905,6 +1016,7 @@ export class PostgresStore implements DataStore {
     input: PromoteWriteInput,
     actor: Actor,
     llmAvailable: boolean,
+    sealVersion: (write: StagedWriteRecord, version: number) => SealedBody,
   ): Promise<{ write: StagedWriteRecord; article: ArticleRecord; version: VersionRecord }> {
     const outcome = await this.withActor(actor, async (tx) => {
       const [rawWrite] = await tx<any[]>`
@@ -957,10 +1069,12 @@ export class PostgresStore implements DataStore {
           SELECT id, current_version FROM articles
           WHERE brain_id = ${write.brainId} AND slug = ${write.slug} FOR UPDATE
         `;
+        // A second article cannot take the slug, so neither a rebase nor an override can
+        // clear this. The write stays pending and the caller re-stages it as an update.
         if (duplicate) {
-          await tx`UPDATE staged_writes SET status = 'conflicted', updated_at = now() WHERE id = ${write.id}`;
           return {
-            kind: "conflict" as const,
+            kind: "slug_taken" as const,
+            articleId: duplicate.id as string,
             currentVersion: duplicate.current_version as number,
           };
         }
@@ -985,6 +1099,17 @@ export class PostgresStore implements DataStore {
           return { kind: "conflict" as const, currentVersion: article.current_version as number };
         }
         version = Number(article.current_version) + 1;
+        const [taken] = await tx<any[]>`
+          SELECT id, current_version FROM articles
+          WHERE brain_id = ${write.brainId} AND slug = ${write.slug} AND id <> ${write.articleId}
+        `;
+        if (taken) {
+          return {
+            kind: "slug_taken" as const,
+            articleId: taken.id as string,
+            currentVersion: taken.current_version as number,
+          };
+        }
         await tx`
           UPDATE articles SET
             slug = ${write.slug}, title = ${write.title}, summary = ${write.summary},
@@ -996,14 +1121,15 @@ export class PostgresStore implements DataStore {
         `;
       }
 
+      const sealed = sealVersion(write, version);
       const [versionRow] = await tx<any[]>`
         INSERT INTO article_versions (
           brain_id, article_id, version, body_ciphertext, body_nonce, body_tag, cipher_version,
           body_aad, body_hash, change_summary, sources, actor_id, client_id
         ) VALUES (
-          ${write.brainId}, ${write.articleId}, ${version}, ${decode(write.body.ciphertext)},
-          ${decode(write.body.nonce)}, ${decode(write.body.tag)}, ${write.body.version},
-          ${write.bodyAad}, ${write.bodyHash}, ${write.changeSummary},
+          ${write.brainId}, ${write.articleId}, ${version}, ${decode(sealed.body.ciphertext)},
+          ${decode(sealed.body.nonce)}, ${decode(sealed.body.tag)}, ${sealed.body.version},
+          ${sealed.bodyAad}, ${write.bodyHash}, ${write.changeSummary},
           ${JSON.stringify(write.sources)}::jsonb,
           ${actor.userId}, ${actor.clientId}
         ) RETURNING *
@@ -1040,6 +1166,12 @@ export class PostgresStore implements DataStore {
       throw new ConflictError("The article changed after this write was staged", {
         currentVersion: outcome.currentVersion,
       });
+    }
+    if (outcome.kind === "slug_taken") {
+      throw new ConflictError(
+        "Another article in this brain already uses this slug; stage an update against it",
+        { articleId: outcome.articleId, currentVersion: outcome.currentVersion },
+      );
     }
     return outcome;
   }
@@ -1154,11 +1286,15 @@ export class PostgresStore implements DataStore {
     });
   }
 
+  // The compact result used to overwrite the submitted version in place, which made the
+  // provider's output the only copy of the article: a model that dropped facts, or
+  // followed instructions planted in the body, destroyed them. It now becomes the next
+  // version, so the submitted one stays in the encrypted history like any other edit.
   async completeCompaction(
     jobId: string,
     claimId: string,
     generated: GeneratedArticle,
-    encrypted: CipherEnvelope,
+    sealVersion: (version: number) => SealedBody,
     bodyHash: string,
     actor: Actor,
   ): Promise<{ current: boolean; articleId: string; version: number } | null> {
@@ -1175,35 +1311,45 @@ export class PostgresStore implements DataStore {
         await tx`DELETE FROM article_compaction_jobs WHERE id = ${jobId}`;
         return null;
       }
-      await tx`
-        UPDATE article_versions SET
-          body_ciphertext = ${decode(encrypted.ciphertext)},
-          body_nonce = ${decode(encrypted.nonce)},
-          body_tag = ${decode(encrypted.tag)},
-          cipher_version = ${encrypted.version},
-          body_hash = ${bodyHash}
-        WHERE article_id = ${job.article_id} AND version = ${job.article_version}
-      `;
       const [article] = await tx<any[]>`
         SELECT * FROM articles WHERE id = ${job.article_id} FOR UPDATE
       `;
       if (!article) throw new NotFoundError("Article");
-      const current = Number(article.current_version) === Number(job.article_version);
-      if (current) {
-        await tx`
-          UPDATE articles SET
-            title = ${generated.title}, summary = ${generated.summary},
-            compaction_status = 'compacted', compaction_attempts = ${job.attempts},
-            compaction_error = NULL, compacted_at = now(), updated_at = now()
-          WHERE id = ${job.article_id}
-        `;
+      const sourceVersion = Number(job.article_version);
+      // A newer version has its own job; the superseded source is left as it is.
+      if (Number(article.current_version) !== sourceVersion) {
+        await tx`DELETE FROM article_compaction_jobs WHERE id = ${jobId}`;
+        return { current: false, articleId: job.article_id as string, version: sourceVersion };
       }
+      const version = sourceVersion + 1;
+      const sealed = sealVersion(version);
+      await tx`
+        INSERT INTO article_versions (
+          brain_id, article_id, version, body_ciphertext, body_nonce, body_tag, cipher_version,
+          body_aad, body_hash, change_summary, sources, actor_id, client_id
+        )
+        SELECT source.brain_id, source.article_id, ${version}, ${decode(sealed.body.ciphertext)},
+          ${decode(sealed.body.nonce)}, ${decode(sealed.body.tag)}, ${sealed.body.version},
+          ${sealed.bodyAad}, ${bodyHash}, ${`Compacted version ${sourceVersion}`}, source.sources,
+          ${actor.userId}, ${actor.clientId}
+        FROM article_versions source
+        WHERE source.article_id = ${job.article_id} AND source.version = ${sourceVersion}
+      `;
+      await tx`
+        INSERT INTO article_sources (article_id, version, source_id)
+        SELECT article_id, ${version}, source_id FROM article_sources
+        WHERE article_id = ${job.article_id} AND version = ${sourceVersion}
+        ON CONFLICT DO NOTHING
+      `;
+      await tx`
+        UPDATE articles SET
+          title = ${generated.title}, summary = ${generated.summary}, current_version = ${version},
+          compaction_status = 'compacted', compaction_attempts = ${job.attempts},
+          compaction_error = NULL, compacted_at = now(), updated_at = now()
+        WHERE id = ${job.article_id}
+      `;
       await tx`DELETE FROM article_compaction_jobs WHERE id = ${jobId}`;
-      return {
-        current,
-        articleId: job.article_id as string,
-        version: Number(job.article_version),
-      };
+      return { current: true, articleId: job.article_id as string, version };
     });
   }
 
@@ -1287,17 +1433,25 @@ export class PostgresStore implements DataStore {
         ORDER BY rank DESC LIMIT 50
       `;
       // Cosine distance across vectors from different models is noise, so rows from a
-      // previous embedding model are excluded rather than ranked.
+      // previous embedding model are excluded rather than ranked. The best chunk per article
+      // is picked in the inner query; the outer one orders those by distance. DISTINCT ON
+      // forces its own ordering, so a LIMIT applied to it would keep the first fifty
+      // articles by id rather than the fifty nearest.
       const vectorRows = embedding
         ? await tx<any[]>`
-            SELECT DISTINCT ON (a.id) ${tx.unsafe(ARTICLE_COLUMNS_A)},
-                   (1 - (ae.embedding <=> ${vectorLiteral(embedding.vector)}::vector))::float8 AS rank
-            FROM article_embeddings ae
-            JOIN articles a ON a.id = ae.article_id AND a.current_version = ae.version
-            WHERE a.brain_id = ${input.brainId} AND a.archived_at IS NULL
-              AND ae.model = ${embedding.model}
-              ${input.freshness?.length ? tx`AND a.freshness = ANY(${input.freshness})` : tx``}
-            ORDER BY a.id, ae.embedding <=> ${vectorLiteral(embedding.vector)}::vector
+            SELECT ${tx.unsafe(ARTICLE_COLUMNS_A)}, best.rank
+            FROM (
+              SELECT DISTINCT ON (ae.article_id) ae.article_id,
+                     (1 - (ae.embedding <=> ${vectorLiteral(embedding.vector)}::vector))::float8 AS rank
+              FROM article_embeddings ae
+              JOIN articles a ON a.id = ae.article_id AND a.current_version = ae.version
+              WHERE a.brain_id = ${input.brainId} AND a.archived_at IS NULL
+                AND ae.model = ${embedding.model}
+                ${input.freshness?.length ? tx`AND a.freshness = ANY(${input.freshness})` : tx``}
+              ORDER BY ae.article_id, ae.embedding <=> ${vectorLiteral(embedding.vector)}::vector
+            ) best
+            JOIN articles a ON a.id = best.article_id
+            ORDER BY best.rank DESC
             LIMIT 50
           `
         : [];
@@ -1358,18 +1512,33 @@ export class PostgresStore implements DataStore {
 
   async createTask(input: CreateTaskInput, actor: Actor): Promise<Task> {
     return this.withActor(actor, async (tx) => {
-      if (input.idempotencyKey) {
-        const [existing] = await tx<any[]>`
-          SELECT * FROM tasks WHERE created_by = ${actor.userId} AND idempotency_key = ${input.idempotencyKey}
+      const articleIds = [...new Set(input.articleIds)];
+      if (articleIds.length > 0) {
+        // linkTaskArticle proves the article shares the task's brain; the same rule applies
+        // to the articles named at creation, or a task could point at another brain.
+        const [found] = await tx<Array<{ count: number }>>`
+          SELECT count(*)::int AS count FROM articles
+          WHERE id = ANY(${articleIds}::uuid[]) AND brain_id = ${input.brainId}
         `;
-        if (existing) return mapTask(existing);
+        if ((found?.count ?? 0) !== articleIds.length) {
+          throw new ConflictError("Task articles must belong to the task's brain");
+        }
       }
-      const [row] = await tx<any[]>`
+      const [inserted] = await tx<any[]>`
         INSERT INTO tasks (brain_id, title, brief, priority, created_by, idempotency_key)
         VALUES (${input.brainId}, ${input.title}, ${input.brief}, ${input.priority}, ${actor.userId}, ${input.idempotencyKey ?? null})
+        ON CONFLICT (created_by, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
         RETURNING *
       `;
-      if (!row) throw new Error("Task insert did not return a row");
+      if (!inserted) {
+        const [existing] = await tx<any[]>`
+          SELECT * FROM tasks
+          WHERE created_by = ${actor.userId} AND idempotency_key = ${input.idempotencyKey ?? null}
+        `;
+        if (!existing) throw new Error("Task insert did not return a row");
+        return mapTask(existing);
+      }
+      const row = inserted;
       // One statement per attachment turned a task with ten articles into a round trip
       // each. A multi-row insert costs the same as a single-row one.
       if (input.articleIds.length > 0) {
@@ -1438,6 +1607,7 @@ export class PostgresStore implements DataStore {
         )
         UPDATE tasks t SET
           claimed_by = ${actor.userId}, claimed_client_id = ${actor.clientId},
+          last_claimed_by = ${actor.userId}, last_claimed_client_id = ${actor.clientId},
           lease_expires_at = now() + (${leaseSeconds} * interval '1 second'),
           status = 'claimed', updated_at = now()
         FROM candidate WHERE t.id = candidate.id RETURNING t.*
@@ -1477,12 +1647,40 @@ export class PostgresStore implements DataStore {
     patch: Partial<Pick<Task, "status" | "title" | "brief" | "priority">>,
   ): Promise<Task> {
     return this.withActor(actor, async (tx) => {
-      const [current] = await tx<any[]>`SELECT * FROM tasks WHERE id = ${taskId}`;
+      const [current] = await tx<any[]>`SELECT * FROM tasks WHERE id = ${taskId} FOR UPDATE`;
       if (!current) throw new NotFoundError("Task");
+      const status = patch.status ?? current.status;
+      if (!canTransitionTask(current.status, status)) {
+        throw new ConflictError(`A ${current.status} task cannot move to ${status}`, {
+          from: current.status,
+          to: status,
+        });
+      }
+      // Agents act under their user's identity, so the client id is what tells the agent
+      // that worked on a task apart from a person approving it in the browser. The last
+      // claimant is remembered because releasing a claim clears the live one.
+      if (
+        status === "approved" &&
+        current.status !== "approved" &&
+        actor.clientId !== WEB_SESSION_CLIENT_ID &&
+        current.last_claimed_by === actor.userId &&
+        current.last_claimed_client_id === actor.clientId
+      ) {
+        throw new ForbiddenError("The client that worked on a task cannot approve it");
+      }
+      // A task reopened or closed while claimed kept its lease, and claimTask refuses a
+      // live lease, so nobody else could pick the reopened task up until it lapsed.
+      const releaseLease =
+        patch.status !== undefined &&
+        patch.status !== current.status &&
+        ["open", "approved", "completed", "cancelled"].includes(patch.status);
       const [row] = await tx<any[]>`
         UPDATE tasks SET
-          status = ${patch.status ?? current.status}, title = ${patch.title ?? current.title},
+          status = ${status}, title = ${patch.title ?? current.title},
           brief = ${patch.brief ?? current.brief}, priority = ${patch.priority ?? current.priority},
+          claimed_by = CASE WHEN ${releaseLease} THEN NULL ELSE claimed_by END,
+          claimed_client_id = CASE WHEN ${releaseLease} THEN NULL ELSE claimed_client_id END,
+          lease_expires_at = CASE WHEN ${releaseLease} THEN NULL ELSE lease_expires_at END,
           updated_at = now()
         WHERE id = ${taskId} RETURNING *
       `;
@@ -1559,6 +1757,7 @@ export class PostgresStore implements DataStore {
         WHERE a.brain_id = ${brainId} AND a.archived_at IS NULL
           AND a.review_after IS NOT NULL AND a.review_after < now()
         ON CONFLICT (brain_id, fingerprint) DO UPDATE SET updated_at = now(), status = 'open'
+          WHERE maintenance_candidates.status <> 'dismissed'
       `;
       await tx`
         INSERT INTO maintenance_candidates (brain_id, kind, article_ids, score, detail, fingerprint)
@@ -1569,20 +1768,37 @@ export class PostgresStore implements DataStore {
         WHERE a.brain_id = ${brainId} AND a.archived_at IS NULL
           AND octet_length(v.body_ciphertext) > 48000
         ON CONFLICT (brain_id, fingerprint) DO UPDATE SET updated_at = now(), status = 'open'
+          WHERE maintenance_candidates.status <> 'dismissed'
       `;
+      // Every pair in the brain used to be compared, which is quadratic in articles and
+      // used no index. Each article now asks for its five nearest neighbours in the same
+      // vector space, and only pairs above the threshold survive. Dismissed candidates
+      // stay dismissed: the condition that produced them is expected to persist.
       await tx`
         WITH current_vectors AS (
-          SELECT a.id AS article_id, a.brain_id, ae.embedding
+          SELECT a.id AS article_id, a.brain_id, ae.embedding, ae.model
           FROM articles a
           JOIN article_embeddings ae
             ON ae.article_id = a.id AND ae.version = a.current_version AND ae.ordinal = 0
           WHERE a.brain_id = ${brainId} AND a.archived_at IS NULL
         ), pairs AS (
-          SELECT left_v.brain_id, left_v.article_id AS left_id, right_v.article_id AS right_id,
-            (1 - (left_v.embedding <=> right_v.embedding))::float8 AS similarity
+          SELECT DISTINCT ON (least(left_v.article_id, neighbour.article_id), greatest(left_v.article_id, neighbour.article_id))
+            left_v.brain_id,
+            least(left_v.article_id, neighbour.article_id) AS left_id,
+            greatest(left_v.article_id, neighbour.article_id) AS right_id,
+            neighbour.similarity
           FROM current_vectors left_v
-          JOIN current_vectors right_v ON left_v.article_id < right_v.article_id
-          WHERE 1 - (left_v.embedding <=> right_v.embedding) >= 0.92
+          JOIN LATERAL (
+            SELECT a.id AS article_id,
+              (1 - (ae.embedding <=> left_v.embedding))::float8 AS similarity
+            FROM article_embeddings ae
+            JOIN articles a ON a.id = ae.article_id AND a.current_version = ae.version
+            WHERE ae.ordinal = 0 AND ae.model = left_v.model
+              AND a.brain_id = left_v.brain_id AND a.archived_at IS NULL
+              AND a.id <> left_v.article_id
+            ORDER BY ae.embedding <=> left_v.embedding
+            LIMIT 5
+          ) neighbour ON neighbour.similarity >= 0.92
         )
         INSERT INTO maintenance_candidates (brain_id, kind, article_ids, score, detail, fingerprint)
         SELECT brain_id, 'duplicate', ARRAY[left_id, right_id], similarity,
@@ -1591,6 +1807,7 @@ export class PostgresStore implements DataStore {
         FROM pairs
         ON CONFLICT (brain_id, fingerprint) DO UPDATE SET
           score = excluded.score, detail = excluded.detail, updated_at = now(), status = 'open'
+          WHERE maintenance_candidates.status <> 'dismissed'
       `;
       await tx`
         INSERT INTO maintenance_candidates (brain_id, kind, article_ids, score, detail, fingerprint)
@@ -1602,6 +1819,7 @@ export class PostgresStore implements DataStore {
         JOIN articles target ON target.id = links.to_article_id
         WHERE source.brain_id = ${brainId} AND source.archived_at IS NULL AND target.archived_at IS NOT NULL
         ON CONFLICT (brain_id, fingerprint) DO UPDATE SET updated_at = now(), status = 'open'
+          WHERE maintenance_candidates.status <> 'dismissed'
       `;
       await tx`
         INSERT INTO maintenance_candidates (brain_id, kind, article_ids, score, detail, fingerprint)
@@ -1613,6 +1831,7 @@ export class PostgresStore implements DataStore {
           AND jsonb_array_length(potential_conflicts) > 0
         ON CONFLICT (brain_id, fingerprint) DO UPDATE SET
           detail = excluded.detail, updated_at = now(), status = 'open'
+          WHERE maintenance_candidates.status <> 'dismissed'
       `;
       return this.listMaintenanceInTx(tx, brainId);
     });
@@ -1624,6 +1843,18 @@ export class PostgresStore implements DataStore {
     page?: { limit: number; offset: number },
   ): Promise<MaintenanceCandidate[]> {
     return this.withActor(actor, (tx) => this.listMaintenanceInTx(tx, brainId, page));
+  }
+
+  async getMaintenanceCandidate(
+    candidateId: string,
+    actor: Actor,
+  ): Promise<MaintenanceCandidate | null> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        SELECT * FROM maintenance_candidates WHERE id = ${candidateId}
+      `;
+      return row ? mapMaintenance(row) : null;
+    });
   }
 
   async updateMaintenance(
@@ -1689,13 +1920,15 @@ export class PostgresStore implements DataStore {
     });
   }
 
+  /** A null token hash records a proposal that an owner has yet to approve. */
   async createInvitation(
     brainId: string,
     email: string,
     role: BrainRole,
-    tokenHash: string,
+    tokenHash: string | null,
     expiresAt: Date,
     actor: Actor,
+    proposedByClient: string | null = null,
   ) {
     return this.withActor(actor, async (tx) => {
       const [brain] = await tx<any[]>`SELECT workspace_id FROM brains WHERE id = ${brainId}`;
@@ -1703,14 +1936,67 @@ export class PostgresStore implements DataStore {
       const [row] = await tx<any[]>`
         INSERT INTO invitations (
           workspace_id, brain_id, email, workspace_role, brain_role,
-          token_hash, expires_at, invited_by
+          token_hash, expires_at, invited_by, proposed_by_client
         ) VALUES (
           ${brain.workspace_id}, ${brainId}, ${email}, 'member', ${role},
-          ${tokenHash}, ${expiresAt.toISOString()}, ${actor.userId}
+          ${tokenHash}, ${expiresAt.toISOString()}, ${actor.userId}, ${proposedByClient}
         ) RETURNING id, expires_at
       `;
       if (!row) throw new Error("Invitation insert did not return a row");
       return { id: row.id as string, expiresAt: asDate(row.expires_at) };
+    });
+  }
+
+  async listBrainInvitations(brainId: string, actor: Actor): Promise<BrainInvitation[]> {
+    return this.withActor(actor, async (tx) => {
+      const rows = await tx<any[]>`
+        SELECT * FROM invitations
+        WHERE brain_id = ${brainId} AND accepted_at IS NULL AND revoked_at IS NULL
+          AND expires_at > now()
+        ORDER BY created_at DESC
+      `;
+      return rows.map(mapBrainInvitation);
+    });
+  }
+
+  async getBrainInvitation(invitationId: string, actor: Actor): Promise<BrainInvitation | null> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        SELECT * FROM invitations
+        WHERE id = ${invitationId} AND accepted_at IS NULL AND revoked_at IS NULL
+          AND expires_at > now()
+      `;
+      return row ? mapBrainInvitation(row) : null;
+    });
+  }
+
+  async approveInvitation(
+    invitationId: string,
+    tokenHash: string,
+    expiresAt: Date,
+    actor: Actor,
+  ): Promise<BrainInvitation> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        UPDATE invitations SET token_hash = ${tokenHash}, expires_at = ${expiresAt.toISOString()}
+        WHERE id = ${invitationId} AND token_hash IS NULL AND accepted_at IS NULL
+          AND revoked_at IS NULL
+        RETURNING *
+      `;
+      if (!row) throw new NotFoundError("Invitation awaiting approval");
+      return mapBrainInvitation(row);
+    });
+  }
+
+  async revokeInvitation(invitationId: string, actor: Actor): Promise<BrainInvitation> {
+    return this.withActor(actor, async (tx) => {
+      const [row] = await tx<any[]>`
+        UPDATE invitations SET revoked_at = now()
+        WHERE id = ${invitationId} AND accepted_at IS NULL AND revoked_at IS NULL
+        RETURNING *
+      `;
+      if (!row) throw new NotFoundError("Pending invitation");
+      return mapBrainInvitation(row);
     });
   }
 
@@ -2384,6 +2670,19 @@ function mapCompactionJob(row: any): CompactionJobRecord {
     lastError: row.last_error ?? null,
     createdAt: asDate(row.created_at),
     updatedAt: asDate(row.updated_at),
+  };
+}
+
+function mapBrainInvitation(row: any): BrainInvitation {
+  return {
+    id: row.id,
+    brainId: row.brain_id,
+    email: row.email,
+    role: row.brain_role,
+    expiresAt: asDate(row.expires_at).toISOString(),
+    createdAt: asDate(row.created_at).toISOString(),
+    awaitingApproval: row.token_hash === null,
+    proposedByClient: row.proposed_by_client ?? null,
   };
 }
 

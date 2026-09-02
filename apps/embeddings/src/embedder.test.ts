@@ -8,9 +8,18 @@ import {
   type Extractor,
   embeddingDimensions,
   embeddingSpaceId,
+  MAX_TEXTS_PER_REQUEST,
   type ModelSpec,
   resolveModelSpec,
 } from "./embedder.js";
+
+describe("request limits", () => {
+  // This image installs no workspace packages, so the contracts constant cannot be imported
+  // here. EMBEDDING_BATCH_LIMIT is pinned to the same literal by the core batching test.
+  it("accepts the batch size the contracts promise indexers", () => {
+    expect(MAX_TEXTS_PER_REQUEST).toBe(64);
+  });
+});
 
 const E5_SPEC: ModelSpec = {
   pooling: "mean",

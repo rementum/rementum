@@ -62,12 +62,14 @@ printf '\n' >&2
 }
 unset password_again
 
+# The migrate service shares the API image and is the one still handed the superuser
+# connection string; the api container has it blanked on purpose.
 printf '%s\n' "$password" \
   | docker compose \
     -f docker-compose.yml \
     -f compose.production.yml \
     run --rm --no-deps -T \
-    api node apps/api/dist/admin.js -- create-owner \
+    migrate node apps/api/dist/admin.js -- create-owner \
     --email "$email" \
     --name "$display_name" \
     --password-file /dev/stdin

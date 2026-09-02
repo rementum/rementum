@@ -281,7 +281,7 @@ REMENTUM_ALLOW_SIGNUP='$allow_signup'
 REMENTUM_DEV_AUTH='false'
 REMENTUM_LOG_LEVEL='info'
 REMENTUM_EMBEDDINGS_URL='http://embeddings:8790'
-REMENTUM_EMBEDDING_MODEL='intfloat/multilingual-e5-small'
+REMENTUM_EMBEDDING_MODEL='onnx-community/granite-embedding-97m-multilingual-r2-ONNX'
 
 REMENTUM_LLM_ENABLED='$llm_enabled'
 REMENTUM_LLM_BASE_URL='$llm_base_url'
@@ -313,12 +313,13 @@ printf 'Building and starting Rementum...\n'
 ./scripts/deploy.sh
 
 printf 'Creating the first owner...\n'
+# The migrate service is the one still handed the superuser connection string.
 printf '%s\n' "$owner_password" \
   | docker compose \
     -f docker-compose.yml \
     -f compose.production.yml \
     run --rm --no-deps -T \
-    api node apps/api/dist/admin.js -- create-owner \
+    migrate node apps/api/dist/admin.js -- create-owner \
     --email "$owner_email" \
     --name "$owner_name" \
     --password-file /dev/stdin

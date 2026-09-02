@@ -116,7 +116,9 @@ export async function buildOauthRuntime(
   };
 
   const provider = new Provider(issuer, configuration);
-  provider.proxy = true;
+  // Believe X-Forwarded-* only when the API sits behind proxies it trusts; with an empty
+  // list the API is exposed directly and a client could forge its scheme and host.
+  provider.proxy = Boolean(config.REMENTUM_TRUSTED_PROXIES);
   provider.on("server_error", (_ctx, error) => {
     console.error("OAuth provider error", error);
   });
@@ -173,8 +175,8 @@ export async function registerOauthRoutes(
   });
 
   app.post("/oauth/interaction/:uid/login", loginRateLimit, async (request, reply) => {
-    const body = request.body as { email?: string; password?: string };
-    const user = await verifyCredentials(body.email ?? "", body.password ?? "");
+    const body = loginFormFields(request.body);
+    const user = await verifyCredentials(body.email, body.password);
     if (!user) {
       return html(reply.code(401)).send(
         interactionPage(
@@ -258,6 +260,34 @@ export async function registerOauthRoutes(
     };
   });
   app.get("/.well-known/jwks.json", async () => runtime.publicJwks);
+
+  // The issuer lives under /oauth, so RFC 8414 places its metadata at the path-aware
+  // location and some clients also try the root; both lead to the document the provider
+  // serves under the issuer itself.
+  const discovery = `${runtime.issuer}/.well-known/openid-configuration`;
+  for (const path of [
+    "/.well-known/oauth-authorization-server",
+    "/.well-known/oauth-authorization-server/oauth",
+    "/.well-known/openid-configuration",
+    "/.well-known/openid-configuration/oauth",
+  ]) {
+    app.get(path, async (_request, reply) => reply.redirect(discovery, 302));
+  }
+}
+
+/**
+ * The sign-in form body is whatever the browser (or anything else) posted. A repeated
+ * field arrives as an array, and calling `.trim()` on it used to crash the request with a
+ * 500; anything that is not a plain string is treated as a wrong password instead.
+ */
+export function loginFormFields(body: unknown): { email: string; password: string } {
+  const parsed = z
+    .object({
+      email: z.string().max(320).default(""),
+      password: z.string().max(1000).default(""),
+    })
+    .safeParse(body ?? {});
+  return parsed.success ? parsed.data : { email: "", password: "" };
 }
 
 export function workspaceIdFromResource(resource: string, publicUrl: string): string | null {

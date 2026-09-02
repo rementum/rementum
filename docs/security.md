@@ -22,12 +22,22 @@ PostgreSQL or the embedding service to the public network.
 - Escrow `REMENTUM_MASTER_KEY` off the server and out of database backups.
 - Use generated database, cookie, and OAuth signing keys.
 - Keep provider keys and Resend keys out of source control and support logs.
+- Leave the superuser blanks in `docker-compose.yml` in place: the `api` and `worker` services
+  override `REMENTUM_DATABASE_ADMIN_URL` and `REMENTUM_POSTGRES_SUPER_PASSWORD` with empty values
+  so a superuser connection, which bypasses row-level security, never exists inside those
+  containers. Only `migrate`, `backup`, and `restore` receive it.
+- The API, worker, and embedding images contain only production dependencies and built output,
+  every service runs with `no-new-privileges`, and the Node services drop all Linux capabilities.
 
 Rementum encrypts article content in the application layer. PostgreSQL still stores routing summaries,
 titles, links, audit metadata, MCP usage metadata, and embeddings. MCP usage metadata is limited to
 the workspace and optional brain/article ids, the OAuth client id and name, the tool name, and the
 timestamp. It does **not** keep tool arguments, prompts, queries, outputs, errors, IP addresses, or
 user ids. Use encrypted disks and encrypted backups.
+
+Every version body is sealed with additional authenticated data that names its brain, article, and
+version number, and readers recompute that value from the row's position rather than trusting a
+stored copy, so ciphertext moved between versions or articles fails to decrypt.
 
 ## Article generation mode
 
@@ -38,12 +48,18 @@ searchable metadata and is not covered by article-body encryption.
 
 When both settings are on, promotion keeps the submitted version encrypted while a background job is
 queued. The worker sends its title and body to the configured OpenAI-compatible provider. A success
-overwrites that exact version and removes the submitted body. After three failures the submitted body
-stays canonical and the article shows a failed status; the worker's maintenance pass keeps requeueing
+becomes the article's next encrypted version; the submitted version remains in history and the
+provider's output never replaces the only copy. After three failures the submitted body stays
+canonical and the article shows a failed status; the worker's maintenance pass keeps requeueing
 failed articles, so failed content is sent to the provider again until compaction succeeds or the
 workspace turns it off. Turning workspace compaction off cancels queued jobs but cannot recall a
 request already in flight. Review the provider's retention, training, regional processing, and access
 policies before you enable it.
+
+An agent connected over MCP can propose a brain invitation but never receives a link: the proposal
+waits on the brain page until an owner approves it in the browser, which is also where the link is
+issued and sent. An instruction planted in an article the agent read therefore cannot grant anyone
+access on its own.
 
 ## Accounts
 

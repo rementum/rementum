@@ -42,15 +42,16 @@ import {
   slugify,
 } from "@rementum/core";
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
+import { ZodError, z } from "zod";
 import { type AccessScope, requireAccessScope, type ScopedActor } from "./access.js";
 
 type Authenticate = (request: any) => Promise<ScopedActor>;
 type UsageErrorHandler = (error: unknown, tool: ToolName) => void;
+type ToolErrorHandler = (error: unknown, tool: ToolName) => void;
 
 const usageTrackers = new WeakMap<
   McpServer,
-  { service: RementumService; onError?: UsageErrorHandler }
+  { service: RementumService; onError?: UsageErrorHandler; onToolError?: ToolErrorHandler }
 >();
 
 export async function registerWorkspaceMcpEndpoint(
@@ -82,9 +83,17 @@ function registerMcpRoute(
 ): void {
   const onUsageError: UsageErrorHandler = (error, tool) =>
     app.log.warn({ err: error, tool }, "MCP usage recording failed");
+  const onToolError: ToolErrorHandler = (error, tool) =>
+    app.log.error({ err: error, tool }, "MCP tool failed");
   const modernHandler = createMcpHandler(
     ({ authInfo }) =>
-      createMcpServer(service, scopedActorFromAuthInfo(authInfo), publicUrl, onUsageError),
+      createMcpServer(
+        service,
+        scopedActorFromAuthInfo(authInfo),
+        publicUrl,
+        onUsageError,
+        onToolError,
+      ),
     {
       legacy: "reject",
       responseMode: "json",
@@ -122,7 +131,7 @@ function registerMcpRoute(
         return;
       }
 
-      const server = createMcpServer(service, actor, publicUrl, onUsageError);
+      const server = createMcpServer(service, actor, publicUrl, onUsageError, onToolError);
       const transport = new NodeStreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,
@@ -171,6 +180,7 @@ export function createMcpServer(
   actor: ScopedActor,
   publicUrl = "http://localhost",
   onUsageError?: UsageErrorHandler,
+  onToolError?: ToolErrorHandler,
 ): McpServer {
   const server = new McpServer(
     { name: "rementum", version: "0.1.0" },
@@ -182,6 +192,7 @@ export function createMcpServer(
   usageTrackers.set(server, {
     service,
     ...(onUsageError ? { onError: onUsageError } : {}),
+    ...(onToolError ? { onToolError } : {}),
   });
   // The high-level SDK installs tools/list on the first registration. Keep a disabled anchor so a
   // caller with no workspace tool scopes receives an empty catalog instead of Method not found.
@@ -536,39 +547,38 @@ export function createMcpServer(
     async ({ brainId, documents }) => {
       requireAccessScope(actor, "brain:write");
       const index = (await service.getBrain(brainId, actor, 10_000)).routingIndex;
-      const writes = [];
-      for (const document of documents) {
+      const bySlug = new Map(index.map((article) => [article.slug, article]));
+      // Every document is validated before any is staged: a rejected one in the middle of
+      // the batch used to leave the earlier documents staged and report a plain failure.
+      const inputs = documents.map((document) => {
         const slug = slugify(document.title);
-        const existing = index.find((article) => article.slug === slug);
-        writes.push(
-          sanitize(
-            await service.stageWrite(
-              stageWriteSchema.parse({
-                brainId,
-                operation: existing ? "update" : "create",
-                articleId: existing?.id,
-                slug,
-                title: document.title,
-                body: document.body,
-                kind: document.kind,
-                keywords: document.keywords,
-                baseVersion: existing?.currentVersion,
-                changeSummary: `import: ${document.path}`,
-                sources: [
-                  {
-                    kind: "import",
-                    locator: document.path,
-                    checksum: hashContent(document.body),
-                    metadata: { role: "migrated_from" },
-                  },
-                ],
-                acknowledgePotentialConflicts: true,
-                idempotencyKey: `mcp-import-${hashContent(`${brainId}:${document.path}:${document.body}`).slice(0, 32)}`,
-              }),
-              actor,
-            ),
-          ),
-        );
+        const existing = bySlug.get(slug);
+        return stageWriteSchema.parse({
+          brainId,
+          operation: existing ? "update" : "create",
+          articleId: existing?.id,
+          slug,
+          title: document.title,
+          body: document.body,
+          kind: document.kind,
+          keywords: document.keywords,
+          baseVersion: existing?.currentVersion,
+          changeSummary: `import: ${document.path}`,
+          sources: [
+            {
+              kind: "import",
+              locator: document.path,
+              checksum: hashContent(document.body),
+              metadata: { role: "migrated_from" },
+            },
+          ],
+          acknowledgePotentialConflicts: true,
+          idempotencyKey: `mcp-import-${hashContent(`${brainId}:${document.path}:${document.body}`).slice(0, 32)}`,
+        });
+      });
+      const writes = [];
+      for (const input of inputs) {
+        writes.push(sanitize(await service.stageWrite(input, actor)));
       }
       return publicResult({ writes });
     },
@@ -881,7 +891,7 @@ export function createMcpServer(
     {
       title: "Propose a brain invitation",
       description:
-        "Owner-only. Creates a seven-day invitation token for a teammate; the user must choose how to deliver it.",
+        "Owner-only. Records a proposal to invite someone to the brain. No link exists until a brain owner approves the proposal in the Rementum web UI, which is where the invitation is sent from; tell the user to approve it there.",
       inputSchema: z.object({
         brainId: z.uuid(),
         email: z.email(),
@@ -891,7 +901,7 @@ export function createMcpServer(
     },
     ({ brainId, email, role }) =>
       scoped(actor, "brain:write", () =>
-        result(service.proposeInvite(brainId, email, role, actor)),
+        result(service.requestInvite(brainId, email, role, actor)),
       ),
   );
 
@@ -1285,9 +1295,14 @@ function registerScopedTool<
   if (!actor.scopes.has(scope)) return;
   const invoke = callback as unknown as (...args: unknown[]) => unknown;
   const trackedCallback = (async (...args: unknown[]) => {
-    const response = await invoke(...args);
-    const input = args.length > 1 ? args[0] : {};
     const tracker = usageTrackers.get(server);
+    let response: unknown;
+    try {
+      response = await invoke(...args);
+    } catch (error) {
+      return toolFailure(error, name, tracker?.onToolError);
+    }
+    const input = args.length > 1 ? args[0] : {};
     if (tracker && actor.workspaceId) {
       try {
         await tracker.service.recordMcpToolCall(
@@ -1301,6 +1316,47 @@ function registerScopedTool<
     return response;
   }) as unknown as ToolCallback<InputArgs>;
   server.registerTool<OutputArgs, InputArgs>(name, config, trackedCallback);
+}
+
+/**
+ * The SDK would report any thrown error's message as the tool result. That put database
+ * and network failure text in front of every OAuth client while dropping the one thing an
+ * agent needs from a domain failure: its detail, such as the potential conflicts a
+ * stage_write must acknowledge or the current version a promote must rebase onto.
+ */
+function toolFailure(error: unknown, tool: ToolName, onToolError?: ToolErrorHandler) {
+  const failure =
+    error instanceof ZodError
+      ? {
+          code: "validation",
+          message: "Request validation failed",
+          detail: {
+            issues: error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`),
+          },
+        }
+      : error instanceof DomainError && error.status < 500
+        ? {
+            code: error.code,
+            message: error.message,
+            ...(error.detail ? { detail: error.detail } : {}),
+          }
+        : null;
+  if (!failure) {
+    onToolError?.(error, tool);
+    return {
+      isError: true as const,
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({ code: "internal", message: "Internal server error" }),
+        },
+      ],
+    };
+  }
+  return {
+    isError: true as const,
+    content: [{ type: "text" as const, text: JSON.stringify(failure) }],
+  };
 }
 
 const usageUuidSchema = z.uuid();

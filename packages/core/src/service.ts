@@ -1,18 +1,19 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import type {
-  BrainListSort,
-  CreateBrainInput,
-  CreateTaskInput,
-  CreateTeamInput,
-  CreateWorkspaceInput,
-  McpAnalyticsRange,
-  PromoteWriteInput,
-  RoutingIndexSort,
-  SearchArticlesInput,
-  SearchBrainsInput,
-  StageWriteInput,
-  Task,
-  UpdateWorkspaceInput,
+import {
+  type BrainListSort,
+  type CreateBrainInput,
+  type CreateTaskInput,
+  type CreateTeamInput,
+  type CreateWorkspaceInput,
+  EMBEDDING_BATCH_LIMIT,
+  type McpAnalyticsRange,
+  type PromoteWriteInput,
+  type RoutingIndexSort,
+  type SearchArticlesInput,
+  type SearchBrainsInput,
+  type StageWriteInput,
+  type Task,
+  type UpdateWorkspaceInput,
 } from "@rementum/contracts";
 import {
   type CipherEnvelope,
@@ -27,6 +28,7 @@ import {
 import {
   ArticleGenerationError,
   ConflictError,
+  DomainError,
   ForbiddenError,
   LlmUnavailableError,
   NotFoundError,
@@ -207,11 +209,13 @@ export class RementumService {
     ).flat();
     const previous = pending.find((invitation) => invitation.id === invitationId);
     if (!previous) throw new NotFoundError("Pending team invitation");
+    requireTeamRole(actor, previous.teamId, ["owner", "admin"]);
     const actorRole = actor.teamRoles.get(previous.teamId);
     if (previous.role === "admin" && actorRole !== "owner") {
       throw new ForbiddenError("Only the team owner can resend an admin invitation");
     }
-    await this.store.revokeTeamInvitation(invitationId, actor);
+    // Creating the replacement revokes the earlier invitation for the same address in the
+    // same transaction, so a failure here leaves the pending invitation intact.
     return this.proposeTeamInvite(previous.teamId, previous.email, previous.role, actor);
   }
 
@@ -222,6 +226,7 @@ export class RementumService {
     ).flat();
     const invitation = pending.find((candidate) => candidate.id === invitationId);
     if (!invitation) throw new NotFoundError("Pending team invitation");
+    requireTeamRole(actor, invitation.teamId, ["owner", "admin"]);
     const actorRole = actor.teamRoles.get(invitation.teamId);
     if (invitation.role === "admin" && actorRole !== "owner") {
       throw new ForbiddenError("Only the team owner can revoke an admin invitation");
@@ -375,7 +380,11 @@ export class RementumService {
     const { article, brain, version, links, sources, compactionEnabled } = bundle;
     requireBrainRole(actor, article.brainId, ["owner", "editor", "commenter", "viewer"]);
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
-    const body = decrypt(version.body, key, version.bodyAad).toString("utf8");
+    const body = decrypt(
+      version.body,
+      key,
+      versionBodyAad(brain.id, article.id, version.version, version.bodyAad),
+    ).toString("utf8");
     await this.store.audit(actor, "article.read", `article:${articleId}`, {
       version: version.version,
     });
@@ -423,7 +432,11 @@ export class RementumService {
       summary: version.summary,
       kind: version.kind,
       version: version.version,
-      body: decrypt(version.body, key, version.bodyAad).toString("utf8"),
+      body: decrypt(
+        version.body,
+        key,
+        versionBodyAad(brain.id, version.articleId, version.version, version.bodyAad),
+      ).toString("utf8"),
     }));
     await this.store.audit(actor, "brain.exported", `brain:${brainId}`, {
       articleCount: articles.length,
@@ -470,7 +483,18 @@ export class RementumService {
     if (!brain) throw new NotFoundError("Brain");
     if (input.idempotencyKey) {
       const existing = await this.store.getStagedWriteByIdempotencyKey(input.idempotencyKey, actor);
-      if (existing) return existing;
+      if (existing) {
+        // Keys are unique per actor, not per brain. Returning the earlier write here would
+        // hand the caller a write against a brain they did not name, and a promote would
+        // then land in it.
+        if (existing.brainId !== input.brainId) {
+          throw new ConflictError("This idempotency key was already used for another brain", {
+            writeId: existing.id,
+            brainId: existing.brainId,
+          });
+        }
+        return existing;
+      }
     }
     if (input.articleId) {
       // The write only proves editor rights on input.brainId. Without this the target
@@ -529,7 +553,21 @@ export class RementumService {
     if (input.decision === "override" && write.stagedBy === actor.userId) {
       throw new ForbiddenError("The staging actor cannot approve their own override");
     }
-    const result = await this.store.promoteStagedWrite(input, actor, this.llmAvailable);
+    const brain = await this.store.getBrain(write.brainId, actor);
+    if (!brain) throw new NotFoundError("Brain");
+    const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
+    const result = await this.store.promoteStagedWrite(
+      input,
+      actor,
+      this.llmAvailable,
+      (staged, version) => {
+        if (!staged.articleId) throw new NotFoundError("Article");
+        return {
+          body: reencryptStagedBody(staged, key, staged.articleId, version),
+          bodyAad: contentAad(staged.brainId, staged.articleId, version),
+        };
+      },
+    );
     await this.store.audit(actor, "write.promoted", `write:${write.id}`, {
       version: result.version.version,
       decision: input.decision,
@@ -583,6 +621,11 @@ export class RementumService {
   ) {
     requireBrainRole(actor, brainId, ["owner", "editor", "commenter", "viewer"]);
     return this.store.listStagedWrites(brainId, actor, status);
+  }
+
+  async listWorkspaceReviewQueue(workspaceId: string, actor: Actor, limit = 200) {
+    requireWorkspaceRole(actor, workspaceId, ["owner", "admin", "member"]);
+    return this.store.listWorkspaceReviewQueue(workspaceId, actor, limit);
   }
 
   async reviewStagedWrite(writeId: string, actor: Actor) {
@@ -733,8 +776,10 @@ export class RementumService {
   }
 
   async updateMaintenance(candidateId: string, status: "resolved" | "dismissed", actor: Actor) {
+    const existing = await this.store.getMaintenanceCandidate(candidateId, actor);
+    if (!existing) throw new NotFoundError("Maintenance candidate");
+    requireBrainRole(actor, existing.brainId, ["owner", "editor"]);
     const candidate = await this.store.updateMaintenance(candidateId, status, actor);
-    requireBrainRole(actor, candidate.brainId, ["owner", "editor"]);
     await this.store.audit(actor, `maintenance.${status}`, `brain:${candidate.brainId}`, {
       candidateId,
     });
@@ -789,7 +834,8 @@ export class RementumService {
     ]);
     if (!brain || !version) throw new NotFoundError("Compaction source version");
     const key = unwrapDataKey(brain.wrappedKey, this.masterKey, brain.id);
-    const sourceBody = decrypt(version.body, key, version.bodyAad).toString("utf8");
+    const bodyAad = versionBodyAad(brain.id, version.articleId, version.version, version.bodyAad);
+    const sourceBody = decrypt(version.body, key, bodyAad).toString("utf8");
     let generated: Awaited<ReturnType<ArticleGenerator["generateArticle"]>>;
     try {
       generated = await this.compactionGenerator.generateArticle({
@@ -800,30 +846,39 @@ export class RementumService {
       if (error instanceof ArticleGenerationError) throw error;
       throw new ArticleGenerationError();
     }
-    const encrypted = encrypt(generated.body, key, version.bodyAad);
     const result = await this.store.completeCompaction(
       job.id,
       claim.claimId,
       generated,
-      encrypted,
+      (nextVersion) => ({
+        body: encrypt(generated.body, key, contentAad(brain.id, job.articleId, nextVersion)),
+        bodyAad: contentAad(brain.id, job.articleId, nextVersion),
+      }),
       hashContent(generated.body),
       actor,
     );
     if (!result) return null;
     await this.store.audit(actor, "article.compacted", `article:${result.articleId}`, {
       version: result.version,
+      sourceVersion: job.articleVersion,
       attempt: job.attempts,
       current: result.current,
     });
     if (result.current) {
-      await this.store.clearEmbeddings(result.articleId, result.version, actor);
+      // Search ranks the current version only; the superseded version's vectors would
+      // just take space.
+      await this.store.clearEmbeddings(result.articleId, job.articleVersion, actor);
       await this.indexPromotedArticle(result.articleId, actor).catch(() => undefined);
     }
     return result;
   }
 
   async failClaimedCompaction(claim: ClaimedCompactionJob, error: unknown, actor: Actor) {
-    const message = compactErrorMessage(error);
+    // Generation errors carry fixed, reviewable messages; anything else is a database or
+    // network fault whose text belongs in the worker log, not on the article page.
+    const message = compactErrorMessage(
+      error instanceof ArticleGenerationError ? error : new ArticleGenerationError(),
+    );
     const retryAt =
       claim.attempts === 1
         ? new Date(Date.now() + 60_000)
@@ -875,18 +930,107 @@ export class RementumService {
     return { ...invitation, expiresAt: expiresAt.toISOString(), token };
   }
 
+  /**
+   * An invitation an agent proposes carries no token until a brain owner approves it in
+   * the web UI. Agents act under a person's identity, so the owner role alone cannot tell
+   * the person's own intent from an instruction planted in an article the agent read.
+   */
+  async requestInvite(
+    brainId: string,
+    email: string,
+    role: "editor" | "commenter" | "viewer",
+    actor: Actor,
+  ) {
+    requireBrainRole(actor, brainId, ["owner"]);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const invitation = await this.store.createInvitation(
+      brainId,
+      email.trim().toLowerCase(),
+      role,
+      null,
+      expiresAt,
+      actor,
+      actor.clientId,
+    );
+    await this.store.audit(actor, "invitation.proposed", `brain:${brainId}`, {
+      invitationId: invitation.id,
+      role,
+    });
+    return { id: invitation.id, expiresAt: expiresAt.toISOString(), awaitingApproval: true };
+  }
+
+  async listBrainInvitations(brainId: string, actor: Actor) {
+    requireBrainRole(actor, brainId, ["owner"]);
+    return this.store.listBrainInvitations(brainId, actor);
+  }
+
+  async approveInvite(invitationId: string, actor: Actor) {
+    const invitation = await this.store.getBrainInvitation(invitationId, actor);
+    if (!invitation) throw new NotFoundError("Invitation");
+    requireBrainRole(actor, invitation.brainId, ["owner"]);
+    if (!invitation.awaitingApproval) {
+      throw new ConflictError("This invitation already has a link");
+    }
+    const token = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const approved = await this.store.approveInvitation(
+      invitationId,
+      hashContent(token),
+      expiresAt,
+      actor,
+    );
+    await this.store.audit(actor, "invitation.approved", `brain:${approved.brainId}`, {
+      invitationId,
+      role: approved.role,
+      proposedByClient: invitation.proposedByClient,
+    });
+    return { ...approved, token };
+  }
+
+  async getBrainInvitationOrThrow(invitationId: string, actor: Actor) {
+    const invitation = await this.store.getBrainInvitation(invitationId, actor);
+    if (!invitation) throw new NotFoundError("Invitation");
+    requireBrainRole(actor, invitation.brainId, ["owner"]);
+    return invitation;
+  }
+
+  async revokeInvite(invitationId: string, actor: Actor) {
+    const invitation = await this.store.getBrainInvitation(invitationId, actor);
+    if (!invitation) throw new NotFoundError("Invitation");
+    requireBrainRole(actor, invitation.brainId, ["owner"]);
+    const revoked = await this.store.revokeInvitation(invitationId, actor);
+    await this.store.audit(actor, "invitation.revoked", `brain:${revoked.brainId}`, {
+      invitationId,
+      awaitingApproval: invitation.awaitingApproval,
+    });
+    return revoked;
+  }
+
   private async indexPromotedArticle(articleId: string, actor: Actor): Promise<void> {
     const article = await this.readArticle(articleId, actor);
-    const { model, vectors } = await this.embeddings.embedPassages(
-      splitMarkdownByHeading(article.body).map(
-        (section) => `${article.title}\n${article.summary}\n${section.text}`,
-      ),
+    const passages = splitMarkdownByHeading(article.body).map(
+      (section) => `${article.title}\n${article.summary}\n${section.text}`,
     );
-    await Promise.all(
-      vectors.map((vector, ordinal) =>
-        this.store.setEmbedding(articleId, article.currentVersion, ordinal, vector, model, actor),
-      ),
-    );
+    // The embedding service caps one request, so a long article is sent in batches; a
+    // single oversized request was rejected outright, and the article then failed to index
+    // on every retry for as long as it existed.
+    for (let offset = 0; offset < passages.length; offset += EMBEDDING_BATCH_LIMIT) {
+      const { model, vectors } = await this.embeddings.embedPassages(
+        passages.slice(offset, offset + EMBEDDING_BATCH_LIMIT),
+      );
+      await Promise.all(
+        vectors.map((vector, index) =>
+          this.store.setEmbedding(
+            articleId,
+            article.currentVersion,
+            offset + index,
+            vector,
+            model,
+            actor,
+          ),
+        ),
+      );
+    }
   }
 }
 
@@ -997,6 +1141,27 @@ function articleCompactionView(
 
 export function stagedBodyAad(write: StagedWriteRecord): string {
   return write.bodyAad;
+}
+
+/**
+ * The AAD a stored version body must have been sealed under.
+ *
+ * Versions are bound to their position, so the expected value is recomputed from it rather
+ * than read from the row: a row whose AAD was copied along with its ciphertext from another
+ * version would otherwise decrypt cleanly. Versions promoted before promotion re-encrypted
+ * kept the AAD of the staged write they came from; those are accepted only when they name
+ * this brain and article.
+ */
+export function versionBodyAad(
+  brainId: string,
+  articleId: string,
+  version: number,
+  storedAad: string,
+): string {
+  const expected = contentAad(brainId, articleId, version);
+  if (storedAad === expected) return expected;
+  if (storedAad.startsWith(`brain:${brainId}:article:${articleId}:write:`)) return storedAad;
+  throw new DomainError("decryption_failed", "Encrypted content could not be authenticated", 500);
 }
 
 export function reencryptStagedBody(

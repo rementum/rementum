@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseMarkdownDocument, slugify, splitMarkdownByHeading } from "./markdown.js";
+import { DomainError } from "./errors.js";
+import {
+  parseMarkdownDocument,
+  slugify,
+  splitFrontMatter,
+  splitMarkdownByHeading,
+} from "./markdown.js";
 
 describe("splitMarkdownByHeading", () => {
   it("keeps the heading line with the section it introduces", () => {
@@ -89,6 +95,66 @@ describe("parseMarkdownDocument", () => {
   it("keeps only string aliases", () => {
     const parsed = parseMarkdownDocument("---\naliases:\n  - alias\n  - 7\n---\n\nBody.", "F");
     expect(parsed.aliases).toEqual(["alias"]);
+  });
+
+  it("never lets the document choose a front matter engine", () => {
+    // gray-matter would have evaluated this block as JavaScript in the API process.
+    const source = "---js\n{ title: (globalThis.__frontMatterRan = true, 'pwned') }\n---\n\nBody.";
+    const parsed = parseMarkdownDocument(source, "Fallback");
+    expect((globalThis as { __frontMatterRan?: boolean }).__frontMatterRan).toBeUndefined();
+    expect(parsed.title).toBe("Fallback");
+    expect(parsed.frontmatter).toEqual({});
+    expect(parsed.body).toBe(source);
+  });
+
+  it("rejects front matter that is not valid YAML with a client error", () => {
+    expect(() => parseMarkdownDocument("---\ntitle: [unterminated\n---\nBody.", "F")).toThrow(
+      DomainError,
+    );
+    expect(() => parseMarkdownDocument("---\ntitle: [unterminated\n---\nBody.", "F")).toThrow(
+      /Front matter is not valid YAML/,
+    );
+  });
+
+  it("collects a run of opening brackets in linear time", () => {
+    const started = performance.now();
+    const parsed = parseMarkdownDocument(`# T\n\n${"[".repeat(400_000)}`, "F");
+    expect(parsed.wikiLinks).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(2_000);
+  });
+});
+
+describe("splitFrontMatter", () => {
+  it("requires the opening and closing lines to be exactly three dashes", () => {
+    expect(splitFrontMatter("---\ntitle: A\n---\nBody")).toEqual({
+      data: { title: "A" },
+      content: "Body",
+    });
+    expect(splitFrontMatter("--- yaml\ntitle: A\n---\nBody").data).toEqual({});
+    expect(splitFrontMatter("---\ntitle: A\n--- \nBody").data).toEqual({});
+  });
+
+  it("accepts Windows line endings and a byte order mark", () => {
+    expect(splitFrontMatter("\uFEFF---\r\ntitle: A\r\n---\r\nBody")).toEqual({
+      data: { title: "A" },
+      content: "Body",
+    });
+  });
+
+  it("treats an unterminated block as body text", () => {
+    expect(splitFrontMatter("---\ntitle: A\nBody")).toEqual({
+      data: {},
+      content: "---\ntitle: A\nBody",
+    });
+  });
+
+  it("ignores front matter that is not a mapping", () => {
+    expect(splitFrontMatter("---\n- one\n- two\n---\nBody")).toEqual({ data: {}, content: "Body" });
+    expect(splitFrontMatter("---\njust a string\n---\nBody").data).toEqual({});
+  });
+
+  it("closes the block at the end of the document", () => {
+    expect(splitFrontMatter("---\ntitle: A\n---")).toEqual({ data: { title: "A" }, content: "" });
   });
 });
 

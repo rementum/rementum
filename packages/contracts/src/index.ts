@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 export const idSchema = z.uuid();
+
+// The most passages one request to the embedding service may carry. The service enforces
+// it, and every indexer has to split its sections into batches of at most this size: an
+// article with more sections than this used to fail indexing on every attempt.
+export const EMBEDDING_BATCH_LIMIT = 64;
 export const slugSchema = z
   .string()
   .min(1)
@@ -45,6 +50,26 @@ export const compactionStateSchema = z.enum([
   "failed",
 ]);
 export type CompactionState = z.infer<typeof compactionStateSchema>;
+
+export const reviewQueueItemSchema = z.object({
+  id: idSchema,
+  brainId: idSchema,
+  brainName: z.string(),
+  operation: z.enum(["create", "update", "append"]),
+  slug: slugSchema,
+  title: z.string(),
+  status: z.enum(["pending", "conflicted"]),
+  changeSummary: z.string(),
+  createdAt: z.string(),
+});
+export const reviewQueueSchema = z.object({
+  items: z.array(reviewQueueItemSchema),
+  counts: z.array(
+    z.object({ brainId: idSchema, pending: z.number().int(), conflicted: z.number().int() }),
+  ),
+});
+export type ReviewQueueItem = z.infer<typeof reviewQueueItemSchema>;
+export type ReviewQueue = z.infer<typeof reviewQueueSchema>;
 
 export const taskStatusSchema = z.enum([
   "open",
@@ -138,7 +163,6 @@ export const teamSchema = z.object({
   id: idSchema,
   slug: slugSchema,
   name: z.string(),
-  llmCompactionEnabled: z.boolean(),
   role: teamRoleSchema,
   createdAt: z.iso.datetime(),
 });
@@ -150,6 +174,7 @@ export const workspaceSchema = z.object({
   slug: slugSchema,
   name: z.string(),
   role: teamRoleSchema,
+  llmCompactionEnabled: z.boolean(),
   createdAt: z.iso.datetime(),
 });
 export type Workspace = z.infer<typeof workspaceSchema>;
@@ -174,6 +199,19 @@ export const updateWorkspaceSchema = z
   });
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
 
+export const brainInvitationSchema = z.object({
+  id: idSchema,
+  brainId: idSchema,
+  email: z.string(),
+  role: z.enum(["editor", "commenter", "viewer"]),
+  expiresAt: z.iso.datetime(),
+  createdAt: z.iso.datetime(),
+  // True while an agent's proposal waits for a brain owner; no token exists yet.
+  awaitingApproval: z.boolean(),
+  proposedByClient: z.string().nullable(),
+});
+export type BrainInvitation = z.infer<typeof brainInvitationSchema>;
+
 export const createTeamInvitationSchema = z.object({
   email: z.email(),
   role: z.enum(["admin", "member"]).default("member"),
@@ -186,7 +224,7 @@ export const stageWriteSchema = z
     operation: writeOperationSchema,
     articleId: idSchema.optional(),
     slug: slugSchema,
-    title: z.string().min(1).max(240),
+    title: z.string().trim().min(1).max(240),
     keywords: z.array(z.string().min(1).max(80)).max(40).default([]),
     kind: articleKindSchema.default("canonical"),
     body: z.string().min(1).max(2_000_000),
@@ -263,7 +301,7 @@ export type Task = z.infer<typeof taskSchema>;
 
 export const createTaskSchema = z.object({
   brainId: idSchema,
-  title: z.string().min(1).max(240),
+  title: z.string().trim().min(1).max(240),
   brief: z.string().min(1).max(20_000),
   priority: z.number().int().min(-100).max(100).default(0),
   articleIds: z.array(idSchema).max(100).default([]),

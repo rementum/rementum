@@ -7,6 +7,9 @@ docker compose -f docker-compose.yml -f compose.production.yml ps
 docker compose -f docker-compose.yml -f compose.production.yml logs -f api web worker
 ```
 
+Caddy's access log redacts email verification, password reset, and invitation tokens from the
+logged URL, so it can be shipped to a log system without carrying account-creating secrets.
+
 The public probes are:
 
 - `/healthz` checks PostgreSQL and the embedding service.
@@ -67,6 +70,11 @@ docker compose \
 This writes `rementum-<UTC timestamp>.tar.age` under `REMENTUM_BACKUP_HOST_DIR`. Move it to storage
 off the Rementum host. Keep `.env`, or at least `REMENTUM_MASTER_KEY`, in a separate encrypted
 secrets system.
+
+The dump keeps the database grants for the application role, so an archive restores into an empty
+instance as a database the API can use. Archives created before this behaviour restore without
+those grants; after restoring one, run each migration's `GRANT` statements again or migrate a fresh
+database and restore over it.
 
 ## Upgrade
 
@@ -152,6 +160,10 @@ Start the stack and apply migrations:
 ./scripts/deploy.sh
 curl --fail https://memory.example.com/healthz
 ```
+
+The API and worker containers are started without the PostgreSQL superuser credentials; only the
+`migrate`, `backup`, and `restore` services receive them. `./scripts/create-owner.sh` therefore
+runs the owner command through the `migrate` service.
 
 The dump contains the vector index. After services start, the worker fills embeddings for any article
 that lacks an index row.

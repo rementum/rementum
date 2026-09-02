@@ -37,14 +37,19 @@ interface BrainArticleCount {
   latestArticleUpdatedAt: string;
 }
 
-interface Write {
-  id: string;
-  operation: string;
-  slug: string;
-  title: string;
-  status: string;
-  changeSummary: string;
-  createdAt: string;
+interface ReviewQueue {
+  items: Array<{
+    id: string;
+    brainId: string;
+    brainName: string;
+    operation: string;
+    slug: string;
+    title: string;
+    status: string;
+    changeSummary: string;
+    createdAt: string;
+  }>;
+  counts: Array<{ brainId: string; pending: number; conflicted: number }>;
 }
 
 interface BrainPage {
@@ -82,8 +87,6 @@ function dashboardHref(page: number, sharedPage: number) {
   return query ? `/dashboard?${query}` : "/dashboard";
 }
 
-const needsReview = (write: Write) => write.status === "pending" || write.status === "conflicted";
-
 export async function Dashboard({ page, sharedPage }: { page?: string; sharedPage?: string }) {
   const cookieStore = await cookies();
   const view = parsePref(cookieStore.get(BRAINS_VIEW_COOKIE)?.value, BRAINS_VIEWS, "card");
@@ -103,9 +106,12 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
     statsByBrain.get(brain.id)?.latestArticleUpdatedAt ?? brain.updatedAt;
   if (!activeWorkspace || !activeTeam)
     return <NoWorkspace shared={shared} view={view} lastUpdated={lastUpdated} />;
-  const [brainPage, workspaceCounts] = await Promise.all([
+  // One request answers both the review queue and the per-brain badge counts; it used to
+  // take a request per brain on the page plus one per recently updated brain.
+  const [brainPage, workspaceCounts, reviewQueueData] = await Promise.all([
     fetchBrainPage(`workspaceId=${activeWorkspace.id}&sort=${sort}`, parsePage(page)),
     api<BrainArticleCount[]>(`/api/v1/brains/article-counts?workspaceId=${activeWorkspace.id}`),
+    api<ReviewQueue>(`/api/v1/workspaces/${activeWorkspace.id}/review-queue`),
   ]);
   if (!brainPage.total)
     return (
@@ -120,44 +126,11 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
     );
 
   const brains = brainPage.items;
-  // The review queue keeps recency semantics no matter which display sort or page is
-  // active, so it reads the most recently updated brains — the current page when that
-  // already is the recent-first page, one extra fetch otherwise.
-  const recentFirst =
-    sort === "updated" && brainPage.page === 1
-      ? brains
-      : (
-          await api<{ items: Brain[]; total: number }>(
-            `/api/v1/brains?workspaceId=${activeWorkspace.id}&sort=updated&limit=${PAGE_SIZE}&offset=0`,
-          )
-        ).items;
-  const fanout = new Map<string, Brain>();
-  for (const brain of [...recentFirst, ...brains]) fanout.set(brain.id, brain);
-  const writesByBrain = new Map(
-    await Promise.all(
-      [...fanout.values()].map(async (brain) => {
-        const writes = await api<Write[]>(`/api/v1/brains/${brain.id}/writes`);
-        return [brain.id, writes] as const;
-      }),
-    ),
-  );
-
-  const reviewQueue = recentFirst
-    .flatMap((brain) =>
-      (writesByBrain.get(brain.id) ?? [])
-        .filter(needsReview)
-        .map((write) => ({ ...write, brainId: brain.id, brainName: brain.name })),
-    )
-    .sort((a, b) => {
-      if (a.status !== b.status) return a.status === "conflicted" ? -1 : 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+  // The API already orders conflicts first, then newest first, across the whole workspace.
+  const reviewQueue = reviewQueueData.items;
   const articleTotal = workspaceCounts.reduce((sum, row) => sum + row.articleCount, 0);
   const pendingByBrain = new Map(
-    brains.map((brain) => [
-      brain.id,
-      (writesByBrain.get(brain.id) ?? []).filter(needsReview).length,
-    ]),
+    reviewQueueData.counts.map((row) => [row.brainId, row.pending + row.conflicted]),
   );
 
   return (

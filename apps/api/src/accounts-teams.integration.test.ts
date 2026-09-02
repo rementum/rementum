@@ -337,8 +337,71 @@ integration("account and team HTTP flows", () => {
       await app.close();
     }
   }, 30_000);
-});
 
+  it("lets the mailbox owner re-register an address that was never verified", async () => {
+    if (!databaseUrl) return;
+    const suffix = randomBytes(6).toString("hex");
+    const mailer = new CaptureMailer();
+    const { privateKey } = await generateKeyPair("RS256", { extractable: true });
+    const config = loadConfig({
+      NODE_ENV: "test",
+      REMENTUM_PUBLIC_URL: "http://rementum.example.test",
+      REMENTUM_DATABASE_URL: databaseUrl,
+      REMENTUM_MASTER_KEY: Buffer.alloc(32, 9).toString("base64"),
+      REMENTUM_COOKIE_KEYS: "cookie-key-at-least-sixteen-characters",
+      REMENTUM_JWT_JWKS: JSON.stringify({
+        keys: [{ ...(await exportJWK(privateKey)), use: "sig", alg: "RS256", kid: `t-${suffix}` }],
+      }),
+      REMENTUM_BLOB_DIR: `/tmp/rementum-${suffix}/blobs`,
+      REMENTUM_EXPORT_DIR: `/tmp/rementum-${suffix}/exports`,
+      REMENTUM_EMBEDDINGS_URL: "http://127.0.0.1:9",
+      REMENTUM_ALLOW_SIGNUP: "true",
+      REMENTUM_RESEND_API_KEY: "re_test",
+      REMENTUM_MAIL_FROM: "Rementum <rementum@example.test>",
+      REMENTUM_LOG_LEVEL: "silent",
+    });
+    const app = await buildApp(config, { mailer });
+    const email = `squat-${suffix}@example.test`;
+    const register = (password: string, displayName: string) =>
+      app.inject({
+        method: "POST",
+        url: "/api/v1/auth/register",
+        payload: { email, displayName, password, teamName: "Squat team" },
+      });
+    const login = (password: string) =>
+      app.inject({
+        method: "POST",
+        url: "/api/v1/auth/session",
+        headers: { origin: "http://rementum.example.test" },
+        payload: { email, password },
+      });
+
+    try {
+      // A stranger registers the address first and never verifies it.
+      expect((await register("stranger password 1", "Stranger")).statusCode).toBe(202);
+      // The mailbox owner registers with their own password and gets their own link.
+      expect((await register("real owner password 1", "Real owner")).statusCode).toBe(202);
+      expect(mailer.messages).toHaveLength(2);
+      const ownerMessage = mailer.messages[1];
+      if (!ownerMessage) throw new Error("Second verification email was not captured");
+      const verification = await app.inject({
+        method: "POST",
+        url: "/api/v1/auth/verify-email",
+        payload: { token: tokenFromUrl(ownerMessage.text) },
+      });
+      expect(verification.statusCode).toBe(204);
+      expect((await login("real owner password 1")).statusCode).toBe(204);
+      expect((await login("stranger password 1")).statusCode).toBe(401);
+
+      // A verified address is no longer up for grabs.
+      expect((await register("stranger password 2", "Stranger")).statusCode).toBe(202);
+      expect((await login("stranger password 2")).statusCode).toBe(401);
+      expect((await login("real owner password 1")).statusCode).toBe(204);
+    } finally {
+      await app.close();
+    }
+  }, 60_000);
+});
 function tokenFromUrl(value: string): string {
   const match = value.match(/[?&]token=([^\s]+)/);
   if (!match?.[1]) throw new Error("Email did not contain a token URL");

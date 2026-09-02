@@ -78,7 +78,9 @@ Here is what compaction does once a workspace enables it:
   characters, and a Markdown body of at most 8,000 characters. That length is a ceiling. Compaction
   keeps the measured values and does not shorten a source that already fits. The body must keep
   wiki-style `[[slug]]` links so articles stay reachable.
-- A successful job overwrites the same encrypted version and removes the submitted body.
+- A successful job stores the compact result as the article's next version, encrypted like any
+  other edit. The submitted version stays in the article's history, so a poor result can be
+  reviewed against it and the article re-edited.
 - Jobs retry after 1 and 5 minutes. After the third failure the submitted body stays canonical and
   you can retry the article by hand. While compaction stays on, the worker's maintenance pass also
   requeues an article that has been failed for at least an hour.
@@ -106,7 +108,7 @@ REMENTUM_MAIL_FROM='Rementum <rementum@example.com>'
 | Variable | Purpose |
 | --- | --- |
 | `REMENTUM_POSTGRES_PASSWORD` | Application database role password |
-| `REMENTUM_POSTGRES_SUPER_PASSWORD` | Migration and backup database password |
+| `REMENTUM_POSTGRES_SUPER_PASSWORD` | Migration and backup database password; never handed to the API or worker containers |
 | `REMENTUM_EMBEDDING_MODEL` | Model loaded by the embedding service |
 | `REMENTUM_EMBEDDING_DTYPE` | Optional weight precision, such as `fp32` or `q8` |
 | `REMENTUM_EMBEDDING_POOLING` | Optional pooling override (`cls` or `mean`) for unrecognized models |
