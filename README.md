@@ -13,7 +13,7 @@ Self-hosted shared memory for Claude, Codex, Cursor, and any remote MCP client.
 [![PostgreSQL + pgvector](https://img.shields.io/badge/PostgreSQL-pgvector-336791.svg)](https://github.com/pgvector/pgvector)
 [![MCP-native](https://img.shields.io/badge/MCP-native-8a6b2f.svg)](https://modelcontextprotocol.io/)
 
-[Documentation](https://rementum.dev/docs/) · [Install](docs/installation.md) · [Security](docs/security.md) · [Contributing](CONTRIBUTING.md)
+[Documentation](https://rementum.dev/docs/) · [Install](https://rementum.dev/docs/installation/) · [Security](https://rementum.dev/docs/security/) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -67,7 +67,7 @@ The installer generates instance secrets, builds the stack, runs migrations, wai
 creates the first owner, and lets Caddy provision HTTPS. Update an installed instance later with
 `./scripts/update.sh`, which backs up, fast-forwards, migrates, and rebuilds.
 
-See the [installation guide](docs/installation.md) and [operations guide](docs/operations.md) for
+See the [installation guide](https://rementum.dev/docs/installation/) and [operations guide](https://rementum.dev/docs/operations/) for
 requirements, backups, and recovery.
 
 ## Security
@@ -77,14 +77,14 @@ are **off by default**. With both on, the worker sends a version's title and bod
 plaintext to compact it. Treat routing metadata and embeddings as sensitive derived data; they stay
 searchable. Rementum never stores the master key in the database or backups.
 
-Read [SECURITY.md](SECURITY.md) and the [security checklist](docs/security.md) before you store private
+Read [SECURITY.md](SECURITY.md) and the [security checklist](https://rementum.dev/docs/security/) before you store private
 knowledge. Report vulnerabilities through the process in SECURITY.md, not a public issue.
 
 ## Documentation and contributing
 
-The full docs live at **[rementum.dev/docs](https://rementum.dev/docs/)** and in
-[`docs/`](docs/index.md): configuration, backups, upgrades, security, and agent connections. For local
-setup and checks, read [docs/development.md](docs/development.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+The full docs are at **[rementum.dev/docs](https://rementum.dev/docs/)**: configuration, backups,
+upgrades, security, and agent connections. For local setup and checks, read the
+[development guide](https://rementum.dev/docs/development/) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
 > **Status:** active development toward a production beta. REST and MCP contracts are versioned. We
 > don't promise backward compatibility until 1.0.
