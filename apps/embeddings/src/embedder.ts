@@ -5,6 +5,11 @@ import type { DataType } from "@huggingface/transformers";
 // unless the image seeds it. The unprivileged user then fails the model download deep inside the
 // pipeline with EACCES, which surfaces only as a healthcheck that never turns green. Failing at
 // startup instead names the real problem in one line.
+// This service ships in an image of its own with no workspace packages, so the limit is
+// declared here and pinned to EMBEDDING_BATCH_LIMIT in @rementum/contracts by a test:
+// every indexer batches its sections by that constant.
+export const MAX_TEXTS_PER_REQUEST = 64;
+
 export function assertModelCacheWritable(dir: string): void {
   try {
     mkdirSync(dir, { recursive: true });

@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { EMBEDDING_BATCH_LIMIT } from "@rementum/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
   assertModelCacheWritable,
@@ -8,9 +9,16 @@ import {
   type Extractor,
   embeddingDimensions,
   embeddingSpaceId,
+  MAX_TEXTS_PER_REQUEST,
   type ModelSpec,
   resolveModelSpec,
 } from "./embedder.js";
+
+describe("request limits", () => {
+  it("accepts exactly the batch size the contracts promise indexers", () => {
+    expect(MAX_TEXTS_PER_REQUEST).toBe(EMBEDDING_BATCH_LIMIT);
+  });
+});
 
 const E5_SPEC: ModelSpec = {
   pooling: "mean",
