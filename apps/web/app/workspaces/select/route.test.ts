@@ -17,10 +17,18 @@ const { POST } = await import("./route");
 
 const site = "https://rementum.example.test";
 
-function selectRequest(workspaceId: string, url = `${site}/workspaces/select`): Request {
+function selectRequest(
+  workspaceId: string,
+  url = `${site}/workspaces/select`,
+  origin: string | null = new URL(url).origin,
+): Request {
   const form = new FormData();
   form.set("workspaceId", workspaceId);
-  return new Request(url, { method: "POST", body: form });
+  return new Request(url, {
+    method: "POST",
+    body: form,
+    headers: origin === null ? {} : { origin },
+  });
 }
 
 beforeEach(() => {
@@ -57,9 +65,23 @@ describe("workspace selection", () => {
   it("refuses an empty selection", async () => {
     const form = new FormData();
     const response = await POST(
-      new Request(`${site}/workspaces/select`, { method: "POST", body: form }),
+      new Request(`${site}/workspaces/select`, {
+        method: "POST",
+        body: form,
+        headers: { origin: site },
+      }),
     );
     expect(response.status).toBe(403);
+  });
+
+  it("refuses a selection posted from another site before reading the session", async () => {
+    for (const origin of ["https://attacker.example", null]) {
+      const response = await POST(selectRequest("workspace-a", undefined, origin));
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toEqual({ error: "invalid_origin" });
+    }
+    expect(workspaceContext).not.toHaveBeenCalled();
+    expect(cookieJar.size).toBe(0);
   });
 
   it("leaves the cookie insecure on a plain-HTTP instance", async () => {
