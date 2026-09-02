@@ -202,6 +202,16 @@ export function IconClose(props: IconProps) {
   );
 }
 
+export function IconBook(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 4c-1.2-1-2.8-1.5-4.5-1.5H2v9.5h1.5C5.2 12 6.8 12.5 8 13.5" />
+      <path d="M8 4c1.2-1 2.8-1.5 4.5-1.5H14v9.5h-1.5c-1.7 0-3.3.5-4.5 1.5" />
+      <path d="M8 4v9.5" />
+    </Icon>
+  );
+}
+
 export function IconGitHub({ className }: { className?: string }) {
   return (
     <svg

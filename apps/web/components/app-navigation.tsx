@@ -5,10 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Team, Workspace } from "../lib/api";
+import { DOCS_URL } from "../lib/site";
 import { BrandMark } from "./brand";
 import { GlideNav } from "./ui/glide";
 import {
   IconActivity,
+  IconBook,
   IconBrains,
   IconCheck,
   IconChevronDown,
@@ -143,6 +145,23 @@ function WorkspacePicker({
   );
 }
 
+// Docs are served in-stack at /docs (outside the Next router), so this is a plain anchor that
+// opens the documentation site in a new tab rather than a next/link soft navigation.
+function DocsLink() {
+  return (
+    <a
+      href={DOCS_URL}
+      target="_blank"
+      rel="noreferrer"
+      className={iconButtonClass}
+      aria-label="Documentation"
+      title="Documentation"
+    >
+      <IconBook />
+    </a>
+  );
+}
+
 function SignOutButton() {
   return (
     <form action="/auth/logout" method="post">
@@ -230,6 +249,7 @@ export function AppNavigation({
           }`}
         >
           <ThemeToggle />
+          <DocsLink />
           <button
             type="button"
             onClick={toggleCollapsed}
@@ -302,7 +322,10 @@ export function AppNavigation({
               />
               <GlideNav items={NAV_ITEMS} activeIndex={activeIndex} ariaLabel="Workspace" />
               <div className="mt-auto flex items-center justify-between border-t border-line pt-3">
-                <ThemeToggle />
+                <div className="flex items-center gap-1">
+                  <ThemeToggle />
+                  <DocsLink />
+                </div>
                 <SignOutButton />
               </div>
             </motion.div>

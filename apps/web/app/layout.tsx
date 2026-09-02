@@ -70,7 +70,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 </span>
               }
             >
-              <a href={GITHUB_URL}>Open source under AGPL-3.0 · star Rementum on GitHub</a>
+              <a href={GITHUB_URL}>Free and self-hosted · star Rementum on GitHub</a>
             </StickyBanner>
             <PublicNav signupEnabled={authConfig?.signupEnabled ?? false} />
             {children}

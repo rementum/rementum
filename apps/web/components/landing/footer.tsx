@@ -1,5 +1,6 @@
 "use client";
 
+import { DOCS_URL } from "../../lib/site";
 import { BigBack } from "../pui";
 
 export function LandingFooter({
@@ -12,7 +13,7 @@ export function LandingFooter({
   return (
     <BigBack
       company="Rementum"
-      copyright="Open source under AGPL-3.0"
+      copyright="Open source · self-hosted"
       columns={[
         {
           heading: "Product",
@@ -20,7 +21,9 @@ export function LandingFooter({
             { label: "How it works", href: "#workflow" },
             { label: "Features", href: "#features" },
             { label: "Architecture", href: "#architecture" },
+            { label: "Pricing", href: "#pricing" },
             { label: "Connect an agent", href: "#connect" },
+            { label: "Documentation", href: DOCS_URL },
           ],
         },
         {
