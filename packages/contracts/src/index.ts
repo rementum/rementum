@@ -446,6 +446,18 @@ export const mcpAnalyticsSchema = z.object({
       lastUsedAt: z.iso.datetime(),
     }),
   ),
+  // Ranked from audit_events, not mcp_tool_calls: usage rows carry no user id by design
+  // (docs/security.md), while every audited action already names its actor.
+  topMembers: z.array(
+    z.object({
+      userId: idSchema,
+      name: z.string(),
+      role: teamRoleSchema,
+      actions: z.number().int().nonnegative(),
+      writes: z.number().int().nonnegative(),
+      lastActiveAt: z.iso.datetime().nullable(),
+    }),
+  ),
   recentCalls: z.array(
     z.object({
       id: idSchema,

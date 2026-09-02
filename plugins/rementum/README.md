@@ -10,5 +10,5 @@ MCP URL from Rementum's **Teams** page. Hosted workspaces use:
 https://rementum.dev/mcp/workspace/WORKSPACE_UUID
 ```
 
-See the [integration guide](https://rementum.dev/integrations/) for client-specific installation,
-OAuth, and update instructions.
+See the [integration guide](https://rementum.dev/docs/integrations/) for client-specific
+installation, OAuth, and update instructions.

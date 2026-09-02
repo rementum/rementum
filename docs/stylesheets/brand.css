@@ -1,41 +1,41 @@
 @font-face {
-  font-family: "Geist";
+  font-family: "Inter";
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("../assets/fonts/Geist-Variable.woff2") format("woff2");
+  src: url("../assets/fonts/Inter-Variable.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "Geist Mono";
+  font-family: "JetBrains Mono";
   font-style: normal;
-  font-weight: 100 900;
+  font-weight: 100 800;
   font-display: swap;
-  src: url("../assets/fonts/GeistMono-Variable.woff2") format("woff2");
+  src: url("../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
 }
 
 :root {
-  --md-primary-fg-color: #17211e;
+  --md-primary-fg-color: #091514;
   --md-primary-fg-color--light: #2f6f5e;
-  --md-primary-fg-color--dark: #0f1714;
+  --md-primary-fg-color--dark: #091514;
   --md-accent-fg-color: #2f6f5e;
-  --rementum-mist: #dce6e0;
+  --rementum-mist: #9ec9c1;
   --rementum-cloud: #f3f5f1;
-  --md-text-font: "Geist";
-  --md-code-font: "Geist Mono";
+  --md-text-font: "Inter";
+  --md-code-font: "JetBrains Mono";
 }
 
 [data-md-color-scheme="slate"] {
-  --md-default-bg-color: #0f1714;
+  --md-default-bg-color: #091514;
   --md-default-fg-color: #f3f5f1;
-  --md-default-fg-color--light: #bdcbc5;
-  --md-code-bg-color: #17211e;
-  --md-accent-fg-color: #79aa98;
+  --md-default-fg-color--light: #bccbc5;
+  --md-code-bg-color: #10201d;
+  --md-accent-fg-color: #4aa48f;
 }
 
 .md-header,
 .md-tabs {
-  background: #17211e;
+  background: #091514;
 }
 
 .md-typeset a {
@@ -50,13 +50,13 @@
 .md-typeset .md-button:hover,
 .md-typeset .md-button:focus-visible {
   border-color: #2f6f5e;
-  background: #dce6e0;
-  color: #17211e;
+  background: #e2ece7;
+  color: #091514;
 }
 
 .md-typeset .md-button--primary {
   border-color: #2f6f5e;
-  background: linear-gradient(120deg, #255849, #2f6f5e 55%, #3fa98a);
+  background: linear-gradient(120deg, #255849, #2f6f5e 55%, #4aa48f);
   color: #f3f5f1;
 }
 
@@ -68,27 +68,27 @@
 }
 
 [data-md-color-scheme="slate"] .md-typeset .md-button {
-  border-color: #79aa98;
-  color: #dce6e0;
+  border-color: #4aa48f;
+  color: #9ec9c1;
 }
 
 [data-md-color-scheme="slate"] .md-typeset .md-button:hover,
 [data-md-color-scheme="slate"] .md-typeset .md-button:focus-visible {
-  border-color: #79aa98;
-  background: #22312b;
+  border-color: #4aa48f;
+  background: #1f3a34;
   color: #f3f5f1;
 }
 
 [data-md-color-scheme="slate"] .md-typeset .md-button--primary {
   border-color: #2f6f5e;
-  background: linear-gradient(120deg, #2f6f5e, #2f8a70 55%, #3fa98a);
-  color: #f3f5f1;
+  background: linear-gradient(120deg, #2f7c68, #4aa48f 55%, #9ec9c1);
+  color: #06120f;
 }
 
 [data-md-color-scheme="slate"] .md-typeset .md-button--primary:hover,
 [data-md-color-scheme="slate"] .md-typeset .md-button--primary:focus-visible {
-  border-color: #255849;
-  background: #255849;
+  border-color: #4aa48f;
+  background: #2f7c68;
   color: #f3f5f1;
 }
 

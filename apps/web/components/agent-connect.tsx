@@ -5,7 +5,7 @@ import { EyebrowPill } from "./pui";
 import { CopyButton } from "./ui/copy-button";
 import { IconArrowUpRight } from "./ui/icons";
 
-const INTEGRATION_DOCS_URL = "https://rementum.dev/integrations/";
+const INTEGRATION_DOCS_URL = "https://rementum.dev/docs/integrations/";
 
 type HarnessId = (typeof HARNESSES)[number]["id"];
 
@@ -36,7 +36,7 @@ const HARNESSES = [
     commands: (mcpUrl: string) => [
       "Dashboard → Plugins → Add Marketplace → Import from Repo",
       "https://github.com/rementum/rementum",
-      "Enable Auto Refresh; set Rementum to Default On or Required",
+      "Enable Auto Refresh; set Rementum Memory to Default On or Required",
       JSON.stringify({ mcpServers: { rementum: { url: mcpUrl } } }),
     ],
   },

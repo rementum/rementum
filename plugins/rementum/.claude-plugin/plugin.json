@@ -1,5 +1,6 @@
 {
   "name": "rementum",
+  "displayName": "Rementum Memory",
   "version": "0.1.0",
   "description": "Load and maintain durable project knowledge through Rementum.",
   "author": {

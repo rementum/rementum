@@ -159,6 +159,16 @@ export function IconSignOut(props: IconProps) {
   );
 }
 
+export function IconRefresh(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M13.5 8a5.5 5.5 0 0 1-9.6 3.65" />
+      <path d="M2.5 8a5.5 5.5 0 0 1 9.6-3.65" />
+      <path d="M12.5 1.75v2.75h-2.75M3.5 14.25V11.5h2.75" />
+    </Icon>
+  );
+}
+
 export function IconCopy(props: IconProps) {
   return (
     <Icon {...props}>
@@ -188,6 +198,16 @@ export function IconClose(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="m4 4 8 8M12 4l-8 8" />
+    </Icon>
+  );
+}
+
+export function IconBook(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 4c-1.2-1-2.8-1.5-4.5-1.5H2v9.5h1.5C5.2 12 6.8 12.5 8 13.5" />
+      <path d="M8 4c1.2-1 2.8-1.5 4.5-1.5H14v9.5h-1.5c-1.7 0-3.3.5-4.5 1.5" />
+      <path d="M8 4v9.5" />
     </Icon>
   );
 }

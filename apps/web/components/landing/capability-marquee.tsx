@@ -12,7 +12,6 @@ const ITEMS = [
   "Markdown export",
   "conflict-safe writes",
   "self-hosted",
-  "AGPL-3.0",
 ];
 
 export function CapabilityMarquee() {

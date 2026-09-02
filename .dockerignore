@@ -4,6 +4,7 @@ node_modules
 **/dist
 **/.next
 coverage
+site
 .env
 **/.env*
 !.env.example

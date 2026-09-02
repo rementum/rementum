@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArticleMarkdown } from "../../../components/article-markdown";
 import { Chip } from "../../../components/ui/chip";
 import { StatusPill } from "../../../components/ui/status-pill";
 import { api } from "../../../lib/api";
@@ -61,18 +62,22 @@ export default async function WritePage({ params }: { params: Promise<{ writeId:
               <span aria-hidden="true" className="size-1.5 rounded-full bg-ink-3" />
               Current canon
             </div>
-            <pre className="overflow-x-auto whitespace-pre-wrap p-4 font-mono text-xs leading-[1.7] text-ink-2">
-              {review.currentBody ?? <span className="italic text-ink-3">New article</span>}
-            </pre>
+            {review.currentBody ? (
+              <article className="markdown p-4">
+                <ArticleMarkdown body={review.currentBody} />
+              </article>
+            ) : (
+              <p className="p-4 text-sm italic text-ink-3">New article</p>
+            )}
           </div>
           <div className="min-w-0 bg-green/[0.03]">
             <div className="sticky top-14 z-10 flex items-center gap-2 border-b border-line bg-inset px-4 py-2 font-mono text-[10.5px] uppercase tracking-[0.1em] text-ink-3 md:top-0">
               <span aria-hidden="true" className="size-1.5 rounded-full bg-green" />
               Candidate
             </div>
-            <pre className="overflow-x-auto whitespace-pre-wrap p-4 font-mono text-xs leading-[1.7] text-ink-2">
-              {review.candidateBody}
-            </pre>
+            <article className="markdown p-4">
+              <ArticleMarkdown body={review.candidateBody} />
+            </article>
           </div>
         </div>
       </section>

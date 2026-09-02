@@ -9,6 +9,7 @@
   "plugins": [
     {
       "name": "rementum",
+      "displayName": "Rementum Memory",
       "description": "Load context and preserve verified project knowledge through Rementum.",
       "source": "./plugins/rementum",
       "category": "productivity"

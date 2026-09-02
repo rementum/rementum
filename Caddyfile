@@ -21,6 +21,18 @@ www.{$REMENTUM_DOMAIN:localhost} {
 		reverse_proxy api:8787
 	}
 
+	# The documentation ships as its own image so every instance serves the guide that matches
+	# the version it runs. The docs server expects the unstripped /docs path.
+	@docs path /docs /docs/*
+	handle @docs {
+		reverse_proxy docs:8080
+	}
+
+	# The guide lived at the site root before it moved under /docs; installed plugins and older
+	# web builds still link to these pages.
+	@legacy_docs path_regexp ^/(installation|configuration|operations|security|integrations|brand|development|rementum-flow\.html)/?$
+	redir @legacy_docs /docs{uri} permanent
+
 	handle {
 		reverse_proxy web:3000
 	}
