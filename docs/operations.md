@@ -43,6 +43,36 @@ full-text ranking. After an upgrade that changes the embedding model, the worker
 articles one batch per hourly maintenance pass; they stay searchable through metadata and full-text
 ranking until their turn.
 
+## Instance panel
+
+The account that `./scripts/create-owner.sh` created is the instance owner. Signed in, it sees an
+extra **Instance** entry in the sidebar, at `/admin`, with two pages:
+
+- **Overview** counts accounts, teams, workspaces, brains, articles, versions in history, staged
+  writes awaiting review or in conflict, open and claimed tasks, MCP tool calls, live browser
+  sessions, live MCP connections, compaction jobs, and the database size, and charts sign-ups and
+  MCP calls per day for the last 30 days. Every figure covers every team.
+- **Accounts** lists every registered account, newest first, with its verification state, team
+  memberships, live MCP connections, and last audited action. It can be searched by email or name.
+
+The panel is read-only and stays on your server: every figure comes from the local database, and
+nothing is reported anywhere. It answers browser sessions only, so an agent connected over MCP
+cannot reach it, and it is invisible to everyone else: team owners and admins get a 404 from the
+pages and a 403 from the API. Each listing of the accounts page is recorded as an
+`instance.accounts_listed` audit event on the owner's account.
+
+Only accounts flagged as instance owner see the panel. The flag is the `system_owner` column of the
+`users` table. To flag a second account, or to move the flag after the first owner leaves, set it on
+the database directly:
+
+```bash
+docker compose -f docker-compose.yml -f compose.production.yml exec postgres \
+  psql -U postgres -d owl \
+  -c "UPDATE users SET system_owner = true WHERE lower(email) = lower('person@example.com')"
+```
+
+The change applies on the account's next request; no restart is needed.
+
 ## Create an encrypted backup
 
 Install `age` on an admin workstation and create an identity:

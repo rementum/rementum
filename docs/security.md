@@ -72,6 +72,15 @@ the current session; a password reset revokes every web session and MCP OAuth gr
 OAuth bearer tokens are accepted only at the exact workspace MCP URL, never by the REST API, so the
 MCP consent screen appears only while you connect an agent.
 
+The instance owner, the account `create-owner` made, has a read-only panel at `/admin` that counts
+what the instance holds and lists every registered account (see
+[the operations guide](operations.md#instance-panel)). It shows metadata only: addresses, names,
+verification state, memberships, connection counts, and timestamps, never an article body, a tool
+argument, or a network address. The owner flag is checked by the API and again inside the database
+functions that read across teams, so a missed check in one layer exposes nothing. A bearer token
+never reaches the panel because the REST API accepts browser sessions only, and an OAuth actor
+narrowed to a workspace drops the flag altogether.
+
 Deletion is permanent, immediate, and web-only. There is no trash, and MCP agents cannot delete
 anything:
 

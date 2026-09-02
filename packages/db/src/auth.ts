@@ -204,16 +204,18 @@ export class AuthRepository {
     });
   }
 
-  async findWebSession(tokenHash: string): Promise<{ userId: string } | null> {
-    const [row] = await this.client.sql<Array<{ user_id: string }>>`
-      SELECT sessions.user_id
+  async findWebSession(
+    tokenHash: string,
+  ): Promise<{ userId: string; systemOwner: boolean } | null> {
+    const [row] = await this.client.sql<Array<{ user_id: string; system_owner: boolean }>>`
+      SELECT sessions.user_id, users.system_owner
       FROM web_sessions sessions
       JOIN users ON users.id = sessions.user_id
       WHERE sessions.token_hash = ${tokenHash}
         AND sessions.expires_at > now()
         AND users.disabled_at IS NULL
     `;
-    return row ? { userId: row.user_id } : null;
+    return row ? { userId: row.user_id, systemOwner: row.system_owner === true } : null;
   }
 
   async revokeWebSession(tokenHash: string): Promise<void> {

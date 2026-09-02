@@ -106,7 +106,10 @@ integration("AuthRepository", () => {
 
       const live = `live-${suffix}`;
       await auth.createWebSession(account.user.id, live, new Date(Date.now() + 60_000));
-      expect(await auth.findWebSession(live)).toEqual({ userId: account.user.id });
+      expect(await auth.findWebSession(live)).toEqual({
+        userId: account.user.id,
+        systemOwner: false,
+      });
 
       const expired = `expired-${suffix}`;
       await auth.createWebSession(account.user.id, expired, new Date(Date.now() - 1_000));

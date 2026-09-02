@@ -29,6 +29,7 @@ const articleId = "00000000-0000-4000-8000-000000000003";
 const actor: Actor = {
   userId: "00000000-0000-4000-8000-000000000004",
   clientId: "rementum-worker",
+  systemOwner: false,
   teamRoles: new Map(),
   workspaceRoles: new Map([[workspaceId, "owner"]]),
   brainRoles: new Map([[brainId, "owner"]]),

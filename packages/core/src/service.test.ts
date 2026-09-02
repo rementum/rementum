@@ -7,6 +7,7 @@ function actor(workspaces: string[]): Actor {
   return {
     userId: "user",
     clientId: "client",
+    systemOwner: false,
     teamRoles: new Map(),
     workspaceRoles: new Map(workspaces.map((id) => [id, "owner" as const])),
     brainRoles: new Map(),

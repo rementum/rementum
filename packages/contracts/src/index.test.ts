@@ -3,6 +3,8 @@ import {
   brainArticleCountSchema,
   createTaskSchema,
   externalUrlSchema,
+  instanceOverviewSchema,
+  listInstanceUsersSchema,
   loadContextSchema,
   mcpAnalyticsRangeSchema,
   mcpAnalyticsSchema,
@@ -186,5 +188,72 @@ describe("titles", () => {
     expect(
       createTaskSchema.safeParse({ brainId: write.brainId, title: " \t", brief: "b" }).success,
     ).toBe(false);
+  });
+});
+
+describe("instance administration schemas", () => {
+  it("defaults and bounds the account listing query", () => {
+    expect(listInstanceUsersSchema.parse({})).toEqual({ query: "", limit: 50, offset: 0 });
+    expect(listInstanceUsersSchema.parse({ query: "  ada ", limit: "20", offset: "40" })).toEqual({
+      query: "ada",
+      limit: 20,
+      offset: 40,
+    });
+    expect(() => listInstanceUsersSchema.parse({ limit: 201 })).toThrow();
+    expect(() => listInstanceUsersSchema.parse({ query: "x".repeat(201) })).toThrow();
+  });
+
+  it("accepts an overview of counts and rejects a negative figure", () => {
+    const overview = {
+      generatedAt: "2026-09-02T12:00:00.000Z",
+      timeZone: "UTC",
+      accounts: {
+        total: 3,
+        verified: 2,
+        unverified: 1,
+        disabled: 0,
+        systemOwners: 1,
+        newLast7Days: 1,
+        newLast30Days: 3,
+        activeLast7Days: 2,
+        activeLast30Days: 2,
+      },
+      knowledge: {
+        teams: 2,
+        workspaces: 2,
+        brains: 4,
+        articles: 40,
+        versions: 90,
+        pendingWrites: 1,
+        conflictedWrites: 0,
+        openTasks: 2,
+        claimedTasks: 1,
+      },
+      usage: {
+        mcpCallsLast24Hours: 5,
+        mcpCallsLast7Days: 30,
+        mcpCallsLast30Days: 120,
+        mcpCallsTotal: 400,
+        activeClientsLast30Days: 3,
+        webSessions: 2,
+        mcpConnections: 3,
+      },
+      compaction: { queued: 0, processing: 0, failed: 0 },
+      storage: { databaseBytes: 52_428_800 },
+      daily: [{ date: "2026-09-02", signups: 1, calls: 5 }],
+    };
+    expect(instanceOverviewSchema.parse(overview)).toEqual(overview);
+    expect(() =>
+      instanceOverviewSchema.parse({
+        ...overview,
+        accounts: { ...overview.accounts, total: -1 },
+      }),
+    ).toThrow();
+    expect(() =>
+      instanceOverviewSchema.parse({
+        ...overview,
+        daily: [{ date: "today", signups: 0, calls: 0 }],
+      }),
+    ).toThrow();
   });
 });

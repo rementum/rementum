@@ -23,7 +23,8 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-const { api, hasSession, publicAuthConfig, workspaceContext } = await import("./api");
+const { api, hasSession, publicAuthConfig, requireInstanceOwner, sessionInfo, workspaceContext } =
+  await import("./api");
 
 const token = "session-token";
 const fetchMock = vi.fn();
@@ -211,5 +212,37 @@ describe("publicAuthConfig", () => {
       signupEnabled: false,
       turnstileSiteKey: null,
     });
+  });
+});
+
+describe("sessionInfo", () => {
+  it("reports the owner flag the API attaches to the session", async () => {
+    cookieJar.set("rementum_session", token);
+    fetchMock.mockResolvedValueOnce(respond(200, { authenticated: true, systemOwner: true }));
+    await expect(sessionInfo()).resolves.toEqual({ authenticated: true, systemOwner: true });
+    // An API that predates the flag still signs the visitor in, as an ordinary member.
+    fetchMock.mockResolvedValueOnce(respond(200, { authenticated: true }));
+    await expect(sessionInfo()).resolves.toEqual({ authenticated: true, systemOwner: false });
+  });
+
+  it("is signed out without a cookie, on a rejected session, and when the API is down", async () => {
+    await expect(sessionInfo()).resolves.toEqual({ authenticated: false, systemOwner: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+    cookieJar.set("rementum_session", token);
+    fetchMock.mockResolvedValueOnce(respond(401, { error: "unauthorized" }));
+    await expect(sessionInfo()).resolves.toEqual({ authenticated: false, systemOwner: false });
+    fetchMock.mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+    await expect(sessionInfo()).resolves.toEqual({ authenticated: false, systemOwner: false });
+  });
+});
+
+describe("requireInstanceOwner", () => {
+  it("sends a visitor to sign in, hides the panel from members, and admits the owner", async () => {
+    await expect(requireInstanceOwner()).rejects.toThrow("REDIRECT:/auth/login");
+    cookieJar.set("rementum_session", token);
+    fetchMock.mockResolvedValueOnce(respond(200, { authenticated: true, systemOwner: false }));
+    await expect(requireInstanceOwner()).rejects.toThrow("NOT_FOUND");
+    fetchMock.mockResolvedValueOnce(respond(200, { authenticated: true, systemOwner: true }));
+    await expect(requireInstanceOwner()).resolves.toBeUndefined();
   });
 });

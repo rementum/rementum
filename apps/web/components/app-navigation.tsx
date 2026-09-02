@@ -17,6 +17,7 @@ import {
   IconClose,
   IconConnections,
   IconMenu,
+  IconShield,
   IconSidebar,
   IconSignOut,
   IconTeams,
@@ -30,11 +31,20 @@ const NAV_ITEMS = [
   { label: "Connections", href: "/connections", icon: IconConnections },
 ];
 
-function activeIndexFor(pathname: string) {
+// Shown to the instance owner only. The link is a convenience; the pages and the API
+// each check the flag themselves.
+const INSTANCE_ITEM = { label: "Instance", href: "/admin", icon: IconShield };
+
+export function navItemsFor(systemOwner: boolean) {
+  return systemOwner ? [...NAV_ITEMS, INSTANCE_ITEM] : NAV_ITEMS;
+}
+
+export function activeIndexFor(pathname: string) {
   if (pathname === "/dashboard" || pathname.startsWith("/brains/")) return 0;
   if (pathname.startsWith("/activity")) return 1;
   if (pathname.startsWith("/teams")) return 2;
   if (pathname.startsWith("/connections")) return 3;
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return 4;
   return -1;
 }
 
@@ -177,15 +187,18 @@ export function AppNavigation({
   workspaces,
   activeWorkspaceId,
   initialCollapsed = false,
+  systemOwner = false,
 }: {
   teams: Team[];
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
   initialCollapsed?: boolean;
+  systemOwner?: boolean;
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navItems = navItemsFor(systemOwner);
   const activeIndex = activeIndexFor(pathname);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: close the drawer on navigation
@@ -237,7 +250,7 @@ export function AppNavigation({
           </div>
         )}
         <GlideNav
-          items={NAV_ITEMS}
+          items={navItems}
           activeIndex={activeIndex}
           collapsed={collapsed}
           className={collapsed ? "px-1.5" : "px-2"}
@@ -320,7 +333,7 @@ export function AppNavigation({
                 workspaces={workspaces}
                 activeWorkspaceId={activeWorkspaceId}
               />
-              <GlideNav items={NAV_ITEMS} activeIndex={activeIndex} ariaLabel="Workspace" />
+              <GlideNav items={navItems} activeIndex={activeIndex} ariaLabel="Workspace" />
               <div className="mt-auto flex items-center justify-between border-t border-line pt-3">
                 <div className="flex items-center gap-1">
                   <ThemeToggle />

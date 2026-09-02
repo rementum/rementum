@@ -1,4 +1,4 @@
-import { DomainError, type RementumService } from "@rementum/core";
+import { DomainError, ForbiddenError, type RementumService } from "@rementum/core";
 import type { AuthRepository } from "@rementum/db";
 import { hash } from "argon2";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
@@ -29,6 +29,7 @@ function actorWith(scopes: string = allAccessScopes.join(" ")): ScopedActor {
     {
       userId,
       clientId: "rementum-web",
+      systemOwner: false,
       teamRoles: new Map([[teamId, "owner"]]),
       workspaceRoles: new Map([[workspaceId, "owner"]]),
       brainRoles: new Map([[brainId, "owner"]]),
@@ -111,6 +112,11 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
       bodyAad: "brain:x:article:y:version:1",
     })),
     proposeInvite: vi.fn(async () => ({ id: "invite-id", token, expiresAt: "2026-01-01" })),
+    getInstanceOverview: vi.fn(async () => ({
+      generatedAt: "2026-09-02T12:00:00.000Z",
+      timeZone: "UTC",
+    })),
+    listInstanceUsers: vi.fn(async (input) => ({ items: [], total: 0, ...input })),
   } as unknown as RementumService;
   const auth = {
     registerAccount: vi.fn(async () => ({ user: { id: userId } })),
@@ -849,6 +855,7 @@ describe("staged writes and export", () => {
         {
           userId,
           clientId: "rementum-web",
+          systemOwner: false,
           teamRoles: new Map(),
           workspaceRoles: new Map(),
           brainRoles: new Map([[brainId, "viewer"]]),
@@ -863,5 +870,51 @@ describe("staged writes and export", () => {
     });
     expect(response.statusCode).toBe(403);
     expect(context.service.exportBrain).not.toHaveBeenCalled();
+  });
+});
+
+describe("instance administration", () => {
+  it("serves the overview to the signed-in actor as the service returns it", async () => {
+    const response = await context.app.inject({ method: "GET", url: "/api/v1/admin/overview" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      generatedAt: "2026-09-02T12:00:00.000Z",
+      timeZone: "UTC",
+    });
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(context.service.getInstanceOverview).toHaveBeenCalledWith(
+      expect.objectContaining({ userId }),
+    );
+  });
+
+  it("defaults and bounds the accounts query before it reaches the service", async () => {
+    const listed = await context.app.inject({
+      method: "GET",
+      url: "/api/v1/admin/accounts?query=%20Ada%20",
+    });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json()).toEqual({ items: [], total: 0, query: "Ada", limit: 50, offset: 0 });
+    expect(context.service.listInstanceUsers).toHaveBeenCalledWith(
+      { query: "Ada", limit: 50, offset: 0 },
+      expect.objectContaining({ userId }),
+    );
+    const oversized = await context.app.inject({
+      method: "GET",
+      url: "/api/v1/admin/accounts?limit=500",
+    });
+    expect(oversized.statusCode).toBe(400);
+    expect(context.service.listInstanceUsers).toHaveBeenCalledOnce();
+  });
+
+  it("answers 401 without a session and 403 when the service refuses the actor", async () => {
+    context.authenticate.mockRejectedValueOnce(anonymous());
+    const signedOut = await context.app.inject({ method: "GET", url: "/api/v1/admin/overview" });
+    expect(signedOut.statusCode).toBe(401);
+    expect(context.service.getInstanceOverview).not.toHaveBeenCalled();
+
+    vi.mocked(context.service.getInstanceOverview).mockRejectedValueOnce(new ForbiddenError());
+    const refused = await context.app.inject({ method: "GET", url: "/api/v1/admin/overview" });
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json()).toMatchObject({ code: "forbidden" });
   });
 });

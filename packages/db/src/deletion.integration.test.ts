@@ -87,6 +87,7 @@ integration("brain and team deletion", () => {
       const editorActor: Actor = {
         userId: owner.user.id,
         clientId: "integration-test",
+        systemOwner: false,
         teamRoles: new Map(),
         workspaceRoles: new Map(),
         brainRoles: new Map([[brainId, "editor"]]),
@@ -168,6 +169,7 @@ integration("brain and team deletion", () => {
       const memberActor: Actor = {
         userId: owner.user.id,
         clientId: "integration-test",
+        systemOwner: false,
         teamRoles: new Map([
           [owner.teamId, "owner"],
           [second.id, "member"],
