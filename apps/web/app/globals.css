@@ -16,8 +16,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 
   /* Semantic radius scale: chip < control < card < window */
   --radius-chip: 6px;
@@ -102,11 +102,11 @@
   --field: #ffffff;
   --hover: #e9efe9;
   --hover-2: #dce6e0;
-  --line: rgb(23 33 30 / 10%);
-  --line-strong: rgb(23 33 30 / 18%);
-  --ink: #17211e;
-  --ink-2: #43544d;
-  --ink-3: #64756d;
+  --line: rgb(9 21 20 / 10%);
+  --line-strong: rgb(9 21 20 / 18%);
+  --ink: #0d1a17;
+  --ink-2: #40514a;
+  --ink-3: #62736b;
   --accent: #2f6f5e;
   --accent-ink: #f3f5f1;
   --accent-tint: rgb(47 111 94 / 10%);
@@ -119,7 +119,7 @@
 
   --grad-from: #255849;
   --grad-mid: #2f6f5e;
-  --grad-to: #79aa98;
+  --grad-to: #9ec9c1;
 
   --elev-hairline: inset 0 0 0 1px rgb(23 33 30 / 8%);
   --elev-btn: 0 1px 2px rgb(23 33 30 / 8%);
@@ -134,39 +134,40 @@
 .dark {
   color-scheme: dark;
 
-  --page: #0f1714;
-  --canvas: #131d19;
-  --surface: #17211e;
-  --inset: #0d1411;
-  --field: #111a16;
-  --hover: #1c2924;
-  --hover-2: #22312b;
-  --line: rgb(255 255 255 / 8%);
-  --line-strong: rgb(255 255 255 / 14%);
+  /* Deep Graphite base with a Memory Teal accent (brand v1). Surfaces lift off #091514. */
+  --page: #091514;
+  --canvas: #0c1a18;
+  --surface: #10201d;
+  --inset: #060f0e;
+  --field: #0d1c19;
+  --hover: #17302b;
+  --hover-2: #1f3a34;
+  --line: rgb(158 201 193 / 9%);
+  --line-strong: rgb(158 201 193 / 16%);
   --ink: #f3f5f1;
-  --ink-2: #bdcbc5;
-  --ink-3: #8fa099;
-  --accent: #2f8a70;
-  --accent-ink: #f3f5f1;
-  --accent-tint: rgb(47 138 112 / 16%);
-  --green: #8fc4a9;
-  --green-tint: rgb(143 196 169 / 12%);
+  --ink-2: #bccbc5;
+  --ink-3: #87998f;
+  --accent: #4aa48f;
+  --accent-ink: #06120f;
+  --accent-tint: rgb(74 164 143 / 16%);
+  --green: #7cc9b0;
+  --green-tint: rgb(124 201 176 / 14%);
   --red: #e2b6b6;
   --red-tint: rgb(226 182 182 / 10%);
   --orange: #d9ccb5;
   --orange-tint: rgb(217 204 181 / 12%);
 
-  --grad-from: #2f6f5e;
-  --grad-mid: #34d399;
-  --grad-to: #79aa98;
+  --grad-from: #2f7c68;
+  --grad-mid: #4aa48f;
+  --grad-to: #9ec9c1;
 
-  --elev-hairline: inset 0 0 0 1px rgb(255 255 255 / 6%);
-  --elev-btn: 0 1px 2px rgb(0 0 0 / 30%);
-  --elev-card: 0 10px 40px rgb(0 0 0 / 35%);
-  --elev-raised: 0 20px 60px rgb(0 0 0 / 45%);
-  --elev-overlay: 0 28px 90px rgb(0 0 0 / 55%);
-  --elev-glow: 0 0 24px rgb(47 138 112 / 30%);
-  --elev-glow-strong: 0 0 48px rgb(47 138 112 / 40%), 0 0 96px rgb(121 170 152 / 18%);
+  --elev-hairline: inset 0 0 0 1px rgb(158 201 193 / 7%);
+  --elev-btn: 0 1px 2px rgb(0 0 0 / 32%);
+  --elev-card: 0 10px 40px rgb(0 0 0 / 38%);
+  --elev-raised: 0 20px 60px rgb(0 0 0 / 48%);
+  --elev-overlay: 0 28px 90px rgb(0 0 0 / 58%);
+  --elev-glow: 0 0 24px rgb(74 164 143 / 30%);
+  --elev-glow-strong: 0 0 48px rgb(74 164 143 / 40%), 0 0 96px rgb(158 201 193 / 18%);
 }
 
 /* ── Bridge flipping vars into Tailwind utilities ── */
@@ -223,8 +224,8 @@
   --pui-success: var(--green);
   --pui-danger: var(--red);
   --pui-warn: var(--orange);
-  --pui-font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --pui-font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --pui-font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --pui-font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
   --pui-radius-sm: var(--radius-chip);
   --pui-radius: var(--radius-control);
   --pui-radius-lg: var(--radius-card);

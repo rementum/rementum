@@ -1,6 +1,5 @@
-import { GeistMono } from "geist/font/mono";
-import { GeistSans } from "geist/font/sans";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import { cookies } from "next/headers";
 import { AppNavigation } from "../components/app-navigation";
 import { PublicNav } from "../components/public-nav";
@@ -9,12 +8,36 @@ import { hasSession, publicAuthConfig, workspaceContext } from "../lib/api";
 import { GITHUB_URL } from "../lib/site";
 import "./globals.css";
 
+// Fonts are vendored (Inter + JetBrains Mono, OFL) and loaded from disk so the production
+// image builds without reaching Google Fonts. Both are variable, so one file spans every weight.
+const inter = localFont({
+  src: "./fonts/inter-variable.woff2",
+  variable: "--font-inter",
+  weight: "100 900",
+  display: "swap",
+});
+
+const jetbrainsMono = localFont({
+  src: "./fonts/jetbrains-mono-variable.woff2",
+  variable: "--font-jetbrains-mono",
+  weight: "100 800",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: {
     default: "Rementum",
     template: "%s | Rementum",
   },
   description: "One versioned brain behind every agent.",
+};
+
+// Deep Graphite / Ivory tint the browser chrome to match the surface behind the page.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f3f5f1" },
+    { media: "(prefers-color-scheme: dark)", color: "#091514" },
+  ],
 };
 
 // The static landing page cannot read cookies, so it ships the default theme. This runs while
@@ -43,7 +66,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html
       lang="en"
       data-theme={theme}
-      className={`${GeistSans.variable} ${GeistMono.variable}${theme === "dark" ? " dark" : ""}`}
+      className={`${inter.variable} ${jetbrainsMono.variable}${theme === "dark" ? " dark" : ""}`}
       suppressHydrationWarning
     >
       <head>
