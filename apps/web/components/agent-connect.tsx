@@ -36,7 +36,7 @@ const HARNESSES = [
     commands: (mcpUrl: string) => [
       "Dashboard → Plugins → Add Marketplace → Import from Repo",
       "https://github.com/rementum/rementum",
-      "Enable Auto Refresh; set Rementum to Default On or Required",
+      "Enable Auto Refresh; set Rementum Memory to Default On or Required",
       JSON.stringify({ mcpServers: { rementum: { url: mcpUrl } } }),
     ],
   },
