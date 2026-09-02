@@ -1,19 +1,18 @@
 # Install Rementum
 
-## Before you start
+## What you need
 
-You need:
+- A Linux host with Docker Engine, Docker Compose v2, and OpenSSL.
+- A domain with an A or AAAA record pointing at the host.
+- Open inbound TCP ports 80 and 443.
 
-- A Linux host with Docker Engine, Docker Compose v2, and OpenSSL
-- A domain with an A or AAAA record pointing to the host
-- Inbound TCP ports 80 and 443
+Two things are optional:
 
-An OpenAI-compatible API endpoint and model name are optional. Configuring them makes deferred
-compaction available, but every workspace still starts with compaction off. The provider/model must
-support strict JSON Schema through Chat Completions.
-
-Public registration also needs a Resend API key and a verified sender. Invitation-only instances do
-not need an email provider for the first owner.
+- **An OpenAI-compatible AI provider.** It only makes deferred compaction *available*; every
+  workspace still starts with compaction off. The provider and model must support strict JSON Schema
+  through Chat Completions.
+- **Email (a Resend API key and a verified sender).** You need it for public registration. An
+  invitation-only instance does not need email to create the first owner.
 
 ## Run the installer
 
@@ -23,19 +22,20 @@ cd rementum
 ./scripts/install.sh
 ```
 
-The installer asks for the domain, owner account, optional LLM, optional mail, and optional
-Cloudflare Turnstile bot-protection settings. It then:
+The installer asks for the domain, the owner account, and the optional AI, email, and Cloudflare
+Turnstile settings. Then it:
 
-1. Generates database passwords, a 32-byte master key, cookie keys, and a persistent OAuth signing
-   key.
+1. Generates the database passwords, a 32-byte master key, cookie keys, and an OAuth signing key.
 2. Writes `.env` with mode `0600` and creates a private `backups/` directory.
-3. Builds the containers, runs every pending migration, and waits for the API and web health checks.
-4. Creates the first owner, default team, and that team's default workspace.
+3. Builds the containers, runs every migration, and waits for the API and web health checks.
+4. Creates the first owner, a default team, and that team's default workspace.
 
-## Run from an agent or automation
+When it finishes, open the HTTPS URL it printed.
 
-Run `--non-interactive` from an agent or CI job. Set ordinary values with `REMENTUM_INSTALL_*`
-variables. Store passwords and API keys in files to keep them out of the command line and logs:
+## Install without prompts
+
+Pass `--non-interactive` to run from an agent or a CI job. Set plain values with `REMENTUM_INSTALL_*`
+variables, and put passwords and API keys in files so they stay out of the command line and logs:
 
 ```bash
 REMENTUM_INSTALL_DOMAIN='memory.example.com' \
@@ -50,64 +50,66 @@ REMENTUM_INSTALL_ALLOW_SIGNUP='false' \
 ./scripts/install.sh --non-interactive
 ```
 
-Store an owner password of at least 12 characters in `REMENTUM_INSTALL_OWNER_PASSWORD_FILE`. The
-installer defaults external LLM capability and public signup to `false`. Omit every LLM input to
-preserve submitted titles and bodies and use local summaries. To make compaction available, set
-`REMENTUM_INSTALL_LLM_ENABLED=true`, a base URL, and a structured-output-capable model; omit the API
-key file for a keyless compatible endpoint. After installation, enable compaction on each intended
-workspace from its team page. If you enable signup, also set
-`REMENTUM_INSTALL_RESEND_API_KEY_FILE` and `REMENTUM_INSTALL_MAIL_FROM`. To protect the account
-forms with Cloudflare Turnstile, set `REMENTUM_INSTALL_TURNSTILE_SITE_KEY` and store the secret in
-`REMENTUM_INSTALL_TURNSTILE_SECRET_KEY_FILE`; the installer refuses one without the other. Run
-`./scripts/install.sh --help` for the complete input list.
+A few rules for this mode:
 
-Non-interactive mode uses the same safety checks as the interactive installer. It generates `.env`,
-deploys the production stack, and creates the first owner.
+- The owner password must be at least 12 characters, read from `REMENTUM_INSTALL_OWNER_PASSWORD_FILE`.
+- External AI and public signup both default to `false`.
+- Omit every AI input to keep submitted titles and bodies and use local summaries. To make
+  compaction available, set `REMENTUM_INSTALL_LLM_ENABLED=true` with a base URL and a
+  JSON-Schema-capable model; omit the API key file for a keyless endpoint. Turn compaction on later
+  per workspace, from its team page.
+- To allow signup, also set `REMENTUM_INSTALL_RESEND_API_KEY_FILE` and `REMENTUM_INSTALL_MAIL_FROM`.
+- To add Cloudflare Turnstile bot protection, set `REMENTUM_INSTALL_TURNSTILE_SITE_KEY` and store the
+  secret in `REMENTUM_INSTALL_TURNSTILE_SECRET_KEY_FILE`. The installer refuses one without the other.
 
-The installer refuses to replace an existing `.env`. Update an existing instance from its Git
-checkout with:
+Run `./scripts/install.sh --help` for the full list. This mode uses the same safety checks as the
+interactive installer.
+
+## Update or repair
+
+The installer refuses to overwrite an existing `.env`. To update an installed instance from its Git
+checkout:
 
 ```bash
 ./scripts/update.sh
 ```
 
-The updater requires an encrypted backup recipient before it changes the source. Follow the
-[backup and upgrade guide](operations.md) to configure it. Use `./scripts/deploy.sh` when you only
-changed `.env` or want to rebuild the currently checked-out version without fetching an update.
+The updater requires an encrypted backup recipient before it touches the source. Set one up with the
+[backup and upgrade guide](operations.md). Use `./scripts/deploy.sh` when you only changed `.env`, or
+to rebuild the current version without pulling an update.
 
-If deployment succeeds but first-owner creation fails, retry that step without changing the
-instance secrets:
+If deployment succeeds but creating the first owner fails, retry just that step. It does not change
+any secret:
 
 ```bash
 ./scripts/create-owner.sh owner@example.com "Owner Name"
 ```
 
-## Verify the instance
+## Check that it works
 
 ```bash
 curl --fail https://memory.example.com/healthz
 docker compose -f docker-compose.yml -f compose.production.yml ps
 ```
 
-The health response reports database access and embedding service status. The Compose output should
-show healthy API, web, docs, embedding, and PostgreSQL services.
+The health response reports database and embedding status. The Compose output should show healthy
+API, web, embedding, and PostgreSQL services.
 
-The embedding service is the slowest to report healthy because it downloads its model on first
-start. The installer waits for it.
+The embedding service is the last to go healthy: it downloads its model on first start. The
+installer waits for it.
 
 ## Save the master key
 
-Copy `.env` into an encrypted secrets manager before you add knowledge. The encrypted backup does
-not contain `REMENTUM_MASTER_KEY`. A database and blob backup cannot recover article bodies without
-the same master key.
+Copy `.env` into an encrypted secrets manager before you add any knowledge. **The encrypted backup
+does not contain `REMENTUM_MASTER_KEY`.** Without the same master key, no database or blob backup can
+recover article bodies.
 
-Limit `.env` access to the system administrator. Do not send it through chat, email, issue trackers,
-or CI logs.
+Limit `.env` to the system administrator. Never send it through chat, email, issue trackers, or CI
+logs.
 
-## Public registration
+## Turn on public registration
 
-The installer keeps registration closed unless you enable it. To change the setting later, configure
-all three values in `.env`:
+Registration stays closed unless you enable it. To open it later, set all three values in `.env`:
 
 ```dotenv
 REMENTUM_ALLOW_SIGNUP='true'
@@ -115,5 +117,5 @@ REMENTUM_RESEND_API_KEY='re_...'
 REMENTUM_MAIL_FROM='Rementum <rementum@example.com>'
 ```
 
-Run `./scripts/deploy.sh` after the change. New accounts must verify their email before they create a
+Run `./scripts/deploy.sh` afterward. New accounts must verify their email before they can create a
 team.
