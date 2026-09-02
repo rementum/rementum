@@ -1,25 +1,25 @@
 # Connect an agent
 
-Open **Teams** in Rementum and copy the MCP URL shown for the workspace you want to connect. It
-looks like this:
+Open **Teams** in Rementum and copy the MCP URL for the workspace you want to connect. It looks like
+this:
 
 ```text
 https://rementum.dev/mcp/workspace/WORKSPACE_UUID
 ```
 
-The URL identifies the workspace; it is not a credential. Rementum opens OAuth in your browser,
-checks your team membership, and limits that connection to the selected workspace's brains and tasks.
-This approval belongs to the MCP client. Signing in to the Rementum web interface uses a separate
-web session and never displays an OAuth consent screen.
+The URL names the workspace; it is not a credential. When an agent connects, Rementum opens OAuth in
+your browser, checks your team membership, and limits the connection to that workspace's brains and
+tasks. This approval belongs to the MCP client. Signing in to the Rementum website uses a separate
+web session and never shows an OAuth screen.
 
-## Install the Rementum plugin
+## Two parts: the plugin and the MCP URL
 
-MCP exposes the tools. The Rementum skills teach coding agents when to load context, how to stage and
-promote durable writes, and how to import or maintain a brain safely. The plugin distributes
-`brain-context`, `brain-write`, `brain-import`, and `brain-maintenance` across projects. Plugin
-pickers list it as **Rementum Memory**, published by Rementum; the install id stays `rementum`. The
-MCP connection remains workspace-specific, so install the plugin and add the URL copied from
-**Teams**.
+- **MCP** exposes the tools.
+- **The Rementum plugin** adds skills that teach a coding agent when to load context, how to stage
+  and promote writes, and how to import or maintain a brain safely. It ships `brain-context`,
+  `brain-write`, `brain-import`, and `brain-maintenance`.
+
+Install the plugin once, then add the workspace MCP URL. The steps below cover each client.
 
 ## Claude Code
 
@@ -28,9 +28,9 @@ MCP connection remains workspace-specific, so install the plugin and add the URL
 /plugin install rementum@rementum
 ```
 
-Enable auto-update once from **/plugin → Marketplaces → rementum → Enable auto-update**. Claude Code
-then refreshes the third-party marketplace at startup and prompts for `/reload-plugins` when an
-update needs to be loaded. Add the workspace connection separately:
+Turn on auto-update once, from **/plugin → Marketplaces → rementum → Enable auto-update**. Claude
+Code then refreshes the marketplace at startup and prompts for `/reload-plugins` when an update is
+ready. Add the workspace connection separately:
 
 ```bash
 claude mcp add --scope user --transport http \
@@ -38,7 +38,7 @@ claude mcp add --scope user --transport http \
 claude mcp login rementum
 ```
 
-Complete OAuth in the browser, then ask Claude to call `list_brains` and `get_brain`.
+Finish OAuth in the browser, then ask Claude to call `list_brains` and `get_brain`.
 
 ## Codex
 
@@ -49,16 +49,15 @@ codex mcp add rementum --url https://rementum.dev/mcp/workspace/WORKSPACE_UUID
 codex mcp login rementum
 ```
 
-Run `codex plugin marketplace upgrade rementum` to refresh the Git marketplace explicitly. Start a
-new thread after installing or updating the plugin.
+Run `codex plugin marketplace upgrade rementum` to refresh the marketplace, and start a new thread
+after you install or update the plugin.
 
 ## Cursor
 
-Rementum is an Agent Plugin. For a team installation, open **Dashboard → Plugins**, add a marketplace
-with **Import from Repo**, and use `https://github.com/rementum/rementum`. Enable **Auto Refresh**
-after installing the Cursor GitHub App, then make **Rementum Memory** Default On or Required as
-appropriate. Cursor lists the plugin under that name, with Rementum as its publisher, and loads the
-four shared skills from `plugins/rementum/plugin.json` through the repository's Cursor marketplace.
+Rementum is an Agent Plugin. For a team install, open **Dashboard → Plugins**, add a marketplace with
+**Import from Repo**, and use `https://github.com/rementum/rementum`. Install the Cursor GitHub App,
+turn on **Auto Refresh**, then set the plugin to Default On or Required. Cursor loads the four skills
+from `plugins/rementum/plugin.json` through the repository marketplace.
 
 Add the workspace server to the MCP configuration:
 
@@ -81,15 +80,15 @@ opencode mcp add rementum --url https://rementum.dev/mcp/workspace/WORKSPACE_UUI
 opencode mcp auth rementum
 ```
 
-## Compatibility fallback
+## Agents without plugin support
 
-Agents without plugin support can still install the same four skills directly:
+Any coding agent can install the same four skills directly:
 
 ```bash
 npx -y skills add rementum/rementum --global --all --full-depth
 ```
 
-After this one-time install, direct installs can be refreshed without reinstalling:
+After that one-time install, refresh them without reinstalling:
 
 ```bash
 npx -y skills update brain-context brain-write brain-import brain-maintenance --global --yes
@@ -97,89 +96,81 @@ npx -y skills update brain-context brain-write brain-import brain-maintenance --
 
 ## Claude and Claude Desktop
 
-On supported Claude plans, open **Settings → Connectors**, choose **Add custom connector**, and use
-the workspace MCP URL. Remote connectors work in Claude and Claude Desktop; do not put this remote
-URL in `claude_desktop_config.json`. See [Anthropic's remote connector guide](https://support.anthropic.com/en/articles/11503834-building-custom-integrations-via-remote-mcp-servers).
+On supported plans, open **Settings → Connectors**, choose **Add custom connector**, and paste the
+workspace MCP URL. Remote connectors work in Claude and Claude Desktop; do not put this URL in
+`claude_desktop_config.json`. See
+[Anthropic's remote connector guide](https://support.anthropic.com/en/articles/11503834-building-custom-integrations-via-remote-mcp-servers).
 
-The plugin targets Claude Code, not the hosted Claude or Claude Desktop connector. Those clients can
-use the MCP tools but do not receive the local coding-agent skills from this package.
+The plugin targets Claude Code, not the hosted Claude or Claude Desktop. Those clients can use the
+MCP tools, but they do not get the local coding-agent skills.
 
 ## ChatGPT
 
-Where custom MCP apps are available for your plan and workspace, enable developer mode, create a
-custom app under **Settings → Apps**, and use the workspace MCP URL. Select OAuth when prompted,
-scan the tools, and approve the connection. See [OpenAI's MCP app guide](https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt).
+Where custom MCP apps are available, enable developer mode, create a custom app under **Settings →
+Apps**, and paste the workspace MCP URL. Choose OAuth, scan the tools, and approve the connection.
+See
+[OpenAI's MCP app guide](https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt).
 
-The repository marketplace targets Codex, not ChatGPT. ChatGPT can use the MCP tools but does not
-receive a locally installed Codex plugin.
+The repository marketplace targets Codex, not ChatGPT. ChatGPT can use the MCP tools but does not get
+the Codex plugin.
 
 ## Other MCP clients
 
-Any client that supports remote Streamable HTTP MCP and OAuth can use the same workspace URL. Keep
-write-tool approval enabled. Rementum marks read tools with `readOnlyHint`, while writes use the
-staged write and promotion protocol.
+Any client that supports remote Streamable HTTP MCP with OAuth can use the same workspace URL. Keep
+write-tool approval on. Rementum marks read tools with `readOnlyHint`; writes go through the staged
+write and promotion protocol.
 
 Rementum serves the stateless MCP `2026-07-28` protocol and keeps a stateless compatibility path for
-2025-era clients. Ordinary request/response calls use JSON rather than opening an SSE stream. The
-tool catalog is deterministic, filtered to the connection's granted OAuth scopes, and advertised as
-a private five-minute cache to modern clients.
+2025-era clients. Ordinary calls use JSON instead of opening an SSE stream. The tool catalog is
+deterministic, filtered to the connection's OAuth scopes, and advertised to modern clients with a
+private five-minute cache.
 
-When a client exposes catalog controls, import only the tools needed for the workflow. OpenAI
-Responses clients can retain the `mcp_list_tools` item, set `allowed_tools`, and defer the MCP server
-behind tool search. Claude API clients can keep the common memory tools loaded and defer task,
-maintenance, import, and export tools. These client settings reduce prompt tokens in addition to the
-server-side scope filtering.
+If your client can filter its tool catalog, import only the tools the workflow needs. OpenAI
+Responses clients can keep the `mcp_list_tools` item, set `allowed_tools`, and defer the server behind
+tool search. Claude API clients can keep the common memory tools loaded and defer the task,
+maintenance, import, and export tools. This trims prompt tokens on top of the server-side scope
+filter.
 
 ## Usage analytics
 
 The web **Analytics** page records one usage event after each successful MCP tool call. It counts
-tool calls rather than audit rows, so internal `load_context` candidate reads do not inflate client
-or brain activity. Top articles count only bodies delivered by `read_article` or actually returned
-by `load_context`, once per call per article.
+tool calls, not audit rows, so a `load_context` candidate read does not inflate client or brain
+activity. Top-article counts include only bodies delivered by `read_article` or actually returned by
+`load_context`, once per call per article.
 
-The dashboard offers 7, 30, 90, and 365-day rankings and a rolling 365-day contribution heatmap.
-The **Refresh** button in the page header re-reads the analytics in place, so a tab left open beside
-a working agent can pick up new calls without reloading the page. All day boundaries are UTC. Tracking begins when the analytics migration is installed; older audit
-events are not converted into estimates, and the heatmap marks earlier days as untracked. Usage
-records remain for the life of the workspace and are visible to its team members. See the
-[security checklist](security.md) for the exact metadata retained.
+The page shows 7-, 30-, 90-, and 365-day rankings and a rolling 365-day contribution heatmap. Day
+boundaries are UTC. Tracking starts when the analytics migration is installed; older audit events are
+not backfilled, and the heatmap marks earlier days as untracked. Usage records last for the life of
+the workspace and are visible to its team members. The [security checklist](security.md) lists the
+exact metadata kept.
 
-The **Team leaderboard** card ranks the workspace team's current members by the actions attributed
-to them in the selected range and shows how many staged writes each one promoted. It is derived
-from the audit log rather than from the usage ledger, which deliberately records no user ids, so
-the usage metadata boundary in the security checklist is unchanged. Every audited action counts
-once; `task.heartbeat` keepalives are skipped because a held claim would otherwise outrank real
-work. Members without activity in the range are listed with zero so adoption gaps stay visible,
-and the card shows at most ten members.
+## The first requests an agent makes
 
-## First request
+At startup the server sends MCP instructions that tell the agent when to load and write memory.
+Clients that surface server instructions, Claude Code among them, apply this guidance with no extra
+prompt setup.
 
-At initialization the server sends MCP instructions that tell the agent when to load and write
-memory. Clients that surface server instructions, Claude Code among them, apply this guidance
-without extra prompt configuration.
+A typical read path is:
 
-Start with these calls:
-
-1. `search_brains` finds the brain matching the current project by name, slug, or description;
-   `list_brains` pages through accessible brains when a search is not enough.
+1. `search_brains` finds the brain that matches the current project by name, slug, or description.
+   `list_brains` pages through accessible brains when search is not enough.
 2. `get_brain` returns 25 routing entries by default. Pass its opaque `nextCursor` back unchanged
-   while `hasMore` is true when the remaining index matters.
-3. `load_context` runs the existing metadata, full-text, and embedding search and returns complete
-   relevant article bodies within `maxArticles` and `maxChars`. It reports bodies omitted by either
-   budget; it never silently truncates an article. `maxChars` is measured against the whole tool
-   result, which carries the payload twice — once as `structuredContent` and once as the JSON text
-   block older clients read. `omittedCount` counts every skipped article, while `omitted` names only
-   those the remaining budget had room to list, so treat the count as authoritative and the list as
-   a convenience. Opening a candidate costs a decrypt and an audit event, so the tool reads at most
-   `maxArticles * 2` of them and marks the untried tail `read_budget`.
-4. Use `read_article` for an exact article. Its default body view omits provenance and maintenance
-   metadata; request `detail: "full"` only when those fields are needed.
+   while `hasMore` is true, when the rest of the index matters.
+3. `load_context` runs the metadata, full-text, and embedding search and returns whole relevant
+   article bodies within `maxArticles` and `maxChars`. It reports what it skipped and never silently
+   truncates an article. `maxChars` counts the entire tool result, which carries the payload twice:
+   once as `structuredContent`, once as JSON text for older clients. `omittedCount` counts every
+   skipped article; `omitted` lists only those the remaining budget had room to name, so trust the
+   count and treat the list as a convenience. Opening a candidate costs a decrypt and an audit event,
+   so the tool reads at most `maxArticles * 2` candidates and marks the untried tail `read_budget`.
+4. `read_article` fetches one exact article. Its default view drops provenance and maintenance
+   fields; pass `detail: "full"` only when you need them.
 
-List tools return compact summaries and opaque continuation cursors. `list_tasks` omits full task
-briefs, so follow a selected item with `get_task`. `recent_activity` defaults to ten compact events.
-`export_brain` returns a link to the REST ZIP export instead of injecting every article body into the
-agent context; opening that link requires a separate signed-in Rementum web session.
+List tools return compact summaries and opaque cursors. `list_tasks` omits full briefs, so follow a
+chosen item with `get_task`. `recent_activity` defaults to ten compact events. `export_brain` returns
+a link to the REST ZIP export instead of dumping every body into the agent, and opening that link
+needs a separate signed-in web session.
 
-Use `stage_write` for memory changes. Review its conflict result before you promote the pending
-write. Staging never waits for an external LLM. In opted-in workspaces, `read_article` exposes the
-deferred compaction status after promotion while the submitted body remains usable.
+Write memory with `stage_write`. Review its conflict result before you promote the pending write.
+Staging never waits for an external LLM. In an opted-in workspace, `read_article` shows the deferred
+compaction status after promotion, while the submitted body stays usable.

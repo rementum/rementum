@@ -11,22 +11,22 @@ The public probes are:
 
 - `/healthz` checks PostgreSQL and the embedding service.
 - `/readyz` checks PostgreSQL.
-- `/metrics` exposes the current build information metric.
+- `/metrics` exposes the build-information metric.
 
-The embedding container turns healthy only once its model is loaded, and the first start downloads
-roughly 465 MB into the `model_cache` volume. A failing probe after that is real; ask the container
-for the reason:
+The embedding container goes healthy only after its model loads, and the first start downloads about
+465 MB into the `model_cache` volume. A probe that fails after that is a real problem. Ask the
+container why:
 
 ```bash
 docker compose -f docker-compose.yml -f compose.production.yml exec embeddings \
   wget -qO- --content-on-error http://127.0.0.1:8790/healthz
 ```
 
-(`--content-on-error` matters: the reason arrives in the body of a 503, which wget otherwise
-discards.)
+(`--content-on-error` matters: the reason comes back in the body of a 503, which wget would otherwise
+throw away.)
 
-If the reason is `Model cache /models is not writable`, the `model_cache` volume predates the
-image that seeds its ownership — Docker only applies that to an empty volume, so a volume created
+If the reason is `Model cache /models is not writable`, the `model_cache` volume predates the image
+that seeds its ownership. Docker only seeds ownership on an empty volume, so a volume that was created
 root-owned stays root-owned across upgrades. Fix it once and restart:
 
 ```bash
@@ -35,23 +35,21 @@ docker compose -f docker-compose.yml -f compose.production.yml \
 docker compose -f docker-compose.yml -f compose.production.yml up -d embeddings
 ```
 
-Until the model loads, the API answers `semanticSearch: false` and search falls back to metadata and
-full-text ranking.
-
-After an upgrade that changes the embedding model, articles indexed under the previous model are
-re-embedded by the worker's hourly maintenance pass, one batch per pass. They stay searchable
-through metadata and full-text ranking until their turn comes.
+Until the model loads, the API reports `semanticSearch: false` and search falls back to metadata and
+full-text ranking. After an upgrade that changes the embedding model, the worker re-embeds the old
+articles one batch per hourly maintenance pass; they stay searchable through metadata and full-text
+ranking until their turn.
 
 ## Create an encrypted backup
 
-Install `age` on an administrator workstation and create an identity:
+Install `age` on an admin workstation and create an identity:
 
 ```bash
 age-keygen -o rementum-backup.agekey
 age-keygen -y rementum-backup.agekey
 ```
 
-Store the printed public recipient in `.env`:
+Put the printed public recipient in `.env`:
 
 ```dotenv
 REMENTUM_BACKUP_AGE_RECIPIENT='age1...'
@@ -66,13 +64,13 @@ docker compose \
   --profile backup run --rm backup
 ```
 
-The command writes `rementum-<UTC timestamp>.tar.age` under `REMENTUM_BACKUP_HOST_DIR`. Move the
-archive to storage outside the Rementum host. Store `.env`, or at least `REMENTUM_MASTER_KEY`, in a
-separate encrypted secrets system.
+This writes `rementum-<UTC timestamp>.tar.age` under `REMENTUM_BACKUP_HOST_DIR`. Move it to storage
+off the Rementum host. Keep `.env`, or at least `REMENTUM_MASTER_KEY`, in a separate encrypted
+secrets system.
 
 ## Upgrade
 
-Set `REMENTUM_BACKUP_AGE_RECIPIENT` as described above, then update the instance with one command:
+Set `REMENTUM_BACKUP_AGE_RECIPIENT` first (see above), then upgrade with one command:
 
 ```bash
 ./scripts/update.sh
@@ -81,44 +79,44 @@ Set `REMENTUM_BACKUP_AGE_RECIPIENT` as described above, then update the instance
 The updater:
 
 1. Refuses to overwrite tracked local changes or a diverged branch.
-2. Fetches the branch's configured upstream and exits without rebuilding when it is already current.
-3. Creates an encrypted backup before changing the source.
-4. Fast-forwards the source, rebuilds the images, runs pending migrations, replaces changed
-   services, and waits for their health checks.
+2. Fetches the branch's upstream and exits without rebuilding when it is already current.
+3. Creates an encrypted backup before it changes the source.
+4. Fast-forwards the source, rebuilds the images, runs pending migrations, replaces changed services,
+   and waits for their health checks.
 
-A configuration change alone — editing `.env` without a new release, such as switching the
-embedding model — does not get past the updater's "already up to date" exit. Deploy it with:
+A config-only change does not get past the "already up to date" exit. That includes editing `.env`
+without a new release, such as switching the embedding model. Deploy it with:
 
 ```bash
 ./scripts/update.sh --redeploy
 ```
 
-This keeps the backup-first flow and then rebuilds and redeploys; Compose recreates only the
-containers whose configuration actually changed.
+This still backs up first, then rebuilds and redeploys; Compose recreates only the containers whose
+configuration actually changed.
 
-The first Rementum deployment also migrates legacy environment-variable names in `.env`. It keeps
-the previous file as `.env.pre-rementum`; move that secrets-bearing backup into your encrypted
-secrets system after verifying the deployment.
+The first Rementum deployment also migrates legacy environment-variable names in `.env`. It keeps the
+old file as `.env.pre-rementum`; move that secrets-bearing backup into your encrypted secrets system
+once the deployment checks out.
 
-Rementum uses forward-only database migrations. Read the release notes before upgrading across
-several releases. If you have made your own source changes, update and deploy that checkout manually
-instead of bypassing the updater's clean-tree check.
+Migrations are forward-only. Read the release notes before you jump several releases. If you carry
+your own source changes, update and deploy that checkout by hand instead of bypassing the updater's
+clean-tree check.
 
-In an emergency, you can explicitly skip the backup:
+In an emergency you can skip the backup:
 
 ```bash
 ./scripts/update.sh --no-backup
 ```
 
-This is not recommended. If deployment fails after the source is updated, inspect the service logs
-and restore the encrypted backup when recovery is required.
+This is not recommended. If deployment fails after the source is updated, read the service logs and
+restore the encrypted backup if you need to recover.
 
 ### Memory during a deployment
 
-Deployments build the images one at a time and only then replace containers, so the running stack
-keeps serving throughout and a build never competes with four others for memory. The web build is
-additionally capped at a 2 GB Node heap. This fits a 4 GB host with the stack running; add a little
-swap as a safety margin if the host has none, for example:
+Deployments build images one at a time and only then replace containers, so the running stack keeps
+serving and no build competes with four others for memory. The web build is also capped at a 2 GB
+Node heap. This fits a 4 GB host with the stack running; add a little swap as a margin if the host has
+none:
 
 ```bash
 fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
@@ -127,10 +125,10 @@ echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
 ## Restore
 
-Restore into an empty instance or accept that `pg_restore --clean` will replace the current database
+Restore into an empty instance, or accept that `pg_restore --clean` will replace the current database
 objects. Create a fresh backup before you continue.
 
-Place the encrypted archive in `REMENTUM_BACKUP_HOST_DIR`, then stop services that write data:
+Put the encrypted archive in `REMENTUM_BACKUP_HOST_DIR`, then stop the services that write data:
 
 ```bash
 docker compose -f docker-compose.yml -f compose.production.yml stop caddy web api worker
@@ -155,5 +153,5 @@ Start the stack and apply migrations:
 curl --fail https://memory.example.com/healthz
 ```
 
-The database dump contains the vector index. The worker fills embeddings for articles that lack an
-index row after services start.
+The dump contains the vector index. After services start, the worker fills embeddings for any article
+that lacks an index row.
