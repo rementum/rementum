@@ -112,6 +112,24 @@ export class AuthRepository {
     })) as { user: UserRecord; teamId: string; workspaceId: string } | null;
   }
 
+  /**
+   * Re-registers an address whose account was never verified: the new password and name
+   * replace the old ones and the caller issues a fresh verification. A verified account
+   * is left untouched and null is returned, exactly as for an address that is free.
+   */
+  async reclaimUnverifiedAccount(
+    email: string,
+    displayName: string,
+    passwordHash: string,
+  ): Promise<UserRecord | null> {
+    const [row] = await this.client.sql<any[]>`
+      UPDATE users SET password_hash = ${passwordHash}, display_name = ${displayName}
+      WHERE lower(email) = lower(${email}) AND email_verified_at IS NULL AND disabled_at IS NULL
+      RETURNING *
+    `;
+    return row ? mapUser(row) : null;
+  }
+
   async createAuthToken(
     userId: string,
     purpose: "verify_email" | "reset_password",

@@ -96,6 +96,7 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
   } as unknown as RementumService;
   const auth = {
     registerAccount: vi.fn(async () => ({ user: { id: userId } })),
+    reclaimUnverifiedAccount: vi.fn(async () => null),
     createAuthToken: vi.fn(async () => ({ id: "token-id" })),
     findUserByEmail: vi.fn(async () => null),
     findUserById: vi.fn(async () => ({ id: userId, email: "invited@example.test" })),

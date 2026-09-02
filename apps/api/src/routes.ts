@@ -49,6 +49,9 @@ export async function registerApiRoutes(
     config.REMENTUM_LLM_ENABLED && config.REMENTUM_LLM_BASE_URL && config.REMENTUM_LLM_MODEL,
   );
   const authRateLimit = { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } };
+  // An archive is expanded in memory and an export decrypts a whole brain; neither is
+  // something one client needs more than a few times a minute.
+  const bulkRateLimit = { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } };
   // Every /api/v1 and /mcp response is scoped to the authenticated actor, so no cache —
   // browser or intermediary — may reuse one across sessions. Registered here without
   // encapsulation, the hook covers the MCP endpoint too; OAuth responses keep the
@@ -85,17 +88,24 @@ export async function registerApiRoutes(
     await requireTurnstile(config, input.turnstileToken, request.ip);
     const email = input.email.trim().toLowerCase();
     const teamSlug = `${(slugify(input.teamName) || "team").slice(0, 105)}-${randomBytes(6).toString("hex")}`;
+    const passwordHash = await secureHash(input.password);
     const created = await authRepository.registerAccount(
       email,
       input.displayName,
-      await secureHash(input.password),
+      passwordHash,
       input.teamName,
       teamSlug,
     );
-    if (created) {
+    // An address registered but never verified is not yet anyone's: whoever holds the
+    // mailbox must be able to register it again with their own password, or a stranger
+    // who registered it first would own the account the moment its real owner verifies.
+    const user =
+      created?.user ??
+      (await authRepository.reclaimUnverifiedAccount(email, input.displayName, passwordHash));
+    if (user) {
       const token = randomBytes(32).toString("base64url");
       const record = await authRepository.createAuthToken(
-        created.user.id,
+        user.id,
         "verify_email",
         hashContent(token),
         new Date(Date.now() + 24 * 60 * 60 * 1000),
@@ -666,22 +676,22 @@ export async function registerApiRoutes(
     });
   });
 
-  app.post("/api/v1/brains/:brainId/imports/preview", async (request) => {
+  app.post("/api/v1/brains/:brainId/imports/preview", bulkRateLimit, async (request) => {
     const actor = await authorize(request, "brain:write");
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     requireBrainRole(actor, brainId, ["owner", "editor"]);
-    const upload = await request.file();
-    if (!upload) throw new Error("A ZIP archive is required");
+    const upload = request.isMultipart() ? await request.file() : undefined;
+    if (!upload) throw new DomainError("archive_required", "A ZIP archive is required", 400);
     const inspection = await inspectMarkdownArchive(brainId, await upload.toBuffer());
     return inspection.preview;
   });
 
-  app.post("/api/v1/brains/:brainId/imports/stage", async (request, reply) => {
+  app.post("/api/v1/brains/:brainId/imports/stage", bulkRateLimit, async (request, reply) => {
     const actor = await authorize(request, "brain:write");
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     requireBrainRole(actor, brainId, ["owner", "editor"]);
-    const upload = await request.file();
-    if (!upload) throw new Error("A ZIP archive is required");
+    const upload = request.isMultipart() ? await request.file() : undefined;
+    if (!upload) throw new DomainError("archive_required", "A ZIP archive is required", 400);
     const archive = await upload.toBuffer();
     const inspection = await inspectMarkdownArchive(brainId, archive);
     const index = (await service.getBrain(brainId, actor, 10_000)).routingIndex;
@@ -689,44 +699,43 @@ export async function registerApiRoutes(
     // match, and the archive hash was recomputed for every file in it.
     const bySlug = new Map(index.map((article) => [article.slug, article]));
     const archiveHash = hashContent(archive).slice(0, 16);
-    const writes = [];
-    for (const document of inspection.documents) {
+    // The archive inspection allows more than the write contract does, so every document
+    // is checked against it before any is staged; a failure half-way used to leave the
+    // earlier documents staged behind a validation error.
+    const inputs = inspection.documents.map((document) => {
       const existing = bySlug.get(document.slug);
-      writes.push(
-        sanitize(
-          await service.stageWrite(
-            stageWriteSchema.parse({
-              brainId,
-              operation: existing ? "update" : "create",
-              articleId: existing?.id,
-              slug: document.slug,
-              title: document.title,
-              keywords: document.keywords,
-              kind: document.kind,
-              body: document.body,
-              baseVersion: existing?.currentVersion,
-              changeSummary: `import: ${document.path}`,
-              sources: [
-                {
-                  kind: "import",
-                  locator: document.path,
-                  checksum: hashContent(document.checksumInput),
-                  label: document.path,
-                  metadata: { role: "migrated_from", archive: upload.filename },
-                },
-              ],
-              acknowledgePotentialConflicts: true,
-              idempotencyKey: `import-${archiveHash}-${hashContent(document.path).slice(0, 16)}`,
-            }),
-            actor,
-          ),
-        ),
-      );
+      return stageWriteSchema.parse({
+        brainId,
+        operation: existing ? "update" : "create",
+        articleId: existing?.id,
+        slug: document.slug,
+        title: document.title,
+        keywords: document.keywords,
+        kind: document.kind,
+        body: document.body,
+        baseVersion: existing?.currentVersion,
+        changeSummary: `import: ${document.path}`,
+        sources: [
+          {
+            kind: "import",
+            locator: document.path,
+            checksum: hashContent(document.checksumInput),
+            label: document.path,
+            metadata: { role: "migrated_from", archive: upload.filename },
+          },
+        ],
+        acknowledgePotentialConflicts: true,
+        idempotencyKey: `import-${archiveHash}-${hashContent(document.path).slice(0, 16)}`,
+      });
+    });
+    const writes = [];
+    for (const input of inputs) {
+      writes.push(sanitize(await service.stageWrite(input, actor)));
     }
     return reply.code(201).send({ preview: inspection.preview, writes });
   });
 
-  app.get("/api/v1/brains/:brainId/export", async (request, reply) => {
+  app.get("/api/v1/brains/:brainId/export", bulkRateLimit, async (request, reply) => {
     const actor = await authorize(request, "brain:read");
     const { brainId } = z.object({ brainId: z.uuid() }).parse(request.params);
     requireBrainRole(actor, brainId, ["owner"]);

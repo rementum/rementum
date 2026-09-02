@@ -136,7 +136,7 @@ describe("session bridge", () => {
         headers: {
           origin: site,
           "content-type": "application/json",
-          "content-length": String(2_000_001),
+          "content-length": String(2_500_001),
         },
         body: "{}",
       }),

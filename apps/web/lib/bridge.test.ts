@@ -35,9 +35,9 @@ describe("bridgeBodyLimit", () => {
   it("allows an archive only on the import routes", () => {
     expect(bridgeBodyLimit(["brains", "brain-id", "imports", "stage"])).toBe(101 * 1024 * 1024);
     expect(bridgeBodyLimit(["brains", "brain-id", "imports", "preview"])).toBe(101 * 1024 * 1024);
-    expect(bridgeBodyLimit(["writes"])).toBe(2_000_000);
-    expect(bridgeBodyLimit(["brains", "brain-id"])).toBe(2_000_000);
-    expect(bridgeBodyLimit(["imports", "brain-id", "imports"])).toBe(2_000_000);
+    expect(bridgeBodyLimit(["writes"])).toBe(2_500_000);
+    expect(bridgeBodyLimit(["brains", "brain-id"])).toBe(2_500_000);
+    expect(bridgeBodyLimit(["imports", "brain-id", "imports"])).toBe(2_500_000);
   });
 });
 

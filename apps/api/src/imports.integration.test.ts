@@ -146,7 +146,31 @@ integration("Markdown archive import", () => {
         headers: { ...headers, "content-type": "application/json" },
         payload: {},
       });
-      expect(withoutFile.statusCode).toBeGreaterThanOrEqual(400);
+      expect(withoutFile.statusCode).toBe(400);
+      expect(withoutFile.json()).toMatchObject({ code: "archive_required" });
+
+      // A document the write contract rejects fails the whole batch before anything is
+      // staged, so the earlier documents are not left behind as orphaned writes.
+      const mixedUpload = upload(
+        await archive({
+          "docs/valid.md": "# Valid\n\nFine.\n",
+          "docs/invalid.md": `---\ntags: [${"k".repeat(120)}]\n---\n\nToo long a keyword.\n`,
+        }),
+      );
+      const mixed = await app.inject({
+        method: "POST",
+        url: `/api/v1/brains/${brainId}/imports/stage`,
+        headers: { ...headers, "content-type": mixedUpload.contentType },
+        payload: mixedUpload.payload,
+      });
+      expect(mixed.statusCode).toBe(400);
+      expect(mixed.json()).toMatchObject({ code: "validation" });
+      const stillPending = await app.inject({
+        method: "GET",
+        url: `/api/v1/brains/${brainId}/writes?status=pending`,
+        headers,
+      });
+      expect(stillPending.json()).toHaveLength(2);
 
       const stranger = await auth.registerAccount(
         `import-stranger-${suffix}@example.test`,

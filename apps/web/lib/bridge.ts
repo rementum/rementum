@@ -20,9 +20,10 @@ export function isSameOriginRequest(request: { url: string; headers: Headers }):
   return request.headers.get("origin") === siteOrigin(request.url);
 }
 
-// The API refuses JSON bodies past two megabytes and archive uploads past one hundred, so a
-// larger body can only be an attempt to fill this process's memory before it is forwarded.
-const JSON_BODY_LIMIT = 2_000_000;
+// The API refuses JSON bodies past two and a half megabytes and archive uploads past one
+// hundred, so a larger body can only be an attempt to fill this process's memory before it
+// is forwarded.
+const JSON_BODY_LIMIT = 2_500_000;
 const ARCHIVE_BODY_LIMIT = 101 * 1024 * 1024;
 
 /** The largest request body the bridge will buffer for an API path, in bytes. */
