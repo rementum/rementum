@@ -1,9 +1,9 @@
 FROM node:24-bookworm-slim AS deps
 RUN npm install -g pnpm@10.30.2
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/embeddings/package.json apps/embeddings/package.json
-RUN pnpm install --filter @rementum/embeddings... --frozen-lockfile=false
+RUN pnpm install --filter @rementum/embeddings... --frozen-lockfile
 
 FROM deps AS build
 COPY tsconfig.base.json ./
