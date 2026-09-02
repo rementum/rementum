@@ -103,7 +103,15 @@ export async function inspectMarkdownArchive(
     if (bytes.includes(0))
       throw new DomainError("binary_markdown", `${safePath} contains binary data`);
     const fallback = path.basename(safePath, path.extname(safePath));
-    const parsed = parseMarkdownDocument(bytes.toString("utf8"), fallback);
+    let parsed: ReturnType<typeof parseMarkdownDocument>;
+    try {
+      parsed = parseMarkdownDocument(bytes.toString("utf8"), fallback);
+    } catch (error) {
+      if (error instanceof DomainError && error.code === "invalid_frontmatter") {
+        throw new DomainError(error.code, `${safePath}: ${error.message}`, error.status);
+      }
+      throw error;
+    }
     const kind = suggestKind(safePath, fallback);
     const warnings: string[] = [];
     if (!parsed.body) warnings.push("empty-body");

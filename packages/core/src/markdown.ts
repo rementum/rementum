@@ -1,4 +1,5 @@
-import matter from "gray-matter";
+import { load as parseYaml } from "js-yaml";
+import { DomainError } from "./errors.js";
 
 export interface MarkdownSection {
   ordinal: number;
@@ -69,8 +70,50 @@ export function splitMarkdownByHeading(markdown: string, maxChars = 4_000): Mark
   return chunks.map((section, ordinal) => ({ ...section, ordinal }));
 }
 
+/**
+ * Splits a document into its YAML front matter and body.
+ *
+ * The block is recognised only when the document opens with a line that is exactly `---`
+ * and closes with another. The general-purpose front matter parsers also accept `---js`
+ * and hand the block to a JavaScript engine, which is remote code execution for anyone
+ * who can upload an archive; nothing here ever lets the document choose a parser.
+ */
+export function splitFrontMatter(value: string): {
+  data: Record<string, unknown>;
+  content: string;
+} {
+  const text = value.startsWith("\uFEFF") ? value.slice(1) : value;
+  const open = text.startsWith("---\n") ? 4 : text.startsWith("---\r\n") ? 5 : -1;
+  if (open === -1) return { data: {}, content: text };
+  let cursor = open;
+  while (cursor <= text.length) {
+    const lineEnd = text.indexOf("\n", cursor);
+    const line = text.slice(cursor, lineEnd === -1 ? text.length : lineEnd).replace(/\r$/, "");
+    if (line === "---") {
+      const raw = text.slice(open, cursor);
+      const content = lineEnd === -1 ? "" : text.slice(lineEnd + 1);
+      return { data: parseFrontMatter(raw), content };
+    }
+    if (lineEnd === -1) break;
+    cursor = lineEnd + 1;
+  }
+  return { data: {}, content: text };
+}
+
+function parseFrontMatter(raw: string): Record<string, unknown> {
+  let data: unknown;
+  try {
+    data = parseYaml(raw);
+  } catch {
+    throw new DomainError("invalid_frontmatter", "Front matter is not valid YAML", 400);
+  }
+  return data && typeof data === "object" && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : {};
+}
+
 export function parseMarkdownDocument(value: string, fallbackTitle: string) {
-  const parsed = matter(value);
+  const parsed = splitFrontMatter(value);
   const firstHeading = parsed.content.match(/^#\s+(.+)$/m)?.[1]?.trim();
   const title = stringValue(parsed.data.title) ?? firstHeading ?? fallbackTitle;
   const summary =
@@ -96,7 +139,9 @@ export function parseMarkdownDocument(value: string, fallbackTitle: string) {
       : [],
     body: parsed.content.trim(),
     frontmatter: parsed.data,
-    wikiLinks: [...parsed.content.matchAll(/\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]/g)].map((match) =>
+    // Neither class may match "[": with it allowed, a run of opening brackets makes the
+    // scan restart from every one of them, which is quadratic on a 10 MB file.
+    wikiLinks: [...parsed.content.matchAll(/\[\[([^[\]|#]+)(?:\|[^[\]]+)?\]\]/g)].map((match) =>
       (match[1] ?? "").trim(),
     ),
   };
