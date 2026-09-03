@@ -55,7 +55,28 @@ summary, and body compaction through an OpenAI-compatible provider.
 
 ## Quick start
 
-Point a domain at a Linux host with Docker Compose, open ports 80 and 443, then:
+You can evaluate Rementum locally on your machine without a domain, or deploy it to a Linux server for production with automated TLS.
+
+### Option 1: Local evaluation (no domain required)
+
+Run the full stack locally in 2 minutes using Docker Compose:
+
+```bash
+git clone https://github.com/rementum/rementum.git
+cd rementum
+cp .env.example .env
+docker compose up -d
+./scripts/create-owner.sh owner@example.com "Owner"
+```
+
+Open [http://localhost](http://localhost) in your browser.
+
+- **Web dashboard:** Sign in with the owner email and password you just created.
+- **Connect an agent:** Open **Teams**, copy your workspace MCP URL (`http://localhost/mcp/workspace/WORKSPACE_ID`), and connect Claude Code, Codex, Cursor, or any MCP client.
+
+### Option 2: Production deployment (server with domain & HTTPS)
+
+Deploy on a Linux server with automated HTTPS via Caddy and encrypted backups:
 
 ```bash
 git clone https://github.com/rementum/rementum.git
@@ -63,12 +84,9 @@ cd rementum
 ./scripts/install.sh
 ```
 
-The installer generates instance secrets, builds the stack, runs migrations, waits for health checks,
-creates the first owner, and lets Caddy provision HTTPS. Update an installed instance later with
-`./scripts/update.sh`, which backs up, fast-forwards, migrates, and rebuilds.
+The interactive installer prompts for your domain (e.g. `memory.example.com`), generates cryptographic secrets, starts the stack, runs migrations, creates the first owner, and provisions TLS certificates. Update later with `./scripts/update.sh`.
 
-See the [installation guide](https://rementum.dev/docs/installation/) and [operations guide](https://rementum.dev/docs/operations/) for
-requirements, backups, and recovery.
+See the [installation guide](https://rementum.dev/docs/installation/) and [operations guide](https://rementum.dev/docs/operations/) for requirements, backups, and recovery.
 
 ## Security
 

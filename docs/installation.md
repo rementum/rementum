@@ -1,6 +1,24 @@
 # Install Rementum
 
-## What you need
+## Try locally (no domain required)
+
+To evaluate Rementum on your machine without configuring DNS or a domain, start the stack with Docker Compose:
+
+```bash
+git clone https://github.com/rementum/rementum.git
+cd rementum
+cp .env.example .env
+docker compose up -d
+./scripts/create-owner.sh owner@example.com "Owner"
+```
+
+Open [http://localhost](http://localhost) in your browser. You can sign in immediately, explore the dashboard, and copy your workspace MCP URL to connect Claude Code, Cursor, Codex, or any MCP client.
+
+---
+
+## Production install on a server
+
+### What you need
 
 - A Linux host with Docker Engine, Docker Compose v2, and OpenSSL.
 - A domain with an A or AAAA record pointing at the host.
@@ -14,7 +32,7 @@ Two things are optional:
 - **Email (a Resend API key and a verified sender).** You need it for public registration. An
   invitation-only instance does not need email to create the first owner.
 
-## Run the installer
+### Run the installer
 
 ```bash
 git clone https://github.com/rementum/rementum.git
