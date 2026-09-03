@@ -22,7 +22,8 @@ The production Compose override sets `NODE_ENV=production`. In that mode the API
 a non-HTTPS public URL or a missing persistent JWKS.
 
 Browser sign-in uses a 14-day, server-side session stored as a hashed opaque token. The web app does
-not use OAuth. OAuth exists only for workspace MCP connections.
+not use OAuth. Workspace MCP OAuth reuses that web session to select the account and verifies its
+workspace membership before it issues a grant.
 
 ### Bot protection
 
@@ -39,8 +40,8 @@ against Cloudflare before it checks a password, creates an account, or sends ema
 closed when Cloudflare is unreachable. Tokens are single-use, so the sign-in form asks for a fresh
 challenge after a failed attempt. Leave both keys empty to run without the widget.
 
-The MCP OAuth consent page (`/oauth/interaction/.../login`) is not challenge-protected. Its strict
-no-script page cannot load the widget, so it relies on a request rate limit instead.
+MCP OAuth has no separate password form. A browser without a web session is sent through the same
+Turnstile-protected sign-in page as the web app, then resumes the OAuth flow automatically.
 
 !!! warning "Never change the master key"
     Do not replace `REMENTUM_MASTER_KEY` on an existing instance. Rementum would lose access to every

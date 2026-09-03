@@ -84,7 +84,21 @@ async function startApp(suffix: string) {
     jar.absorb(response);
     return response;
   };
-  return { app, database, auth, visit };
+  const webSignIn = async (email: string, password: string): Promise<LightMyRequestResponse> => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/session",
+      headers: {
+        host,
+        origin: publicUrl,
+        ...(jar.header ? { cookie: jar.header } : {}),
+      },
+      payload: { email, password },
+    });
+    jar.absorb(response);
+    return response;
+  };
+  return { app, database, auth, visit, webSignIn };
 }
 
 function tokenRequest(app: FastifyInstance, fields: Record<string, string>) {
@@ -100,11 +114,29 @@ function tokenRequest(app: FastifyInstance, fields: Record<string, string>) {
   });
 }
 
+async function submitAutoForm(
+  visit: (
+    method: "GET" | "POST",
+    url: string,
+    payload?: Record<string, string>,
+  ) => Promise<LightMyRequestResponse>,
+  response: LightMyRequestResponse,
+): Promise<LightMyRequestResponse> {
+  const action = response.body.match(/<form[^>]+action="([^"]+)"/)?.[1];
+  if (!action) throw new Error("Automatic OAuth form has no action");
+  const fields = Object.fromEntries(
+    [...response.body.matchAll(/<input[^>]+name="([^"]+)"[^>]+value="([^"]*)"/g)].map(
+      ([, name, value]) => [name as string, value as string],
+    ),
+  );
+  return visit("POST", action.replaceAll("&amp;", "&"), fields);
+}
+
 integration("OAuth authorization code flow", () => {
   it("issues a workspace-audience token an MCP client can use", async () => {
     if (!databaseUrl) return;
     const suffix = randomBytes(6).toString("hex");
-    const { app, database, auth, visit } = await startApp(suffix);
+    const { app, database, auth, visit, webSignIn } = await startApp(suffix);
 
     try {
       const email = `oauth-${suffix}@example.test`;
@@ -116,6 +148,15 @@ integration("OAuth authorization code flow", () => {
         `oauth-${suffix}`,
       );
       if (!account) throw new Error("Registration failed");
+      const verification = randomBytes(24).toString("hex");
+      await auth.createAuthToken(
+        account.user.id,
+        "verify_email",
+        verification,
+        new Date(Date.now() + 60_000),
+      );
+      expect(await auth.verifyEmail(verification)).toBe(true);
+      expect((await webSignIn(email, password)).statusCode).toBe(204);
 
       const registration = await app.inject({
         method: "POST",
@@ -150,54 +191,15 @@ integration("OAuth authorization code flow", () => {
       expect(started.statusCode).toBe(303);
       const interaction = String(started.headers.location);
       expect(interaction).toMatch(/^\/oauth\/interaction\//);
-      const uid = interaction.split("/").pop() as string;
 
-      const loginPage = await visit("GET", interaction);
-      expect(loginPage.statusCode).toBe(200);
-      expect(loginPage.headers["content-security-policy"]).toContain("default-src 'none'");
-      expect(loginPage.headers["referrer-policy"]).toBe("no-referrer");
-      expect(loginPage.body).toContain(`action="/oauth/interaction/${uid}/login"`);
-      expect(loginPage.body).toContain("Sign in");
-
-      const wrongPassword = await visit("POST", `${interaction}/login`, {
-        uid,
-        email,
-        password: "not the password",
-      });
-      expect(wrongPassword.statusCode).toBe(401);
-      expect(wrongPassword.body).toContain("Invalid email or password.");
-
-      const unverified = await visit("POST", `${interaction}/login`, { uid, email, password });
-      expect(unverified.statusCode).toBe(403);
-      expect(unverified.body).toContain("Verify your email before signing in.");
-
-      const verification = randomBytes(24).toString("hex");
-      await auth.createAuthToken(
-        account.user.id,
-        "verify_email",
-        verification,
-        new Date(Date.now() + 60_000),
-      );
-      expect(await auth.verifyEmail(verification)).toBe(true);
-
-      const loggedIn = await visit("POST", `${interaction}/login`, { uid, email, password });
+      const loggedIn = await visit("GET", interaction);
       expect(loggedIn.statusCode).toBe(303);
       const resumed = await visit("GET", String(loggedIn.headers.location));
       expect(resumed.statusCode).toBe(303);
 
-      const consentPage = await visit("GET", String(resumed.headers.location));
-      expect(consentPage.statusCode).toBe(200);
-      expect(consentPage.body).toContain("Approve connection");
-      expect(consentPage.body).toContain("Test agent");
-      expect(consentPage.body).toContain("brain:read");
-
-      const consentUid = String(resumed.headers.location).split("/").pop() as string;
-      const confirmed = await visit("POST", `/oauth/interaction/${consentUid}/confirm`, {
-        uid: consentUid,
-      });
-      expect(confirmed.statusCode).toBe(303);
-
-      const issued = await visit("GET", String(confirmed.headers.location));
+      const consented = await visit("GET", String(resumed.headers.location));
+      expect(consented.statusCode).toBe(303);
+      const issued = await visit("GET", String(consented.headers.location));
       expect(issued.statusCode).toBe(303);
       const callback = new URL(String(issued.headers.location));
       expect(`${callback.protocol}//${callback.host}${callback.pathname}`).toBe(redirectUri);
@@ -289,6 +291,144 @@ integration("OAuth authorization code flow", () => {
       expect(String(wrongAudience.headers["www-authenticate"])).toContain(
         `/.well-known/oauth-protected-resource/mcp/workspace/${otherWorkspace}`,
       );
+
+      // A later web login is authoritative even while oidc-provider still remembers the first
+      // account. Its supported account-switch path clears that OAuth session before continuing.
+      const secondEmail = `oauth-second-${suffix}@example.test`;
+      const second = await auth.registerAccount(
+        secondEmail,
+        "Second OAuth owner",
+        await hash(password),
+        "Second OAuth team",
+        `oauth-second-${suffix}`,
+      );
+      if (!second) throw new Error("Second registration failed");
+      const secondVerification = randomBytes(24).toString("hex");
+      await auth.createAuthToken(
+        second.user.id,
+        "verify_email",
+        secondVerification,
+        new Date(Date.now() + 60_000),
+      );
+      expect(await auth.verifyEmail(secondVerification)).toBe(true);
+      expect((await webSignIn(secondEmail, password)).statusCode).toBe(204);
+
+      const secondPkce = pkce();
+      const secondResource = `${publicUrl}/mcp/workspace/${second.workspaceId}`;
+      const secondAuthorize = new URLSearchParams({
+        client_id: clientId,
+        response_type: "code",
+        redirect_uri: redirectUri,
+        scope: "openid offline_access brain:read",
+        resource: secondResource,
+        state: `state-second-${suffix}`,
+        code_challenge: secondPkce.challenge,
+        code_challenge_method: "S256",
+      });
+      const switchStarted = await visit("GET", `/oauth/auth?${secondAuthorize.toString()}`);
+      expect(switchStarted.statusCode).toBe(303);
+      const switchSubmitted = await visit("GET", String(switchStarted.headers.location));
+      expect(switchSubmitted.statusCode).toBe(303);
+      const switchResume = await visit("GET", String(switchSubmitted.headers.location));
+      expect(switchResume.statusCode).toBe(200);
+      const oldSessionEnded = await submitAutoForm(visit, switchResume);
+      expect(oldSessionEnded.statusCode).toBe(303);
+      const switchLoggedIn = await visit("GET", String(oldSessionEnded.headers.location));
+      expect(switchLoggedIn.statusCode).toBe(303);
+      const switchConsented = await visit("GET", String(switchLoggedIn.headers.location));
+      expect(switchConsented.statusCode).toBe(303);
+      const switchIssued = await visit("GET", String(switchConsented.headers.location));
+      expect(switchIssued.statusCode).toBe(303);
+      const secondCallback = new URL(String(switchIssued.headers.location));
+      expect(secondCallback.searchParams.get("state")).toBe(`state-second-${suffix}`);
+      const secondToken = await tokenRequest(app, {
+        grant_type: "authorization_code",
+        code: secondCallback.searchParams.get("code") ?? "",
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        code_verifier: secondPkce.verifier,
+        resource: secondResource,
+      });
+      expect(secondToken.statusCode).toBe(200);
+      const secondPayload = await jwtVerify(
+        secondToken.json().access_token,
+        createLocalJWKSet(jwks.json()),
+        { issuer: `${publicUrl}/oauth`, audience: secondResource },
+      );
+      expect(secondPayload.payload.sub).toBe(second.user.id);
+    } finally {
+      await database.close();
+      await app.close();
+    }
+  }, 120_000);
+
+  it("refuses silent authorization when the web account cannot access the workspace", async () => {
+    if (!databaseUrl) return;
+    const suffix = randomBytes(6).toString("hex");
+    const { app, database, auth, visit, webSignIn } = await startApp(suffix);
+
+    try {
+      const owner = await auth.registerAccount(
+        `owner-${suffix}@example.test`,
+        "Workspace owner",
+        await hash(password),
+        "Owner team",
+        `owner-${suffix}`,
+      );
+      const strangerEmail = `stranger-${suffix}@example.test`;
+      const stranger = await auth.registerAccount(
+        strangerEmail,
+        "Stranger",
+        await hash(password),
+        "Stranger team",
+        `stranger-${suffix}`,
+      );
+      if (!owner || !stranger) throw new Error("Registration failed");
+      const verification = randomBytes(24).toString("hex");
+      await auth.createAuthToken(
+        stranger.user.id,
+        "verify_email",
+        verification,
+        new Date(Date.now() + 60_000),
+      );
+      expect(await auth.verifyEmail(verification)).toBe(true);
+      expect((await webSignIn(strangerEmail, password)).statusCode).toBe(204);
+
+      const registration = await app.inject({
+        method: "POST",
+        url: "/oauth/reg",
+        headers: { host, "x-forwarded-proto": "http", "content-type": "application/json" },
+        payload: {
+          client_name: "Untrusted workspace probe",
+          redirect_uris: cursorRedirectUris,
+          grant_types: ["authorization_code", "refresh_token"],
+          response_types: ["code"],
+          token_endpoint_auth_method: "none",
+        },
+      });
+      expect(registration.statusCode).toBe(201);
+      const { challenge } = pkce();
+      const authorize = new URLSearchParams({
+        client_id: registration.json().client_id,
+        response_type: "code",
+        redirect_uri: redirectUri,
+        scope: "openid offline_access brain:read",
+        resource: `${publicUrl}/mcp/workspace/${owner.workspaceId}`,
+        code_challenge: challenge,
+        code_challenge_method: "S256",
+      });
+
+      const started = await visit("GET", `/oauth/auth?${authorize.toString()}`);
+      expect(started.statusCode).toBe(303);
+      const refused = await visit("GET", String(started.headers.location));
+      expect(refused.statusCode).toBe(403);
+      expect(refused.json()).toMatchObject({ code: "forbidden" });
+
+      const [grants] = await database.sql<Array<{ count: number }>>`
+        SELECT count(*)::int AS count FROM oauth_records
+        WHERE model = 'Grant' AND payload->>'accountId' = ${stranger.user.id}
+      `;
+      expect(grants?.count).toBe(0);
     } finally {
       await database.close();
       await app.close();
@@ -322,7 +462,7 @@ integration("OAuth authorization code flow", () => {
         headers: { "content-type": "application/json", "cache-control": "public, max-age=300" },
       });
     });
-    const { app, database, auth, visit } = await startApp(suffix);
+    const { app, database, auth, visit, webSignIn } = await startApp(suffix);
 
     try {
       const email = `cimd-${suffix}@example.test`;
@@ -342,6 +482,7 @@ integration("OAuth authorization code flow", () => {
         new Date(Date.now() + 60_000),
       );
       expect(await auth.verifyEmail(verification)).toBe(true);
+      expect((await webSignIn(email, password)).statusCode).toBe(204);
 
       const resource = `${publicUrl}/mcp/workspace/${account.workspaceId}`;
       const { verifier, challenge } = pkce();
@@ -374,28 +515,15 @@ integration("OAuth authorization code flow", () => {
       const started = await visit("GET", `/oauth/auth?${authorize({})}`);
       expect(started.statusCode).toBe(303);
       const interaction = String(started.headers.location);
-      const uid = interaction.split("/").pop() as string;
 
-      const loggedIn = await visit("POST", `${interaction}/login`, { uid, email, password });
+      const loggedIn = await visit("GET", interaction);
       expect(loggedIn.statusCode).toBe(303);
       const resumed = await visit("GET", String(loggedIn.headers.location));
       expect(resumed.statusCode).toBe(303);
 
-      const consentPage = await visit("GET", String(resumed.headers.location));
-      expect(consentPage.statusCode).toBe(200);
-      expect(consentPage.body).toContain(
-        "<strong>client.example.test</strong> requests access to Rementum.",
-      );
-      expect(consentPage.body).toContain(`<code>${clientId}</code>`);
-      expect(consentPage.body).not.toContain("Metadata client");
-      expect(consentPage.body).toContain("<strong>localhost</strong>, a program on this computer.");
-
-      const consentUid = String(resumed.headers.location).split("/").pop() as string;
-      const confirmed = await visit("POST", `/oauth/interaction/${consentUid}/confirm`, {
-        uid: consentUid,
-      });
-      expect(confirmed.statusCode).toBe(303);
-      const issued = await visit("GET", String(confirmed.headers.location));
+      const consented = await visit("GET", String(resumed.headers.location));
+      expect(consented.statusCode).toBe(303);
+      const issued = await visit("GET", String(consented.headers.location));
       expect(issued.statusCode).toBe(303);
       const callback = new URL(String(issued.headers.location));
       expect(`${callback.origin}${callback.pathname}`).toBe(loopbackRedirect);

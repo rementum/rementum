@@ -1,15 +1,13 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import cookie from "@fastify/cookie";
 import Fastify from "fastify";
 import { describe, expect, it, vi } from "vitest";
 import { loadConfig } from "./config.js";
 import { verifyLoginPassword } from "./credentials.js";
 import {
   buildOauthRuntime,
-  clientMetadataDocumentHost,
-  loginFormFields,
   type OauthRuntime,
-  redirectTarget,
   registerOauthRoutes,
   workspaceIdFromResource,
 } from "./oauth.js";
@@ -63,9 +61,9 @@ describe("authorization server metadata", () => {
         issuer: "https://rementum.example.test/oauth",
         publicUrl: "https://rementum.example.test",
         workspaceResource: (id) => `https://rementum.example.test/mcp/workspace/${id}`,
-        allowSignup: false,
       },
-      async () => null,
+      {} as never,
+      {} as never,
     );
     for (const path of [
       "/.well-known/oauth-authorization-server",
@@ -117,114 +115,124 @@ describe("authorization server metadata", () => {
   });
 });
 
-describe("consent screen", () => {
+describe("OAuth web session bridge", () => {
   const uid = "interaction-uid";
+  const userId = "00000000-0000-4000-8000-000000000003";
+  const resource = `https://rementum.example.test/mcp/workspace/${workspaceId}`;
 
-  async function consentApp(params: Record<string, unknown>, client?: { clientName?: string }) {
+  async function interactionApp(
+    prompt: Record<string, unknown>,
+    session: { accountId: string } | undefined,
+    webSession: { userId: string; systemOwner: boolean } | null,
+    grantId?: string,
+  ) {
     const app = Fastify();
-    const find = vi.fn(async () => client);
+    await app.register(cookie);
+    const interactionFinished = vi.fn(async (_request, response, result) => {
+      response.statusCode = 303;
+      response.setHeader("location", "/oauth/auth/resume");
+      response.end();
+      return result;
+    });
+    const grant = {
+      addOIDCScope: vi.fn(),
+      addOIDCClaims: vi.fn(),
+      addResourceScope: vi.fn(),
+      save: vi.fn(async () => "grant-id"),
+    };
     const runtime = {
       provider: {
-        interactionDetails: async () => ({ uid, prompt: { name: "consent" }, params }),
-        Client: { find },
+        interactionDetails: async () => ({
+          uid,
+          prompt,
+          params: { client_id: "test-client", resource },
+          session,
+          grantId,
+        }),
+        interactionFinished,
+        Grant: { find: vi.fn(async () => grant) },
       },
       publicJwks: { keys: [] },
       issuer: "https://rementum.example.test/oauth",
       publicUrl: "https://rementum.example.test",
       workspaceResource: (id: string) => `https://rementum.example.test/mcp/workspace/${id}`,
-      allowSignup: false,
     } as unknown as OauthRuntime;
-    await registerOauthRoutes(app, runtime, async () => null);
-    const response = await app.inject({ method: "GET", url: `/oauth/interaction/${uid}` });
+    const auth = { findWebSession: vi.fn(async () => webSession) };
+    const actor = { userId };
+    const store = {
+      loadActor: vi.fn(async () => actor),
+      scopeActorToWorkspace: vi.fn(async () => actor),
+    };
+    await registerOauthRoutes(app, runtime, auth as never, store as never);
+    const response = await app.inject({
+      method: "GET",
+      url: `/oauth/interaction/${uid}`,
+      cookies: { rementum_session: "s".repeat(43) },
+    });
     await app.close();
-    return { response, find };
+    return { response, interactionFinished, grant, auth, store };
   }
 
-  it("names a metadata document client by its host and warns about a loopback callback", async () => {
-    const { response, find } = await consentApp({
-      client_id: "https://claude.ai/oauth/claude-code-client-metadata",
-      redirect_uri: "http://localhost:3118/callback",
-      scope: "openid brain:read",
-    });
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toContain("<strong>claude.ai</strong> requests access to Rementum.");
-    expect(response.body).toContain(
-      "<code>https://claude.ai/oauth/claude-code-client-metadata</code>",
-    );
-    expect(response.body).toContain("<strong>localhost</strong>, a program on this computer.");
-    expect(response.body).toContain("openid brain:read");
-    // The document was already fetched and validated when the interaction was created.
-    expect(find).not.toHaveBeenCalled();
-  });
-
-  it("names a registered client by its registered name and shows the callback host", async () => {
-    const { response, find } = await consentApp(
-      {
-        client_id: "registered-client",
-        redirect_uri: "https://www.cursor.com/agents/mcp/oauth/callback",
-        scope: "openid",
-      },
-      { clientName: "Cursor" },
-    );
-    expect(find).toHaveBeenCalledWith("registered-client");
-    expect(response.body).toContain("<strong>Cursor</strong> requests access to Rementum.");
-    expect(response.body).toContain("<strong>www.cursor.com</strong>.");
-    expect(response.body).not.toContain("client metadata document");
-    expect(response.body).not.toContain("a program on this computer");
-  });
-
-  it("escapes everything the client chose", async () => {
-    const { response } = await consentApp(
-      { client_id: "registered-client", redirect_uri: "https://<b>evil</b>/cb", scope: "<s>" },
-      { clientName: "<script>alert(1)</script>" },
-    );
-    expect(response.body).not.toContain("<script>");
-    expect(response.body).not.toContain("<b>");
-    expect(response.body).not.toContain("<s>");
-    expect(response.body).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
-  });
-});
-
-describe("client identification", () => {
-  it("recognises a metadata document client id by its https host", () => {
-    expect(clientMetadataDocumentHost("https://claude.ai/oauth/claude-code-client-metadata")).toBe(
-      "claude.ai",
-    );
-    expect(clientMetadataDocumentHost("https://client.example.test:8443/oauth/client.json")).toBe(
-      "client.example.test:8443",
-    );
-    expect(clientMetadataDocumentHost("http://claude.ai/oauth/claude-code-client-metadata")).toBe(
+  it("sends a browser without a web session through the regular sign-in page", async () => {
+    const { response, interactionFinished, store } = await interactionApp(
+      { name: "login" },
+      undefined,
       null,
     );
-    expect(clientMetadataDocumentHost("registered-client")).toBeNull();
+    expect(response.statusCode).toBe(302);
+    expect(response.headers.location).toBe(
+      "/auth/login?returnTo=%2Foauth%2Finteraction%2Finteraction-uid",
+    );
+    expect(interactionFinished).not.toHaveBeenCalled();
+    expect(store.loadActor).not.toHaveBeenCalled();
   });
 
-  it("describes where the authorization code will be sent", () => {
-    expect(redirectTarget("http://localhost:3118/callback")).toEqual({
-      label: "localhost",
-      loopback: true,
-    });
-    expect(redirectTarget("http://127.0.0.1:49152/callback")).toEqual({
-      label: "127.0.0.1",
-      loopback: true,
-    });
-    expect(redirectTarget("http://[::1]:3000/callback")).toEqual({
-      label: "[::1]",
-      loopback: true,
-    });
-    expect(redirectTarget("https://claude.ai/api/mcp/auth_callback")).toEqual({
-      label: "claude.ai",
-      loopback: false,
-    });
-    expect(redirectTarget("cursor://anysphere.cursor-mcp/oauth/callback")).toEqual({
-      label: "cursor://anysphere.cursor-mcp",
-      loopback: false,
-    });
-    expect(redirectTarget("not a url")).toEqual({ label: "not a url", loopback: false });
+  it("makes the signed-in web account authoritative over another OAuth session", async () => {
+    const { response, interactionFinished, store } = await interactionApp(
+      { name: "consent", details: {} },
+      { accountId: "another-user" },
+      { userId, systemOwner: false },
+    );
+    expect(response.statusCode).toBe(303);
+    expect(store.loadActor).toHaveBeenCalledWith(userId, "test-client");
+    expect(store.scopeActorToWorkspace).toHaveBeenCalledWith({ userId }, workspaceId);
+    expect(interactionFinished).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { login: { accountId: userId, amr: ["pwd"] } },
+      { mergeWithLastSubmission: false },
+    );
+  });
+
+  it("silently grants requested access after membership is verified", async () => {
+    const missingResourceScopes = { [resource]: ["brain:read"] };
+    const { response, interactionFinished, grant } = await interactionApp(
+      {
+        name: "consent",
+        details: {
+          missingOIDCScope: ["openid", "offline_access"],
+          missingOIDCClaims: ["email"],
+          missingResourceScopes,
+        },
+      },
+      { accountId: userId },
+      { userId, systemOwner: false },
+      "existing-grant",
+    );
+    expect(response.statusCode).toBe(303);
+    expect(grant.addOIDCScope).toHaveBeenCalledWith("openid offline_access");
+    expect(grant.addOIDCClaims).toHaveBeenCalledWith(["email"]);
+    expect(grant.addResourceScope).toHaveBeenCalledWith(resource, "brain:read");
+    expect(interactionFinished).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { consent: { grantId: "grant-id" } },
+      { mergeWithLastSubmission: true },
+    );
   });
 });
 
-describe("OAuth branding and favicon", () => {
+describe("OAuth favicon", () => {
   it("serves the brand favicon SVG and redirects favicon.ico", async () => {
     const app = Fastify();
     await registerOauthRoutes(
@@ -235,9 +243,9 @@ describe("OAuth branding and favicon", () => {
         issuer: "https://rementum.example.test/oauth",
         publicUrl: "https://rementum.example.test",
         workspaceResource: (id) => `https://rementum.example.test/mcp/workspace/${id}`,
-        allowSignup: false,
       },
-      async () => null,
+      {} as never,
+      {} as never,
     );
 
     const svgResponse = await app.inject({ method: "GET", url: "/icon.svg" });
@@ -252,57 +260,6 @@ describe("OAuth branding and favicon", () => {
     expect(icoResponse.headers.location).toBe("/icon.svg");
 
     await app.close();
-  });
-
-  it("serves interaction page with brand mark, favicon link, and updated CSP", async () => {
-    const app = Fastify();
-    await registerOauthRoutes(
-      app,
-      {
-        provider: {
-          interactionDetails: async () => ({
-            uid: "test-uid",
-            params: { client_id: "test-client" },
-            prompt: { name: "login" },
-          }),
-          Client: { find: async () => null },
-        } as never,
-        publicJwks: { keys: [] },
-        issuer: "https://rementum.example.test/oauth",
-        publicUrl: "https://rementum.example.test",
-        workspaceResource: (id) => `https://rementum.example.test/mcp/workspace/${id}`,
-        allowSignup: false,
-      },
-      async () => null,
-    );
-
-    const response = await app.inject({ method: "GET", url: "/oauth/interaction/test-uid" });
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-security-policy"]).toContain("img-src 'self' data:");
-    expect(response.headers["content-security-policy"]).toContain("default-src 'none'");
-    expect(response.body).toContain('<link rel="icon" href="/icon.svg" type="image/svg+xml">');
-    expect(response.body).toContain('viewBox="0 0 718 617"');
-    expect(response.body).toContain('id="rmTeal"');
-    expect(response.body).not.toContain('viewBox="0 0 32 32"');
-
-    await app.close();
-  });
-});
-
-describe("sign-in form parsing", () => {
-  it("keeps plain string fields and treats anything else as empty credentials", () => {
-    expect(loginFormFields({ email: "a@example.test", password: "secret" })).toEqual({
-      email: "a@example.test",
-      password: "secret",
-    });
-    expect(loginFormFields({ email: ["a@example.test", "b@example.test"], password: "x" })).toEqual(
-      { email: "", password: "" },
-    );
-    expect(loginFormFields(undefined)).toEqual({ email: "", password: "" });
-    expect(loginFormFields({ email: "x".repeat(400), password: "p" })).toEqual({
-      email: "",
-      password: "",
-    });
   });
 });
 

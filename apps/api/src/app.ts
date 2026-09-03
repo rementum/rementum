@@ -104,7 +104,7 @@ export async function buildApp(
   });
   await app.register(middie);
 
-  await registerOauthRoutes(app, oauth, verifyCredentials);
+  await registerOauthRoutes(app, oauth, authRepository, store);
   await registerWebSessionRoutes(app, authRepository, verifyCredentials, config);
   app.use((request, response, next) => {
     const original = request.url ?? "";
