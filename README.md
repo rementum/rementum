@@ -102,25 +102,9 @@ sends a version's title and body to the provider in plaintext to compact it.
 Read [SECURITY.md](SECURITY.md) and the [security checklist](https://rementum.dev/docs/security/) before you store private
 knowledge. Report vulnerabilities through the process in SECURITY.md, not a public issue.
 
-## Design decisions and FAQ
+## Architecture decisions and FAQ
 
-### How does Rementum protect agent context windows and token budgets?
-Dumping entire codebases or large documentation files into an agent's prompt quickly exhausts context limits and inflates token costs. Rementum optimizes token economy at three layers:
-- **Compact routing index (~200 tokens):** Agents first call `get_brain` to inspect a lightweight list of titles and one-sentence summaries, then fetch only the specific article they need (`read_article` or `load_context`).
-- **OAuth scope-based tool filtering:** The tool catalog is filtered strictly to the scopes granted during authentication. Clients receive only the tool definitions they have permission to execute.
-- **Task and maintenance tools stay deferred:** Coding plugins (Claude Code, Cursor, Codex) load only core retrieval and staging skills (`brain-context`, `brain-write`). Background maintenance and task-claiming tools are invoked on demand rather than crowding the everyday prompt.
-- **Stateless catalog caching:** Modern MCP clients receive a 5-minute private cache header on the tool catalog, eliminating redundant schema discovery requests.
-
-### Can my team or company use Rementum internally under AGPL-3.0?
-**Yes.** Rementum is an independent network service that agents connect to over standard network protocols (MCP / HTTP).
-- **Internal usage is not distribution:** Self-hosting Rementum inside your organization or team does not trigger copyleft requirements or require opening your proprietary code, applications, or private knowledge.
-- **Why AGPL-3.0?** The license prevents cloud platforms or proprietary SaaS wrappers from taking Rementum, offering it as a closed commercial service, and withholding their changes. If you modify Rementum itself and offer it to external users over a network, those modifications must remain open source.
-
-### Is Rementum truly local and private? What about external LLM compaction?
-By default, Rementum makes **zero external network requests**:
-- **100% local by default:** Multilingual embeddings run locally using the bundled Granite-97M ONNX model (`apps/embeddings`), routing summaries are generated locally by the API process, and article bodies are encrypted with AES-256-GCM.
-- **Double opt-in for compaction:** Deferred title and body compaction is disabled by default. It requires an instance-level provider configuration (`REMENTUM_LLM_ENABLED=true`) *and* explicit per-workspace activation by a workspace owner or admin.
-- **Works with local engines (Ollama, vLLM, LocalAI):** The optional compaction worker connects to any OpenAI-compatible Chat Completions endpoint with JSON Schema support. You can point `REMENTUM_LLM_BASE_URL` to a local Ollama or vLLM instance for a completely air-gapped, zero-cloud deployment.
+Looking for details on our architectural trade-offs, why we chose PostgreSQL over Git, token efficiency, AGPL-3.0 licensing, or local LLM compaction? Read the **[Architecture decisions and FAQ](https://rementum.dev/docs/faq/)** guide.
 
 ## Documentation and contributing
 
