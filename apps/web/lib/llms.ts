@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { GITHUB_URL, SITE_URL } from "./site";
 
-const DOCS_URL = `${SITE_URL}/docs`;
+const DOCS_BASE_URL = `${SITE_URL}/docs`;
 
 const SUMMARY =
   "Rementum is a self-hosted, open-source memory layer for AI agents. Agents read and write " +
@@ -11,7 +11,7 @@ const SUMMARY =
 
 // Ordered to match the MkDocs nav. `path` is the page URL under /docs; `blurb` is the one-line
 // index entry (kept here so every entry reads well, since some pages open straight into a heading).
-const PAGES = [
+export const PAGES = [
   {
     file: "index.md",
     title: "Overview",
@@ -49,7 +49,7 @@ const PAGES = [
   },
   {
     file: "integrations.md",
-    title: "Connect an agent",
+    title: "Connect agents",
     path: "/integrations/",
     blurb:
       "Copy a workspace MCP URL and connect Claude Code, Codex, Cursor, OpenCode, Claude, ChatGPT, or any MCP client, plus the tools an agent calls first.",
@@ -69,23 +69,20 @@ const PAGES = [
   },
 ] as const;
 
+// Turbopack traces filesystem reads into the standalone output. The ignore comments stop it from
+// tracing the whole project; the docs it still traces are bounded by the Dockerfile copying only
+// the Markdown pages.
 function findDocsDir(): string {
-  const candidates = [
-    resolve(process.cwd(), "../../docs"),
-    resolve(process.cwd(), "../docs"),
-    resolve(process.cwd(), "docs"),
-    resolve("/app/docs"),
-  ];
-
+  // `next build` and `next dev` run from apps/web; vitest runs from the repository root. Nearest
+  // first, so a stray docs/ above the checkout can never shadow the repository's own.
+  const candidates = [resolve(process.cwd(), "docs"), resolve(process.cwd(), "../../docs")];
   for (const candidate of candidates) {
     if (
-      existsSync(/*turbopackIgnore: true*/ candidate) &&
-      existsSync(/*turbopackIgnore: true*/ join(candidate, "index.md"))
+      existsSync(/*turbopackIgnore: true*/ join(/*turbopackIgnore: true*/ candidate, "index.md"))
     ) {
       return candidate;
     }
   }
-
   throw new Error(`Could not find docs directory. Checked: ${candidates.join(", ")}`);
 }
 
@@ -93,14 +90,27 @@ function findDocsDir(): string {
 export function cleanMarkdown(markdown: string): string {
   const out: string[] = [];
   let dedenting = false;
+  let inFence = false;
   for (const raw of markdown.split("\n")) {
     let line = raw;
+    // Code samples pass through verbatim: the rewrites below would corrupt `{ ...x }` and friends.
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      out.push(line);
+      continue;
+    }
+    if (inFence) {
+      out.push(line);
+      continue;
+    }
     // Banner and logo images reference local assets that a model cannot fetch.
     if (/^!\[[^\]]*\]\(assets\//.test(line.trim())) continue;
-    // Admonitions: turn `!!! warning "Title"` into a bold note and flatten its indented body.
-    const adm = line.match(/^!!!\s+\w+(?:\s+"([^"]*)")?\s*$/);
+    // Admonitions: `!!! warning "Title"` becomes a bold title and its indented body is flattened.
+    // An untitled one keeps its type as the title, which is what MkDocs renders.
+    const adm = line.match(/^!!!\s+(\w+)(?:\s+"([^"]*)")?\s*$/);
     if (adm) {
-      out.push(`**${adm[1] ?? "Note"}**`);
+      const type = adm[1] ?? "note";
+      out.push(`**${adm[2] ?? `${type.charAt(0).toUpperCase()}${type.slice(1)}`}**`);
       dedenting = true;
       continue;
     }
@@ -115,8 +125,8 @@ export function cleanMarkdown(markdown: string): string {
         dedenting = false;
       }
     }
-    // Attribute lists like `{ .md-button }` and `{ .rementum-banner }`.
-    line = line.replace(/\s*\{\s*[.:#][^}]*\}/g, "");
+    // Attribute lists like `{ .md-button }` and `{ .rementum-banner }` only ever end a line.
+    line = line.replace(/\s*\{\s*[.:#][^}]*\}\s*$/, "");
     out.push(line);
   }
   return `${out
@@ -125,17 +135,23 @@ export function cleanMarkdown(markdown: string): string {
     .trim()}\n`;
 }
 
+function pageUrl(page: { path: string }): string {
+  return `${DOCS_BASE_URL}${page.path}`;
+}
+
 function loadPages() {
   const docsDir = findDocsDir();
   return PAGES.map((page) => {
-    const filePath = join(/*turbopackIgnore: true*/ docsDir, page.file);
-    const cleaned = cleanMarkdown(readFileSync(/*turbopackIgnore: true*/ filePath, "utf8"));
-    return { ...page, cleaned, url: `${DOCS_URL}${page.path}` };
+    const body = readFileSync(
+      /*turbopackIgnore: true*/ join(/*turbopackIgnore: true*/ docsDir, page.file),
+      "utf8",
+    );
+    return { ...page, cleaned: cleanMarkdown(body), url: pageUrl(page) };
   });
 }
 
+// The index is built from the page table alone, so it never touches the filesystem.
 export function getLlmsTxt(): string {
-  const pages = loadPages();
   return `${[
     "# Rementum",
     "",
@@ -147,7 +163,7 @@ export function getLlmsTxt(): string {
     "",
     "## Documentation",
     "",
-    ...pages.map((p) => `- [${p.title}](${p.url}): ${p.blurb}`),
+    ...PAGES.map((p) => `- [${p.title}](${pageUrl(p)}): ${p.blurb}`),
     "",
     "## Source",
     "",

@@ -1,7 +1,7 @@
 import { getLlmsTxt } from "../../lib/llms";
 
 // Served at /llms.txt (https://llmstxt.org): a short index of the docs for language models.
-// Evaluated statically at build time; reads docs/ directly without generated code in source control.
+// force-static: the index is fixed at build time and must stay in step with /llms-full.txt.
 export const dynamic = "force-static";
 
 export function GET() {

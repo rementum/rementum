@@ -79,5 +79,6 @@ Run the release check with `mkdocs build --strict`.
 
 ### llms.txt
 
-`/llms.txt` and `/llms-full.txt` are evaluated statically from `docs/` at build time by the web app.
-Edits to `docs/` are reflected automatically without generated artifacts in source control.
+`/llms.txt` and `/llms-full.txt` are generated from these Markdown pages by the web app: re-read on
+every request under `next dev`, rendered once during `next build`. A container stack serves the copy
+captured when the `web` image was built, so rebuild that image after editing `docs/`.
