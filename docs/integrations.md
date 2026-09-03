@@ -131,6 +131,14 @@ tool search. Claude API clients can keep the common memory tools loaded and defe
 maintenance, import, and export tools. This trims prompt tokens on top of the server-side scope
 filter.
 
+### Token efficiency and prompt budgeting
+
+Rementum is designed to minimize agent prompt overhead:
+
+- **Routing over dumping:** A 25-item routing index consumes roughly 200 tokens. Agents read the index and request only the exact body they need, rather than loading an entire documentation directory into context.
+- **Scope filtering:** MCP tool definitions are filtered to the connection's OAuth scopes. Agents without task or maintenance scopes never receive those tool definitions in their prompt.
+- **Private caching:** Modern MCP clients receive a 5-minute `Cache-Control` header on the tool catalog, eliminating redundant tool-discovery roundtrips.
+
 ## Usage analytics
 
 The web **Analytics** page records one usage event after each successful MCP tool call. It counts
