@@ -1,11 +1,11 @@
 import {
   TeamDangerZone,
+  TeamHeader,
   TeamManagement,
   WorkspaceCreateForm,
   WorkspaceManagement,
 } from "../../../components/team-management";
 import { Card, CardHeader } from "../../../components/ui/card";
-import { PageHeader } from "../../../components/ui/page-header";
 import { api, workspaceContext } from "../../../lib/api";
 
 interface Member {
@@ -33,12 +33,7 @@ export default async function TeamPage({ params }: { params: Promise<{ teamId: s
   const teamWorkspaces = workspaces.filter((workspace) => workspace.teamId === teamId);
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
-      <PageHeader
-        back={{ href: "/teams", label: "Teams" }}
-        kicker={`Team · ${team.role}`}
-        title={team.name}
-        description="Members share access to every workspace and brain in this team."
-      />
+      <TeamHeader teamId={teamId} name={team.name} role={team.role} />
       <div className="mt-8 flex flex-col gap-6">
         {team.role === "owner" || team.role === "admin" ? (
           <WorkspaceCreateForm teamId={teamId} />

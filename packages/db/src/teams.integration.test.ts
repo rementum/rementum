@@ -417,6 +417,15 @@ integration("account and team authorization", () => {
       );
       expect(renamedWorkspace.name).toBe("Renamed workspace");
       expect(renamedWorkspace.slug).toMatch(/^renamed-workspace-/);
+
+      const renamedTeam = await service.updateTeam(
+        owner.teamId,
+        { name: "Renamed primary team" },
+        ownerActor,
+      );
+      expect(renamedTeam.name).toBe("Renamed primary team");
+      expect(renamedTeam.slug).toMatch(/^renamed-primary-team-/);
+
       await expect(
         service.deleteWorkspace(secondWorkspace.id, "Wrong name", ownerActor),
       ).rejects.toMatchObject({ code: "conflict" });

@@ -184,6 +184,11 @@ export const createTeamSchema = z.object({
 });
 export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 
+export const updateTeamSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+});
+export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
+
 export const createWorkspaceSchema = z.object({
   name: z.string().trim().min(1).max(160),
 });

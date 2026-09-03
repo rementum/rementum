@@ -309,6 +309,29 @@ export class PostgresStore implements DataStore {
     });
   }
 
+  async updateTeam(
+    teamId: string,
+    patch: { name?: string; slug?: string },
+    actor: Actor,
+  ): Promise<TeamRecord> {
+    return this.withActor(actor, async (tx) => {
+      const [existing] = await tx<any[]>`
+        SELECT * FROM teams WHERE id = ${teamId} FOR UPDATE
+      `;
+      if (!existing) throw new NotFoundError("Team");
+      const [row] = await tx<any[]>`
+        UPDATE teams SET
+          name = ${patch.name ?? existing.name},
+          slug = ${patch.slug ?? existing.slug}
+        WHERE id = ${teamId} RETURNING *
+      `;
+      if (!row) throw new NotFoundError("Team");
+      const role = actor.teamRoles.get(teamId);
+      if (!role) throw new ForbiddenError();
+      return { ...mapTeam(row), role };
+    });
+  }
+
   async deleteTeam(teamId: string, confirmation: string, actor: Actor): Promise<TeamRecord> {
     return this.withActor(actor, async (tx) => {
       const [team] = await tx<any[]>`SELECT * FROM teams WHERE id = ${teamId} FOR UPDATE`;

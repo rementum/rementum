@@ -9,6 +9,7 @@ import { Chip } from "./ui/chip";
 import { ConfirmDialog } from "./ui/confirm-dialog";
 import { CopyButton } from "./ui/copy-button";
 import { Field, fieldControlClass } from "./ui/field";
+import { PageHeader } from "./ui/page-header";
 
 interface Member {
   userId: string;
@@ -83,6 +84,94 @@ export function TeamCreateForm() {
         {error ? <p className="w-full text-xs text-red">{error}</p> : null}
       </form>
     </Card>
+  );
+}
+
+export function TeamHeader({
+  teamId,
+  name,
+  role,
+}: {
+  teamId: string;
+  name: string;
+  role: "owner" | "admin" | "member";
+}) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const canRename = role === "owner" || role === "admin";
+
+  async function rename(formData: FormData) {
+    setBusy(true);
+    setError("");
+    try {
+      await bridge(`/teams/${teamId}`, "PATCH", { name: formData.get("name") });
+      setEditing(false);
+      router.refresh();
+    } catch (value) {
+      setError((value as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader
+        back={{ href: "/teams", label: "Teams" }}
+        kicker={`Team · ${role}`}
+        title={name}
+        description="Members share access to every workspace and brain in this team."
+        actions={
+          canRename ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => {
+                setError("");
+                setEditing(!editing);
+              }}
+            >
+              {editing ? "Cancel" : "Rename"}
+            </Button>
+          ) : null
+        }
+      />
+      {editing ? (
+        <Card className="mt-4">
+          <form className="flex flex-wrap items-end gap-3 p-4" action={rename}>
+            <Field label="Team name" htmlFor={`team-rename-${teamId}`} className="min-w-60 flex-1">
+              <input
+                id={`team-rename-${teamId}`}
+                className={fieldControlClass}
+                name="name"
+                defaultValue={name}
+                maxLength={160}
+                required
+              />
+            </Field>
+            <Button variant="solid" size="sm" type="submit" loading={busy}>
+              {busy ? "Saving…" : "Save"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setError("");
+                setEditing(false);
+              }}
+            >
+              Cancel
+            </Button>
+            {error ? <p className="w-full text-xs text-red">{error}</p> : null}
+          </form>
+        </Card>
+      ) : null}
+    </div>
   );
 }
 

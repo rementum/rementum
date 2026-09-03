@@ -237,6 +237,15 @@ integration("account and team HTTP flows", () => {
       expect(renamedWorkspace.statusCode).toBe(200);
       expect(renamedWorkspace.json().name).toBe("Renamed workspace");
 
+      const renamedTeam = await app.inject({
+        method: "PATCH",
+        url: `/api/v1/teams/${secondTeam.json().id}`,
+        headers: { "x-rementum-user-id": user.id },
+        payload: { name: "Renamed another team" },
+      });
+      expect(renamedTeam.statusCode).toBe(200);
+      expect(renamedTeam.json().name).toBe("Renamed another team");
+
       const wrongConfirmation = await app.inject({
         method: "DELETE",
         url: `/api/v1/workspaces/${secondWorkspace.json().id}`,

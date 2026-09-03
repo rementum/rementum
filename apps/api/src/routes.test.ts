@@ -51,6 +51,13 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
   const app = Fastify();
   const service = {
     listTeams: vi.fn(async () => [{ id: teamId }]),
+    updateTeam: vi.fn(async (id: string, input: { name: string }) => ({
+      id,
+      slug: "renamed-team",
+      name: input.name,
+      role: "owner",
+      createdAt: "2026-08-27T10:00:00.000Z",
+    })),
     listWorkspaces: vi.fn(async () => [{ id: workspaceId, llmCompactionEnabled: false }]),
     listBrains: vi.fn(async () => ({ items: [{ id: brainId }], total: 1 })),
     countArticlesByBrain: vi.fn(async () => [
@@ -916,5 +923,52 @@ describe("instance administration", () => {
     const refused = await context.app.inject({ method: "GET", url: "/api/v1/admin/overview" });
     expect(refused.statusCode).toBe(403);
     expect(refused.json()).toMatchObject({ code: "forbidden" });
+  });
+});
+
+describe("team routes", () => {
+  it("renames a team through PATCH /api/v1/teams/:teamId", async () => {
+    const response = await context.app.inject({
+      method: "PATCH",
+      url: `/api/v1/teams/${teamId}`,
+      payload: { name: "Renamed Team" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      id: teamId,
+      name: "Renamed Team",
+      slug: "renamed-team",
+    });
+    expect(context.service.updateTeam).toHaveBeenCalledWith(
+      teamId,
+      { name: "Renamed Team" },
+      expect.anything(),
+    );
+  });
+
+  it("validates teamId and payload on PATCH /api/v1/teams/:teamId", async () => {
+    const invalidId = await context.app.inject({
+      method: "PATCH",
+      url: "/api/v1/teams/not-a-uuid",
+      payload: { name: "Renamed Team" },
+    });
+    expect(invalidId.statusCode).toBe(400);
+
+    const emptyName = await context.app.inject({
+      method: "PATCH",
+      url: `/api/v1/teams/${teamId}`,
+      payload: { name: "   " },
+    });
+    expect(emptyName.statusCode).toBe(400);
+  });
+
+  it("requires team:write scope to rename a team", async () => {
+    context.authenticate.mockImplementationOnce(async () => actorWith("team:read"));
+    const response = await context.app.inject({
+      method: "PATCH",
+      url: `/api/v1/teams/${teamId}`,
+      payload: { name: "Renamed Team" },
+    });
+    expect(response.statusCode).toBe(403);
   });
 });
