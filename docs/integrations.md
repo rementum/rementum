@@ -12,6 +12,13 @@ your browser, checks your team membership, and limits the connection to that wor
 tasks. This approval belongs to the MCP client. Signing in to the Rementum website uses a separate
 web session and never shows an OAuth screen.
 
+Claude Code and the Claude apps identify themselves with a client metadata document that Anthropic
+hosts on `claude.ai` (an OAuth Client ID Metadata Document). Rementum advertises support for it, reads
+the document when Claude connects, and registers nothing, so the consent screen names `claude.ai` as
+the requesting party and the connection appears under that document's URL on the **Connections**
+page. Clients without a hosted document, such as Cursor and Codex, still register themselves
+dynamically. See [the security guide](security.md#accounts) for what Rementum checks.
+
 ## Two parts: the plugin and the MCP URL
 
 - **MCP** exposes the tools.

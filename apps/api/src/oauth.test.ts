@@ -1,7 +1,18 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import Fastify from "fastify";
 import { describe, expect, it, vi } from "vitest";
+import { loadConfig } from "./config.js";
 import { verifyLoginPassword } from "./credentials.js";
-import { loginFormFields, registerOauthRoutes, workspaceIdFromResource } from "./oauth.js";
+import {
+  buildOauthRuntime,
+  clientMetadataDocumentHost,
+  loginFormFields,
+  type OauthRuntime,
+  redirectTarget,
+  registerOauthRoutes,
+  workspaceIdFromResource,
+} from "./oauth.js";
 
 const workspaceId = "00000000-0000-4000-8000-000000000002";
 
@@ -68,6 +79,148 @@ describe("authorization server metadata", () => {
       );
     }
     await app.close();
+  });
+
+  it("advertises client id metadata documents next to dynamic registration", async () => {
+    const runtime = await buildOauthRuntime(
+      loadConfig({
+        NODE_ENV: "test",
+        REMENTUM_PUBLIC_URL: "https://rementum.example.test",
+        REMENTUM_DATABASE_URL: "postgres://owl:secret@localhost/owl",
+        REMENTUM_MASTER_KEY: "master-key",
+        REMENTUM_COOKIE_KEYS: "cookie-key-at-least-sixteen-characters",
+      }),
+      // Discovery never touches the adapter, so no database is needed to read it.
+      { sql: undefined } as never,
+    );
+    const server = createServer(runtime.provider.callback());
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const response = await fetch(`http://127.0.0.1:${port}/.well-known/openid-configuration`);
+      expect(response.status).toBe(200);
+      const metadata = await response.json();
+      expect(metadata).toMatchObject({
+        issuer: "https://rementum.example.test/oauth",
+        client_id_metadata_document_supported: true,
+        code_challenge_methods_supported: ["S256"],
+      });
+      // Registration stays on for clients without a hosted document, such as Cursor.
+      expect(metadata.registration_endpoint).toMatch(/\/reg$/);
+      // Claude only picks a metadata document when it can also act as a public client.
+      expect(metadata.token_endpoint_auth_methods_supported).toContain("none");
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+});
+
+describe("consent screen", () => {
+  const uid = "interaction-uid";
+
+  async function consentApp(params: Record<string, unknown>, client?: { clientName?: string }) {
+    const app = Fastify();
+    const find = vi.fn(async () => client);
+    const runtime = {
+      provider: {
+        interactionDetails: async () => ({ uid, prompt: { name: "consent" }, params }),
+        Client: { find },
+      },
+      publicJwks: { keys: [] },
+      issuer: "https://rementum.example.test/oauth",
+      publicUrl: "https://rementum.example.test",
+      workspaceResource: (id: string) => `https://rementum.example.test/mcp/workspace/${id}`,
+      allowSignup: false,
+    } as unknown as OauthRuntime;
+    await registerOauthRoutes(app, runtime, async () => null);
+    const response = await app.inject({ method: "GET", url: `/oauth/interaction/${uid}` });
+    await app.close();
+    return { response, find };
+  }
+
+  it("names a metadata document client by its host and warns about a loopback callback", async () => {
+    const { response, find } = await consentApp({
+      client_id: "https://claude.ai/oauth/claude-code-client-metadata",
+      redirect_uri: "http://localhost:3118/callback",
+      scope: "openid brain:read",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain("<strong>claude.ai</strong> requests access to Rementum.");
+    expect(response.body).toContain(
+      "<code>https://claude.ai/oauth/claude-code-client-metadata</code>",
+    );
+    expect(response.body).toContain("<strong>localhost</strong>, a program on this computer.");
+    expect(response.body).toContain("openid brain:read");
+    // The document was already fetched and validated when the interaction was created.
+    expect(find).not.toHaveBeenCalled();
+  });
+
+  it("names a registered client by its registered name and shows the callback host", async () => {
+    const { response, find } = await consentApp(
+      {
+        client_id: "registered-client",
+        redirect_uri: "https://www.cursor.com/agents/mcp/oauth/callback",
+        scope: "openid",
+      },
+      { clientName: "Cursor" },
+    );
+    expect(find).toHaveBeenCalledWith("registered-client");
+    expect(response.body).toContain("<strong>Cursor</strong> requests access to Rementum.");
+    expect(response.body).toContain("<strong>www.cursor.com</strong>.");
+    expect(response.body).not.toContain("client metadata document");
+    expect(response.body).not.toContain("a program on this computer");
+  });
+
+  it("escapes everything the client chose", async () => {
+    const { response } = await consentApp(
+      { client_id: "registered-client", redirect_uri: "https://<b>evil</b>/cb", scope: "<s>" },
+      { clientName: "<script>alert(1)</script>" },
+    );
+    expect(response.body).not.toContain("<script>");
+    expect(response.body).not.toContain("<b>");
+    expect(response.body).not.toContain("<s>");
+    expect(response.body).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+  });
+});
+
+describe("client identification", () => {
+  it("recognises a metadata document client id by its https host", () => {
+    expect(clientMetadataDocumentHost("https://claude.ai/oauth/claude-code-client-metadata")).toBe(
+      "claude.ai",
+    );
+    expect(clientMetadataDocumentHost("https://client.example.test:8443/oauth/client.json")).toBe(
+      "client.example.test:8443",
+    );
+    expect(clientMetadataDocumentHost("http://claude.ai/oauth/claude-code-client-metadata")).toBe(
+      null,
+    );
+    expect(clientMetadataDocumentHost("registered-client")).toBeNull();
+  });
+
+  it("describes where the authorization code will be sent", () => {
+    expect(redirectTarget("http://localhost:3118/callback")).toEqual({
+      label: "localhost",
+      loopback: true,
+    });
+    expect(redirectTarget("http://127.0.0.1:49152/callback")).toEqual({
+      label: "127.0.0.1",
+      loopback: true,
+    });
+    expect(redirectTarget("http://[::1]:3000/callback")).toEqual({
+      label: "[::1]",
+      loopback: true,
+    });
+    expect(redirectTarget("https://claude.ai/api/mcp/auth_callback")).toEqual({
+      label: "claude.ai",
+      loopback: false,
+    });
+    expect(redirectTarget("cursor://anysphere.cursor-mcp/oauth/callback")).toEqual({
+      label: "cursor://anysphere.cursor-mcp",
+      loopback: false,
+    });
+    expect(redirectTarget("not a url")).toEqual({ label: "not a url", loopback: false });
   });
 });
 

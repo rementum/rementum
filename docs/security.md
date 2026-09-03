@@ -82,6 +82,19 @@ the current session; a password reset revokes every web session and MCP OAuth gr
 OAuth bearer tokens are accepted only at the exact workspace MCP URL, never by the REST API, so the
 MCP consent screen appears only while you connect an agent.
 
+An MCP client identifies itself in one of two ways. A client that publishes an OAuth Client ID
+Metadata Document, as Claude Code does at `https://claude.ai/oauth/claude-code-client-metadata`, uses
+that HTTPS URL as its client id. Rementum fetches the document, requires it to name the same URL as
+its own `client_id`, and takes the allowed callback addresses from it, so no client record is created
+or stored. The fetch has a 2.5-second timeout and a 5 KB size limit, refuses hosts that resolve to
+loopback, private, or other special-use addresses, and the document is cached for as long as its
+cache headers allow. Anything the document says about itself, including its name, is chosen by
+whoever controls that URL, so the consent screen names the document's host as the requesting party
+and shows the document URL underneath. Every consent screen also names the host the browser is sent
+to after approval and warns when that is a loopback address, because any program on the computer
+could be listening there; approve such a request only if you started the connection yourself. Clients
+without a hosted document register themselves dynamically and appear under the name they registered.
+
 The instance owner, the account `create-owner` made, has a read-only panel at `/admin` that counts
 what the instance holds and lists every registered account (see
 [the operations guide](operations.md#instance-panel)). It shows metadata only: addresses, names,
