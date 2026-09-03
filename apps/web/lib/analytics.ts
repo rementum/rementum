@@ -63,6 +63,14 @@ export interface HeatmapModel {
   months: Array<{ column: number; label: string }>;
 }
 
+export const heatLevels = [
+  "bg-hover",
+  "bg-green/20",
+  "bg-green/40",
+  "bg-green/65",
+  "bg-green",
+] as const;
+
 const monthFormat = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" });
 
 export function parseAnalyticsRange(value: string | string[] | undefined): AnalyticsRange {

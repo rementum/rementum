@@ -3,9 +3,11 @@ import {
   ANALYTICS_RANGES,
   type AnalyticsRange,
   buildHeatmap,
+  heatLevels,
   type UsageAnalytics,
 } from "../lib/analytics";
 import { relativeTime } from "../lib/format";
+import { HeatmapGrid } from "./heatmap-grid";
 import { Card, CardHeader } from "./ui/card";
 import { Chip } from "./ui/chip";
 
@@ -22,8 +24,6 @@ const RANGE_LABELS: Record<AnalyticsRange, string> = {
   "90d": "90 days",
   "365d": "1 year",
 };
-
-const heatLevels = ["bg-hover", "bg-green/20", "bg-green/40", "bg-green/65", "bg-green"] as const;
 
 interface RankItem {
   key: string;
@@ -134,7 +134,10 @@ function ContributionHeatmap({ analytics }: { analytics: UsageAnalytics }) {
       />
       <div className="p-4 sm:p-5">
         <div className="overflow-x-auto pb-2">
-          <div className="min-w-[680px]">
+          {/* The month labels are wider than their ~15px grid track, so the last one spills past
+              the grid's right edge and gives the scrollport a pixel of travel. The padding absorbs
+              it; the scrollbar stays for the narrow viewports that genuinely need it. */}
+          <div className="min-w-[680px] pr-3">
             <div className="ml-9 grid h-5 gap-1" style={{ gridTemplateColumns: columnTemplate }}>
               {heatmap.months.map((month) => (
                 <span
@@ -157,36 +160,7 @@ function ContributionHeatmap({ analytics }: { analytics: UsageAnalytics }) {
                   </span>
                 ))}
               </div>
-              <div
-                className="grid grid-flow-col grid-rows-7 gap-1"
-                style={{ gridTemplateColumns: columnTemplate }}
-              >
-                {heatmap.cells.map((cell) => {
-                  if (!cell.date) return <span aria-hidden="true" className="h-3" key={cell.key} />;
-                  const label = cell.tracked
-                    ? `${utcDate(cell.date)}: ${cell.calls.toLocaleString("en")} successful MCP ${cell.calls === 1 ? "call" : "calls"}`
-                    : `${utcDate(cell.date)}: not tracked`;
-                  return (
-                    <span
-                      aria-label={label}
-                      className={`h-3 rounded-[2px] ring-1 ring-black/[0.04] ring-inset ${
-                        cell.tracked ? heatLevels[cell.level] : "bg-transparent"
-                      }`}
-                      key={cell.date}
-                      role="img"
-                      style={
-                        cell.tracked
-                          ? undefined
-                          : {
-                              backgroundImage:
-                                "repeating-linear-gradient(135deg, transparent, transparent 2px, var(--line) 2px, var(--line) 3px)",
-                            }
-                      }
-                      title={label}
-                    />
-                  );
-                })}
-              </div>
+              <HeatmapGrid cells={heatmap.cells} columnTemplate={columnTemplate} />
             </div>
           </div>
         </div>
@@ -371,16 +345,8 @@ function RecentCalls({ calls }: { calls: UsageAnalytics["recentCalls"] }) {
   );
 }
 
-const utcDateFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
 const utcDateTimeFormat = new Intl.DateTimeFormat("en", {
   dateStyle: "medium",
   timeStyle: "short",
   timeZone: "UTC",
 });
-
-function utcDate(value: string) {
-  return utcDateFormat.format(new Date(`${value}T00:00:00.000Z`));
-}

@@ -14,3 +14,4 @@ data/
 backups/
 model-cache/
 tmp/
+.pnpm-store/
