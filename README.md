@@ -23,6 +23,14 @@ Rementum gives your agents a memory they can trust. Knowledge lives in linked, e
 articles. **Every canonical change is staged, versioned, attributed, and conflict-checked** before it
 replaces the previous version, so two agents never overwrite each other's work.
 
+<div align="center">
+
+![Multi-Agent Shared Memory Demo](docs/assets/rementum-demo.gif)
+
+*Two agents (Cursor & Claude Code) collaborating concurrently on https://rementum.dev: Cursor publishes an architectural decision to the shared brain, and Claude Code instantly discovers and adopts it.*
+
+</div>
+
 ## Why Rementum
 
 - 🧠 **Agent-first:** agents read a compact routing index, then open only the article it points to.
