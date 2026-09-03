@@ -44,11 +44,15 @@ Only Caddy opens public ports. PostgreSQL listens on loopback for administration
 
 ## What is encrypted
 
-Rementum encrypts article bodies, version bodies, and staged bodies with a separate key per brain.
-An instance master key wraps those per-brain keys, and the master key never touches the database or
-a backup. Titles, summaries, links, and embeddings stay in plaintext so search can use them.
+Rementum uses application-layer envelope encryption with searchable metadata:
 
-Rementum writes routing summaries locally by default, and article compaction is off. Compaction
-sends article text to an external AI provider, so it only runs when you turn on both the instance
-provider and the per-workspace setting. See the [security checklist](security.md) before you store
-private knowledge.
+- **Envelope encryption:** Article bodies, version bodies, and staged bodies are encrypted under a
+  separate AES-256-GCM data key per brain, sealed with position-bound Additional Authenticated
+  Data (AAD). An instance master key wraps those per-brain keys, and the master key never touches the
+  database or a backup.
+- **Searchable metadata:** Titles, routing summaries, links, and embeddings remain in plaintext in
+  PostgreSQL so hybrid search can use them without decrypting article bodies.
+- **External LLM boundary:** Rementum writes routing summaries locally by default, and article
+  compaction is off. Compaction sends article text to an external AI provider only when you turn on
+  both the instance provider and the per-workspace setting. See the [security checklist](security.md)
+  before you store private knowledge.

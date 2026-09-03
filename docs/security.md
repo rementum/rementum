@@ -29,15 +29,23 @@ PostgreSQL or the embedding service to the public network.
 - The API, worker, and embedding images contain only production dependencies and built output,
   every service runs with `no-new-privileges`, and the Node services drop all Linux capabilities.
 
-Rementum encrypts article content in the application layer. PostgreSQL still stores routing summaries,
-titles, links, audit metadata, MCP usage metadata, and embeddings. MCP usage metadata is limited to
-the workspace and optional brain/article ids, the OAuth client id and name, the tool name, and the
-timestamp. It does **not** keep tool arguments, prompts, queries, outputs, errors, IP addresses, or
-user ids. Use encrypted disks and encrypted backups.
+## Envelope encryption and data boundary
 
-Every version body is sealed with additional authenticated data that names its brain, article, and
-version number, and readers recompute that value from the row's position rather than trusting a
-stored copy, so ciphertext moved between versions or articles fails to decrypt.
+Rementum implements **application-layer envelope encryption with searchable metadata**:
+
+- **Envelope encryption:** Article bodies, version history, and staged bodies are encrypted with
+  AES-256-GCM under individual per-brain data keys. The instance master key wraps those data keys and
+  is held in memory; it is never stored in PostgreSQL or included in database backups.
+- **Position-bound authentication (AAD):** Every version body is sealed with Additional Authenticated
+  Data that names its brain, article, and version number. Readers recompute that value from the row's
+  position rather than trusting a stored copy, so ciphertext moved between versions or articles fails
+  to decrypt.
+- **Searchable metadata (plaintext):** PostgreSQL stores routing summaries, titles, slugs, links,
+  audit metadata, MCP usage metadata, and vector embeddings in plaintext so hybrid metadata, full-text,
+  and vector search operate without decrypting article bodies. MCP usage metadata is limited to the
+  workspace and optional brain/article ids, the OAuth client id and name, the tool name, and the
+  timestamp (it does **not** keep tool arguments, prompts, queries, outputs, errors, IP addresses, or
+  user ids). Use encrypted disks and encrypted backups.
 
 ## Article generation mode
 
