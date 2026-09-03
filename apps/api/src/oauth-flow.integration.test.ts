@@ -69,6 +69,7 @@ async function startApp(suffix: string) {
     method: "GET" | "POST",
     url: string,
     payload?: Record<string, string>,
+    origin = publicUrl,
   ): Promise<LightMyRequestResponse> => {
     const response = await app.inject({
       method,
@@ -77,7 +78,7 @@ async function startApp(suffix: string) {
         host,
         "x-forwarded-proto": "http",
         ...(jar.header ? { cookie: jar.header } : {}),
-        ...(payload ? { "content-type": "application/x-www-form-urlencoded" } : {}),
+        ...(payload ? { "content-type": "application/x-www-form-urlencoded", origin } : {}),
       },
       ...(payload ? { payload: new URLSearchParams(payload).toString() } : {}),
     });
@@ -156,7 +157,6 @@ integration("OAuth authorization code flow", () => {
         new Date(Date.now() + 60_000),
       );
       expect(await auth.verifyEmail(verification)).toBe(true);
-      expect((await webSignIn(email, password)).statusCode).toBe(204);
 
       const registration = await app.inject({
         method: "POST",
@@ -192,12 +192,34 @@ integration("OAuth authorization code flow", () => {
       const interaction = String(started.headers.location);
       expect(interaction).toMatch(/^\/oauth\/interaction\//);
 
-      const loggedIn = await visit("GET", interaction);
+      const signInRedirect = await visit("GET", interaction);
+      expect(signInRedirect.statusCode).toBe(302);
+      const signIn = new URL(String(signInRedirect.headers.location), publicUrl);
+      expect(signIn.pathname).toBe("/auth/login");
+      expect(signIn.searchParams.get("returnTo")).toBe(interaction);
+      expect((await webSignIn(email, password)).statusCode).toBe(204);
+
+      const loggedIn = await visit("GET", signIn.searchParams.get("returnTo") ?? "");
       expect(loggedIn.statusCode).toBe(303);
       const resumed = await visit("GET", String(loggedIn.headers.location));
       expect(resumed.statusCode).toBe(303);
 
-      const consented = await visit("GET", String(resumed.headers.location));
+      const consentPage = await visit("GET", String(resumed.headers.location));
+      expect(consentPage.statusCode).toBe(200);
+      expect(consentPage.body).toContain("Connect MCP client");
+      expect(consentPage.body).toContain("Test agent");
+      expect(consentPage.body).toContain(resource);
+      const consentUid = String(resumed.headers.location).split("/").pop() as string;
+      const crossOriginConsent = await visit(
+        "POST",
+        `/oauth/interaction/${consentUid}/confirm`,
+        { uid: consentUid },
+        "https://attacker.example.test",
+      );
+      expect(crossOriginConsent.statusCode).toBe(403);
+      const consented = await visit("POST", `/oauth/interaction/${consentUid}/confirm`, {
+        uid: consentUid,
+      });
       expect(consented.statusCode).toBe(303);
       const issued = await visit("GET", String(consented.headers.location));
       expect(issued.statusCode).toBe(303);
@@ -240,6 +262,28 @@ integration("OAuth authorization code flow", () => {
       });
       expect(payload.sub).toBe(account.user.id);
       expect(String(payload.scope).split(" ")).toContain("brain:read");
+
+      // Reconnecting the same approved client, account, scopes, and workspace stays silent.
+      const reusePkce = pkce();
+      const reuseAuthorize = new URLSearchParams({
+        client_id: clientId,
+        response_type: "code",
+        redirect_uri: redirectUri,
+        scope: "openid offline_access brain:read",
+        resource,
+        state: `state-reuse-${suffix}`,
+        code_challenge: reusePkce.challenge,
+        code_challenge_method: "S256",
+      });
+      const reuseStarted = await visit("GET", `/oauth/auth?${reuseAuthorize.toString()}`);
+      expect(reuseStarted.statusCode).toBe(303);
+      const reuseConsented = await visit("GET", String(reuseStarted.headers.location));
+      expect(reuseConsented.statusCode).toBe(303);
+      const reuseIssued = await visit("GET", String(reuseConsented.headers.location));
+      expect(reuseIssued.statusCode).toBe(303);
+      expect(new URL(String(reuseIssued.headers.location)).searchParams.get("state")).toBe(
+        `state-reuse-${suffix}`,
+      );
 
       // The same code cannot be exchanged a second time.
       const replay = await app.inject({
@@ -335,7 +379,15 @@ integration("OAuth authorization code flow", () => {
       expect(oldSessionEnded.statusCode).toBe(303);
       const switchLoggedIn = await visit("GET", String(oldSessionEnded.headers.location));
       expect(switchLoggedIn.statusCode).toBe(303);
-      const switchConsented = await visit("GET", String(switchLoggedIn.headers.location));
+      const switchConsentPage = await visit("GET", String(switchLoggedIn.headers.location));
+      expect(switchConsentPage.statusCode).toBe(200);
+      expect(switchConsentPage.body).toContain(secondResource);
+      const switchConsentUid = String(switchLoggedIn.headers.location).split("/").pop() as string;
+      const switchConsented = await visit(
+        "POST",
+        `/oauth/interaction/${switchConsentUid}/confirm`,
+        { uid: switchConsentUid },
+      );
       expect(switchConsented.statusCode).toBe(303);
       const switchIssued = await visit("GET", String(switchConsented.headers.location));
       expect(switchIssued.statusCode).toBe(303);
@@ -521,7 +573,15 @@ integration("OAuth authorization code flow", () => {
       const resumed = await visit("GET", String(loggedIn.headers.location));
       expect(resumed.statusCode).toBe(303);
 
-      const consented = await visit("GET", String(resumed.headers.location));
+      const consentPage = await visit("GET", String(resumed.headers.location));
+      expect(consentPage.statusCode).toBe(200);
+      expect(consentPage.body).toContain("client.example.test");
+      expect(consentPage.body).toContain("localhost");
+      expect(consentPage.body).toContain(resource);
+      const consentUid = String(resumed.headers.location).split("/").pop() as string;
+      const consented = await visit("POST", `/oauth/interaction/${consentUid}/confirm`, {
+        uid: consentUid,
+      });
       expect(consented.statusCode).toBe(303);
       const issued = await visit("GET", String(consented.headers.location));
       expect(issued.statusCode).toBe(303);

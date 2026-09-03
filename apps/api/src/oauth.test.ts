@@ -125,6 +125,7 @@ describe("OAuth web session bridge", () => {
     session: { accountId: string } | undefined,
     webSession: { userId: string; systemOwner: boolean } | null,
     grantId?: string,
+    method: "GET" | "POST" = "GET",
   ) {
     const app = Fastify();
     await app.register(cookie);
@@ -145,11 +146,17 @@ describe("OAuth web session bridge", () => {
         interactionDetails: async () => ({
           uid,
           prompt,
-          params: { client_id: "test-client", resource },
+          params: {
+            client_id: "test-client",
+            redirect_uri: "https://client.example.test/oauth/callback",
+            resource,
+            scope: "openid offline_access brain:read",
+          },
           session,
           grantId,
         }),
         interactionFinished,
+        Client: { find: vi.fn(async () => ({ clientName: "Test agent" })) },
         Grant: { find: vi.fn(async () => grant) },
       },
       publicJwks: { keys: [] },
@@ -165,8 +172,9 @@ describe("OAuth web session bridge", () => {
     };
     await registerOauthRoutes(app, runtime, auth as never, store as never);
     const response = await app.inject({
-      method: "GET",
-      url: `/oauth/interaction/${uid}`,
+      method,
+      url: `/oauth/interaction/${uid}${method === "POST" ? "/confirm" : ""}`,
+      ...(method === "POST" ? { headers: { origin: "https://rementum.example.test" } } : {}),
       cookies: { rementum_session: "s".repeat(43) },
     });
     await app.close();
@@ -204,11 +212,12 @@ describe("OAuth web session bridge", () => {
     );
   });
 
-  it("silently grants requested access after membership is verified", async () => {
+  it("requires a user gesture before granting new access", async () => {
     const missingResourceScopes = { [resource]: ["brain:read"] };
     const { response, interactionFinished, grant } = await interactionApp(
       {
         name: "consent",
+        reasons: ["native_client_prompt", "op_scopes_missing", "rs_scopes_missing"],
         details: {
           missingOIDCScope: ["openid", "offline_access"],
           missingOIDCClaims: ["email"],
@@ -219,15 +228,70 @@ describe("OAuth web session bridge", () => {
       { userId, systemOwner: false },
       "existing-grant",
     );
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-security-policy"]).toContain("default-src 'none'");
+    expect(response.body).toContain("Connect MCP client");
+    expect(response.body).toContain("Test agent");
+    expect(response.body).toContain("client.example.test");
+    expect(response.body).toContain("openid offline_access brain:read");
+    expect(response.body).toContain(resource);
+    expect(response.body).toContain(`/oauth/interaction/${uid}/confirm`);
+    expect(interactionFinished).not.toHaveBeenCalled();
+    expect(grant.save).not.toHaveBeenCalled();
+  });
+
+  it("silently reuses an approved grant when only the native-client prompt remains", async () => {
+    const { response, interactionFinished, grant } = await interactionApp(
+      { name: "consent", reasons: ["native_client_prompt"] },
+      { accountId: userId },
+      { userId, systemOwner: false },
+      "existing-grant",
+    );
     expect(response.statusCode).toBe(303);
-    expect(grant.addOIDCScope).toHaveBeenCalledWith("openid offline_access");
-    expect(grant.addOIDCClaims).toHaveBeenCalledWith(["email"]);
-    expect(grant.addResourceScope).toHaveBeenCalledWith(resource, "brain:read");
+    expect(grant.addOIDCScope).not.toHaveBeenCalled();
+    expect(grant.addOIDCClaims).not.toHaveBeenCalled();
+    expect(grant.addResourceScope).not.toHaveBeenCalled();
     expect(interactionFinished).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
       { consent: { grantId: "grant-id" } },
       { mergeWithLastSubmission: true },
+    );
+  });
+
+  it("finishes an unsupported prompt with an OAuth error", async () => {
+    const { response, interactionFinished } = await interactionApp(
+      { name: "select_account", reasons: ["account_selection_required"] },
+      { accountId: userId },
+      { userId, systemOwner: false },
+    );
+    expect(response.statusCode).toBe(303);
+    expect(interactionFinished).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      {
+        error: "access_denied",
+        error_description: "Unsupported OAuth interaction: select_account",
+      },
+      { mergeWithLastSubmission: false },
+    );
+  });
+
+  it("finishes a consent without an OAuth account as an error instead of throwing", async () => {
+    const { response, interactionFinished, store } = await interactionApp(
+      { name: "consent", reasons: ["rs_scopes_missing"], details: {} },
+      undefined,
+      { userId, systemOwner: false },
+      undefined,
+      "POST",
+    );
+    expect(response.statusCode).toBe(303);
+    expect(store.loadActor).not.toHaveBeenCalled();
+    expect(interactionFinished).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { error: "access_denied", error_description: "Invalid OAuth consent state" },
+      { mergeWithLastSubmission: false },
     );
   });
 });

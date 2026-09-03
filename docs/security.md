@@ -85,9 +85,11 @@ MCP client cannot reuse the browser cookie as an API credential.
 The browser portion of MCP OAuth uses the current web session as its identity. A browser without one
 is redirected through the normal sign-in page. Before Rementum grants the scopes requested by the
 client, it verifies that the signed-in account belongs to the team that owns the workspace. There is
-no second OAuth login or consent screen: knowing a workspace URL alone grants nothing, and the issued
-bearer token remains audience-bound to that one workspace. Start an OAuth flow only from an MCP
-client you intend to connect; successful clients remain individually revocable on **Connections**.
+no second OAuth login. A new client, workspace, or expanded scope set shows a consent screen with the
+client identity, callback destination, resource, scopes, and a deny action; an already approved grant
+can reconnect silently. Knowing a workspace URL alone grants nothing, and the issued bearer token
+remains audience-bound to that one workspace. Successful clients remain individually revocable on
+**Connections**.
 
 An MCP client identifies itself in one of two ways. A client that publishes an OAuth Client ID
 Metadata Document, as Claude Code does at `https://claude.ai/oauth/claude-code-client-metadata`, uses

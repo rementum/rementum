@@ -10,8 +10,9 @@ https://rementum.dev/mcp/workspace/WORKSPACE_UUID
 The URL names the workspace; it is not a credential. When an agent connects, Rementum opens OAuth in
 your browser and uses the account already signed in to the Rementum web app. If there is no web
 session, it sends you through the regular sign-in page and resumes automatically. Rementum verifies
-that account's team membership, grants the requested MCP scopes without a separate consent screen,
-and limits the connection to that workspace's brains and tasks.
+that account's team membership and limits the connection to that workspace's brains and tasks. A
+new client, workspace, or scope set needs one explicit approval; reconnecting an already approved
+grant is silent.
 
 Claude Code and the Claude apps identify themselves with a client metadata document that Anthropic
 hosts on `claude.ai` (an OAuth Client ID Metadata Document). Rementum advertises support for it, reads

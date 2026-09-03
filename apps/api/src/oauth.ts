@@ -1,17 +1,18 @@
 import { randomUUID } from "node:crypto";
+import { DomainError } from "@rementum/core";
 import {
   AuthRepository,
   type DatabaseClient,
   OidcPostgresAdapter,
   type PostgresStore,
 } from "@rementum/db";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { exportJWK, generateKeyPair, type JWK } from "jose";
 import Provider, { type Configuration, errors } from "oidc-provider";
 import { z } from "zod";
 import { allAccessScopes } from "./access.js";
 import type { AppConfig } from "./config.js";
-import { resolveWebSession } from "./web-session.js";
+import { requirePublicOrigin, resolveWebSession } from "./web-session.js";
 
 const workspaceMcpScopes = allAccessScopes.filter(
   (scope) => !scope.startsWith("team:") && !scope.startsWith("connection:"),
@@ -25,6 +26,8 @@ const workspaceMcpScopes = allAccessScopes.filter(
 const clientIdMetadataDocument = {
   clientIdMetadataDocument: { enabled: true, ack: "draft-02" },
 };
+
+const loopbackHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 export interface OauthRuntime {
   provider: Provider;
@@ -153,6 +156,15 @@ export async function registerOauthRoutes(
   auth: AuthRepository,
   store: PostgresStore,
 ): Promise<void> {
+  const html = (reply: FastifyReply) =>
+    reply
+      .header(
+        "content-security-policy",
+        "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'",
+      )
+      .header("referrer-policy", "no-referrer")
+      .type("text/html; charset=utf-8");
+
   app.get("/oauth/interaction/:uid", async (request, reply) => {
     const details = await runtime.provider.interactionDetails(request.raw, reply.raw);
     const session = await resolveWebSession(request, auth);
@@ -180,13 +192,64 @@ export async function registerOauthRoutes(
     }
 
     if (details.prompt.name !== "consent") {
-      return reply.code(400).send("Unsupported OAuth interaction");
+      await finishOauthError(
+        runtime,
+        request.raw,
+        reply.raw,
+        `Unsupported OAuth interaction: ${details.prompt.name}`,
+      );
+      reply.hijack();
+      return;
+    }
+    if (!canReuseApprovedGrant(details)) {
+      return html(reply).send(consentPage(details.uid, await consentBody(runtime, details.params)));
     }
     await runtime.provider.interactionFinished(
       request.raw,
       reply.raw,
       { consent: { grantId: await grantRequestedAccess(runtime, details) } },
       { mergeWithLastSubmission: true },
+    );
+    reply.hijack();
+  });
+
+  app.post("/oauth/interaction/:uid/confirm", async (request, reply) => {
+    requirePublicOrigin(request, runtime.publicUrl);
+    const details = await runtime.provider.interactionDetails(request.raw, reply.raw);
+    const session = await resolveWebSession(request, auth);
+    if (
+      !session ||
+      details.prompt.name !== "consent" ||
+      details.session?.accountId !== session.userId
+    ) {
+      await finishOauthError(runtime, request.raw, reply.raw, "Invalid OAuth consent state");
+      reply.hijack();
+      return;
+    }
+    const workspaceId = workspaceIdFromResource(String(details.params.resource), runtime.publicUrl);
+    if (!workspaceId) {
+      await finishOauthError(runtime, request.raw, reply.raw, "Invalid workspace resource");
+      reply.hijack();
+      return;
+    }
+    const clientId = String(details.params.client_id);
+    await store.scopeActorToWorkspace(await store.loadActor(session.userId, clientId), workspaceId);
+    await runtime.provider.interactionFinished(
+      request.raw,
+      reply.raw,
+      { consent: { grantId: await grantRequestedAccess(runtime, details) } },
+      { mergeWithLastSubmission: true },
+    );
+    reply.hijack();
+  });
+
+  app.post("/oauth/interaction/:uid/abort", async (request, reply) => {
+    requirePublicOrigin(request, runtime.publicUrl);
+    await runtime.provider.interactionFinished(
+      request.raw,
+      reply.raw,
+      { error: "access_denied", error_description: "The user denied access" },
+      { mergeWithLastSubmission: false },
     );
     reply.hijack();
   });
@@ -226,18 +289,42 @@ export async function registerOauthRoutes(
 
 type InteractionDetails = Awaited<ReturnType<Provider["interactionDetails"]>>;
 
+function canReuseApprovedGrant(details: InteractionDetails): boolean {
+  return Boolean(
+    details.grantId &&
+      details.prompt.reasons?.length &&
+      details.prompt.reasons.every((reason) => reason === "native_client_prompt"),
+  );
+}
+
+async function finishOauthError(
+  runtime: OauthRuntime,
+  request: Parameters<Provider["interactionFinished"]>[0],
+  response: Parameters<Provider["interactionFinished"]>[1],
+  description: string,
+): Promise<void> {
+  await runtime.provider.interactionFinished(
+    request,
+    response,
+    { error: "access_denied", error_description: description },
+    { mergeWithLastSubmission: false },
+  );
+}
+
 async function grantRequestedAccess(
   runtime: OauthRuntime,
   details: InteractionDetails,
 ): Promise<string> {
   const { grantId, session, params } = details;
-  if (!session?.accountId) throw new Error("OAuth consent has no account");
+  if (!session?.accountId) {
+    throw new DomainError("invalid_oauth_interaction", "Invalid OAuth consent state", 400);
+  }
   let grant = grantId ? await runtime.provider.Grant.find(grantId) : undefined;
   grant ??= new runtime.provider.Grant({
     accountId: session.accountId,
     clientId: String(params.client_id),
   });
-  const missing = details.prompt.details as {
+  const missing = (details.prompt.details ?? {}) as {
     missingOIDCScope?: string[];
     missingOIDCClaims?: string[];
     missingResourceScopes?: Record<string, string[]>;
@@ -248,6 +335,58 @@ async function grantRequestedAccess(
     grant.addResourceScope(indicator, scopes.join(" "));
   }
   return grant.save();
+}
+
+async function consentBody(
+  runtime: OauthRuntime,
+  params: Record<string, unknown>,
+): Promise<string> {
+  const clientId = String(params.client_id);
+  const documentHost = clientMetadataDocumentHost(clientId);
+  const client = documentHost ? undefined : await runtime.provider.Client.find(clientId);
+  const target = redirectTarget(String(params.redirect_uri ?? ""));
+  const destination = target.loopback
+    ? `<strong>${escapeHtml(target.label)}</strong>, a program on this computer`
+    : `<strong>${escapeHtml(target.label)}</strong>`;
+  return `<p><strong>${escapeHtml(documentHost ?? client?.clientName ?? clientId)}</strong> requests access to your Rementum workspace.</p>
+  ${documentHost ? `<p class="detail">Client identity: <code>${escapeHtml(clientId)}</code></p>` : ""}
+  <p class="detail">Authorization returns to ${destination}.</p>
+  <p class="detail">Workspace: <code>${escapeHtml(String(params.resource ?? ""))}</code></p>
+  <p class="scope">${escapeHtml(String(params.scope ?? ""))}</p>`;
+}
+
+function clientMetadataDocumentHost(clientId: string): string | null {
+  const url = URL.parse(clientId);
+  return url?.protocol === "https:" && url.host ? url.host : null;
+}
+
+function redirectTarget(redirectUri: string): { label: string; loopback: boolean } {
+  const url = URL.parse(redirectUri);
+  if (!url) return { label: redirectUri, loopback: false };
+  if (url.protocol === "http:" || url.protocol === "https:") {
+    return { label: url.hostname, loopback: loopbackHosts.has(url.hostname) };
+  }
+  return { label: `${url.protocol}//${url.host}`, loopback: false };
+}
+
+function consentPage(uid: string, body: string): string {
+  const action = `/oauth/interaction/${encodeURIComponent(uid)}`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Connect MCP client | Rementum</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><style>
+  :root{color-scheme:light dark;--canvas:#0f1714;--surface:#17211e;--field:#111a16;--text:#f3f5f1;--muted:#bdcbc5;--line:rgb(243 245 241 / 12%);--accent:#2f8a70;--accent-hover:#37a183}
+  @media(prefers-color-scheme:light){:root{--canvas:#f3f5f1;--surface:#fff;--field:#edf2ee;--text:#17211e;--muted:#43544d;--line:rgb(23 33 30 / 12%);--accent:#2f6f5e;--accent-hover:#255849}}
+  *{box-sizing:border-box}body{min-width:320px;min-height:100dvh;margin:0;display:grid;place-items:center;padding:24px;background:var(--canvas);color:var(--text);font:14px/1.5 ui-sans-serif,system-ui,sans-serif}main{width:min(460px,100%);padding:28px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}.brand{display:flex;align-items:center;gap:10px;margin-bottom:28px;color:var(--muted);font-weight:650}.brand img{width:32px;height:32px}h1{margin:0 0 20px;font-size:28px;line-height:1.1}.detail{color:var(--muted);overflow-wrap:anywhere}.scope{padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--field);font:12px/1.6 ui-monospace,monospace;overflow-wrap:anywhere}code{font:12px ui-monospace,monospace;overflow-wrap:anywhere}button{width:100%;min-height:43px;margin-top:10px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-weight:650}button:hover{background:var(--accent-hover)}.deny{border-color:var(--line);background:transparent;color:var(--muted)}
+  </style></head><body><main><div class="brand"><img src="/icon.svg" alt=""><span>Rementum</span></div><h1>Connect MCP client</h1>${body}
+  <form method="post" action="${action}/confirm"><button type="submit">Allow access</button></form>
+  <form method="post" action="${action}/abort"><button class="deny" type="submit">Deny</button></form></main></body></html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (char) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char,
+  );
 }
 
 export function workspaceIdFromResource(resource: string, publicUrl: string): string | null {

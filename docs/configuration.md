@@ -41,7 +41,8 @@ closed when Cloudflare is unreachable. Tokens are single-use, so the sign-in for
 challenge after a failed attempt. Leave both keys empty to run without the widget.
 
 MCP OAuth has no separate password form. A browser without a web session is sent through the same
-Turnstile-protected sign-in page as the web app, then resumes the OAuth flow automatically.
+Turnstile-protected sign-in page as the web app, then resumes the OAuth flow automatically. The first
+grant for a client, workspace, or expanded scope set still requires an explicit approval.
 
 !!! warning "Never change the master key"
     Do not replace `REMENTUM_MASTER_KEY` on an existing instance. Rementum would lose access to every
