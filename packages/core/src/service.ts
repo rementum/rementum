@@ -818,6 +818,7 @@ export class RementumService {
     range: McpAnalyticsRange,
     actor: Actor,
     brainId?: string,
+    day?: string,
   ) {
     requireWorkspaceRole(actor, workspaceId, ["owner", "admin", "member"]);
     if (brainId) {
@@ -825,7 +826,7 @@ export class RementumService {
       const brain = await this.store.getBrain(brainId, actor);
       if (!brain || brain.workspaceId !== workspaceId) throw new NotFoundError("Brain");
     }
-    return this.store.getMcpAnalytics(workspaceId, range, actor, brainId);
+    return this.store.getMcpAnalytics(workspaceId, range, actor, brainId, day);
   }
 
   async getInstanceOverview(actor: Actor) {

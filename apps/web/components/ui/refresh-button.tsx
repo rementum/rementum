@@ -7,16 +7,22 @@ import { IconRefresh } from "./icons";
 export function RefreshButton({
   label = "Refresh",
   className,
+  href,
 }: {
   label?: string;
   className?: string;
+  href?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   // The page is a server component that fetches with no-store, so re-running it is the
   // whole refresh; wrapping it in a transition is what makes the in-flight state observable.
-  const refresh = () => startTransition(() => router.refresh());
+  const refresh = () =>
+    startTransition(() => {
+      if (href) router.replace(href);
+      router.refresh();
+    });
 
   return (
     <button

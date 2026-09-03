@@ -1,7 +1,15 @@
 "use client";
 
-import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
-import { type HeatmapCell, heatLevels } from "../lib/analytics";
+import Link from "next/link";
+import {
+  type FocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { type AnalyticsRange, type HeatmapCell, heatLevels } from "../lib/analytics";
 
 const utcDateFormat = new Intl.DateTimeFormat("en", {
   dateStyle: "medium",
@@ -15,10 +23,31 @@ function utcDate(value: string) {
 export function HeatmapGrid({
   cells,
   columnTemplate,
+  basePath = "/activity",
+  range = "30d",
+  selectedDay = null,
 }: {
   cells: HeatmapCell[];
   columnTemplate: string;
+  basePath?: string;
+  range?: AnalyticsRange;
+  selectedDay?: string | null;
 }) {
+  const container = useRef<HTMLDivElement>(null);
+  const firstTrackedDate = cells.find((cell) => cell.date && cell.tracked)?.date ?? null;
+  const lastTrackedDate = cells.findLast((cell) => cell.date && cell.tracked)?.date ?? null;
+  const [focusDate, setFocusDate] = useState<string | null>(null);
+  const [syncedDay, setSyncedDay] = useState(selectedDay);
+  // Picking a day navigates without remounting, so state survives it. Drop the arrowed-to
+  // square on a new selection, or the tab stop drifts away from the square wearing the ring.
+  if (syncedDay !== selectedDay) {
+    setSyncedDay(selectedDay);
+    setFocusDate(null);
+  }
+  const candidate = focusDate ?? selectedDay ?? lastTrackedDate;
+  const activeFocusDate = cells.some((cell) => cell.date === candidate && cell.tracked)
+    ? candidate
+    : firstTrackedDate;
   const [tooltip, setTooltip] = useState<{
     label: string;
     x: number;
@@ -69,7 +98,7 @@ export function HeatmapGrid({
     };
   }, [tooltip]);
 
-  function showTooltip(event: ReactPointerEvent<HTMLElement>) {
+  function showTooltip(event: ReactPointerEvent<HTMLElement> | FocusEvent<HTMLElement>) {
     const cell = (event.target as HTMLElement).closest<HTMLElement>("[data-label]");
     if (!cell) {
       // The container itself is the gaps between squares, and holding the tooltip open
@@ -94,13 +123,40 @@ export function HeatmapGrid({
     setTooltip(null);
   }
 
+  function moveFocus(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const offset = {
+      ArrowUp: -1,
+      ArrowDown: 1,
+      ArrowLeft: -7,
+      ArrowRight: 7,
+    }[event.key];
+    if (offset === undefined) return;
+    const currentDate = (event.target as HTMLElement).closest<HTMLElement>("[data-date]")?.dataset
+      .date;
+    if (!currentDate) return;
+    const currentIndex = cells.findIndex((cell) => cell.date === currentDate);
+    if (currentIndex < 0) return;
+    // Out of range yields undefined, so the edges of the grid stop rather than wrapping or
+    // clamping onto some unrelated day.
+    const target = cells[currentIndex + offset];
+    if (!target?.date || !target.tracked) return;
+    event.preventDefault();
+    setFocusDate(target.date);
+    container.current?.querySelector<HTMLElement>(`[data-date="${target.date}"]`)?.focus();
+  }
+
   return (
     // Leave, not out: pointerout fires on the old cell before pointerover fires on the new one,
     // so hiding there would blank the tooltip on every square crossed while sweeping the grid.
+    // biome-ignore lint/a11y/noStaticElementInteractions: Delegated focus and key handlers manage the heatmap links.
     <div
       className="grid grid-flow-col grid-rows-7 gap-1"
+      onBlur={hideTooltip}
+      onFocus={showTooltip}
+      onKeyDown={moveFocus}
       onPointerLeave={hideTooltip}
       onPointerOver={showTooltip}
+      ref={container}
       style={{ gridTemplateColumns: columnTemplate }}
     >
       {cells.map((cell) => {
@@ -108,23 +164,46 @@ export function HeatmapGrid({
         const label = cell.tracked
           ? `${utcDate(cell.date)}: ${cell.calls.toLocaleString("en")} successful MCP ${cell.calls === 1 ? "call" : "calls"}`
           : `${utcDate(cell.date)}: not tracked`;
+        const selected = cell.date === selectedDay;
+        // A pre-tracking day reads as an empty outlined box: no fill that could be mistaken
+        // for usage, and a stronger border than the filled squares' hairline so it still
+        // reads as a box rather than a hole in the grid.
+        const ring = selected
+          ? "ring-2 ring-ink"
+          : cell.tracked
+            ? "ring-1 ring-black/[0.04] ring-inset"
+            : "ring-1 ring-line ring-inset";
+        const className = `h-3 rounded-[2px] ${ring} ${
+          cell.tracked ? heatLevels[cell.level] : "bg-transparent"
+        }`;
+        if (!cell.tracked) {
+          return (
+            <span
+              aria-label={label}
+              className={className}
+              data-date={cell.date}
+              data-label={label}
+              key={cell.date}
+              role="img"
+            />
+          );
+        }
         return (
-          <span
+          // Hundreds of links to this dynamic route would otherwise prefetch at once.
+          <Link
+            aria-current={selected ? "true" : undefined}
             aria-label={label}
-            className={`h-3 rounded-[2px] ring-1 ring-black/[0.04] ring-inset ${
-              cell.tracked ? heatLevels[cell.level] : "bg-transparent"
-            }`}
+            className={`${className} focus-visible:outline-2 focus-visible:outline-green focus-visible:outline-offset-1`}
+            data-date={cell.date}
             data-label={label}
-            key={cell.date}
-            role="img"
-            style={
-              cell.tracked
-                ? undefined
-                : {
-                    backgroundImage:
-                      "repeating-linear-gradient(135deg, transparent, transparent 2px, var(--line) 2px, var(--line) 3px)",
-                  }
+            href={
+              selected
+                ? `${basePath}?range=${range}`
+                : `${basePath}?range=${range}&day=${cell.date}`
             }
+            key={cell.date}
+            prefetch={false}
+            tabIndex={cell.date === activeFocusDate ? 0 : -1}
           />
         );
       })}

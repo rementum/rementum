@@ -8,6 +8,7 @@ import {
   createTeamSchema,
   createWorkspaceSchema,
   listInstanceUsersSchema,
+  mcpAnalyticsDaySchema,
   mcpAnalyticsRangeSchema,
   promoteWriteSchema,
   routingIndexSortSchema,
@@ -321,10 +322,11 @@ export async function registerApiRoutes(
   });
   app.get("/api/v1/workspaces/:workspaceId/analytics", async (request) => {
     const { workspaceId } = z.object({ workspaceId: z.uuid() }).parse(request.params);
-    const { range, brainId } = z
+    const { range, brainId, day } = z
       .object({
         range: mcpAnalyticsRangeSchema.default("30d"),
         brainId: z.uuid().optional(),
+        day: mcpAnalyticsDaySchema.optional(),
       })
       .parse(request.query);
     return service.getMcpAnalytics(
@@ -332,6 +334,7 @@ export async function registerApiRoutes(
       range,
       await authorize(request, "team:read"),
       brainId,
+      day,
     );
   });
   app.get("/api/v1/teams/:teamId/workspaces", async (request) => {

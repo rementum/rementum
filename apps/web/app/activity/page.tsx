@@ -3,7 +3,7 @@ import { EmptyState } from "../../components/ui/empty-state";
 import { PageHeader } from "../../components/ui/page-header";
 import { RefreshButton } from "../../components/ui/refresh-button";
 import { UsageAnalyticsView } from "../../components/usage-analytics";
-import { parseAnalyticsRange, type UsageAnalytics } from "../../lib/analytics";
+import { parseAnalyticsDay, parseAnalyticsRange, type UsageAnalytics } from "../../lib/analytics";
 import { api, workspaceContext } from "../../lib/api";
 
 export const metadata: Metadata = { title: "Analytics" };
@@ -11,9 +11,11 @@ export const metadata: Metadata = { title: "Analytics" };
 export default async function WorkspaceAnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string | string[] }>;
+  searchParams: Promise<{ range?: string | string[]; day?: string | string[] }>;
 }) {
-  const range = parseAnalyticsRange((await searchParams).range);
+  const query = await searchParams;
+  const range = parseAnalyticsRange(query.range);
+  const day = parseAnalyticsDay(query.day);
   const { activeTeam, activeWorkspace } = await workspaceContext();
   if (!activeTeam || !activeWorkspace) {
     return (
@@ -30,7 +32,7 @@ export default async function WorkspaceAnalyticsPage({
   }
 
   const analytics = await api<UsageAnalytics>(
-    `/api/v1/workspaces/${activeWorkspace.id}/analytics?range=${range}`,
+    `/api/v1/workspaces/${activeWorkspace.id}/analytics?range=${range}${day ? `&day=${day}` : ""}`,
   );
 
   return (
@@ -39,10 +41,10 @@ export default async function WorkspaceAnalyticsPage({
         kicker={`${activeTeam.name} · ${activeWorkspace.name}`}
         title="Analytics"
         description="See where connected agents spend attention across this workspace."
-        actions={<RefreshButton />}
+        actions={<RefreshButton href={`/activity?range=${range}`} />}
       />
       <section className="mt-8">
-        <UsageAnalyticsView analytics={analytics} range={range} rangePath="/activity" />
+        <UsageAnalyticsView analytics={analytics} day={day} range={range} rangePath="/activity" />
       </section>
     </main>
   );

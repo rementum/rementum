@@ -159,6 +159,12 @@ not backfilled, and the heatmap marks earlier days as untracked. Usage records l
 the workspace and are visible to its team members. The [security checklist](security.md) lists the
 exact metadata kept.
 
+Selecting a square in the heatmap narrows every ranking below it to that one UTC day, including days
+outside the range the picker is set to. The heatmap itself keeps showing the full year, so the next
+day is always one click away. Clicking the selected square again clears the filter, as do the Refresh
+button and any range button. Untracked days hold no telemetry rather than no usage, so they cannot be
+selected.
+
 ## The first requests an agent makes
 
 At startup the server sends MCP instructions that tell the agent when to load and write memory.

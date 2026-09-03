@@ -797,6 +797,20 @@ describe("workspaces and connections", () => {
       "90d",
       expect.anything(),
       brainId,
+      undefined,
+    );
+
+    const selectedDay = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/workspaces/${workspaceId}/analytics?range=90d&brainId=${brainId}&day=2026-09-01`,
+    });
+    expect(selectedDay.statusCode).toBe(200);
+    expect(context.service.getMcpAnalytics).toHaveBeenLastCalledWith(
+      workspaceId,
+      "90d",
+      expect.anything(),
+      brainId,
+      "2026-09-01",
     );
 
     const invalid = await context.app.inject({
@@ -804,6 +818,12 @@ describe("workspaces and connections", () => {
       url: `/api/v1/workspaces/${workspaceId}/analytics?range=all`,
     });
     expect(invalid.statusCode).toBe(400);
+
+    const invalidDay = await context.app.inject({
+      method: "GET",
+      url: `/api/v1/workspaces/${workspaceId}/analytics?day=not-a-date`,
+    });
+    expect(invalidDay.statusCode).toBe(400);
   });
 
   it("reports whether a connection was there to revoke", async () => {

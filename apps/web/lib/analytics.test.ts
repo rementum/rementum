@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildHeatmap, parseAnalyticsRange, type UsageAnalytics } from "./analytics";
+import {
+  buildHeatmap,
+  parseAnalyticsDay,
+  parseAnalyticsRange,
+  type UsageAnalytics,
+} from "./analytics";
 
 describe("parseAnalyticsRange", () => {
   it("accepts allowlisted ranges and defaults invalid input", () => {
@@ -8,6 +13,19 @@ describe("parseAnalyticsRange", () => {
     expect(parseAnalyticsRange("all")).toBe("30d");
     expect(parseAnalyticsRange(undefined)).toBe("30d");
   });
+});
+
+describe("parseAnalyticsDay", () => {
+  it("accepts real ISO calendar dates", () => {
+    expect(parseAnalyticsDay("2026-09-01")).toBe("2026-09-01");
+  });
+
+  it.each([undefined, "not-a-date", "2026-13-01", "2026-02-30", ["2026-09-01", "2026-09-02"]])(
+    "rejects invalid day input %#",
+    (value) => {
+      expect(parseAnalyticsDay(value)).toBeNull();
+    },
+  );
 });
 
 describe("buildHeatmap", () => {
