@@ -12,6 +12,17 @@ const workspaceMcpScopes = allAccessScopes.filter(
   (scope) => !scope.startsWith("team:") && !scope.startsWith("connection:"),
 );
 
+// Claude uses the metadata document Anthropic hosts on claude.ai as its client id once discovery
+// advertises this feature, so no client is registered or stored for it. The ack pins the draft
+// oidc-provider implements; a provider upgrade to a later draft then fails at startup instead of
+// silently changing what a document may contain. @types/oidc-provider 8 predates the feature, so
+// the entry is spread into the features object rather than written where the type would reject it.
+const clientIdMetadataDocument = {
+  clientIdMetadataDocument: { enabled: true, ack: "draft-02" },
+};
+
+const loopbackHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
 export interface OauthRuntime {
   provider: Provider;
   publicJwks: { keys: JWK[] };
@@ -37,6 +48,8 @@ export async function buildOauthRuntime(
     clientDefaults: {
       // MCP clients are installed/native applications. Cursor registers its custom-scheme,
       // hosted, and loopback callbacks together and relies on PKCE instead of a client secret.
+      // The default also covers metadata documents that omit application_type: Claude Code's
+      // lists loopback callbacks without a port, which only a native client may match.
       application_type: "native",
     },
     cookies: {
@@ -56,6 +69,7 @@ export async function buildOauthRuntime(
     },
     features: {
       devInteractions: { enabled: false },
+      ...clientIdMetadataDocument,
       registration: {
         enabled: true,
       },
@@ -161,7 +175,6 @@ export async function registerOauthRoutes(
 
   app.get("/oauth/interaction/:uid", async (request, reply) => {
     const details = await runtime.provider.interactionDetails(request.raw, reply.raw);
-    const client = await runtime.provider.Client.find(String(details.params.client_id));
     const prompt = details.prompt.name;
     const action = `/oauth/interaction/${details.uid}/${prompt === "login" ? "login" : "confirm"}`;
     const body =
@@ -169,8 +182,7 @@ export async function registerOauthRoutes(
         ? `<label>Email<input name="email" type="email" autocomplete="username" required></label>
          <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
          <div class="auth-links"><a href="${escapeHtml(`${runtime.publicUrl}/forgot-password`)}">Forgot password?</a>${runtime.allowSignup ? `<a href="${escapeHtml(`${runtime.publicUrl}/register`)}">Create account</a>` : ""}</div>`
-        : `<p><strong>${escapeHtml(client?.clientName ?? String(details.params.client_id))}</strong> requests access to Rementum.</p>
-         <p class="scope">${escapeHtml(String(details.params.scope ?? ""))}</p>`;
+        : await consentBody(runtime, details.params);
     return html(reply).send(interactionPage(prompt, action, details.uid, body));
   });
 
@@ -290,6 +302,50 @@ export function loginFormFields(body: unknown): { email: string; password: strin
   return parsed.success ? parsed.data : { email: "", password: "" };
 }
 
+/**
+ * A client identified by a Client ID Metadata Document is whoever controls that URL, and the
+ * document's `client_name` is whatever they chose to write there. The consent screen therefore
+ * names the document's host as the requesting party and leaves the name out, as the MCP
+ * authorization spec asks. Every consent screen also says where the browser goes next: a loopback
+ * redirect can be claimed by any program on the machine, so the user must know they started it.
+ */
+async function consentBody(
+  runtime: OauthRuntime,
+  params: Record<string, unknown>,
+): Promise<string> {
+  const clientId = String(params.client_id);
+  const documentHost = clientMetadataDocumentHost(clientId);
+  const client = documentHost ? undefined : await runtime.provider.Client.find(clientId);
+  const target = redirectTarget(String(params.redirect_uri ?? ""));
+  const destination = target.loopback
+    ? `<strong>${escapeHtml(target.label)}</strong>, a program on this computer. Approve only if you started this connection yourself.`
+    : `<strong>${escapeHtml(target.label)}</strong>.`;
+  return `<p><strong>${escapeHtml(documentHost ?? client?.clientName ?? clientId)}</strong> requests access to Rementum.</p>
+         ${documentHost ? `<p class="detail">Identified by its client metadata document <code>${escapeHtml(clientId)}</code>.</p>` : ""}
+         <p class="detail">After you approve, your browser continues to ${destination}</p>
+         <p class="scope">${escapeHtml(String(params.scope ?? ""))}</p>`;
+}
+
+/**
+ * The provider resolves an https URL that no registered client owns by fetching it as a Client ID
+ * Metadata Document, so by the time an interaction exists such a client id has been fetched and
+ * validated. The host is the one part of the id its owner cannot pick freely.
+ */
+export function clientMetadataDocumentHost(clientId: string): string | null {
+  const url = URL.parse(clientId);
+  return url?.protocol === "https:" && url.host ? url.host : null;
+}
+
+export function redirectTarget(redirectUri: string): { label: string; loopback: boolean } {
+  const url = URL.parse(redirectUri);
+  if (!url) return { label: redirectUri, loopback: false };
+  if (url.protocol === "http:" || url.protocol === "https:") {
+    return { label: url.hostname, loopback: loopbackHosts.has(url.hostname) };
+  }
+  // A custom scheme names the installed app that registered it, so show the whole authority.
+  return { label: `${url.protocol}//${url.host}`, loopback: false };
+}
+
 export function workspaceIdFromResource(resource: string, publicUrl: string): string | null {
   const prefix = `${publicUrl.replace(/\/$/, "")}/mcp/workspace/`;
   if (!resource.startsWith(prefix)) return null;
@@ -330,7 +386,7 @@ function interactionPage(prompt: string, action: string, uid: string, body: stri
   h1{margin:0;color:var(--text);font-size:30px;font-weight:620;letter-spacing:-.04em;line-height:1.1}.intro{margin:10px 0 24px;color:var(--muted)}
   label{display:grid;gap:7px;margin:16px 0;color:var(--muted);font-size:12px;font-weight:600}input{min-height:43px;padding:0 11px;border:1px solid var(--line);border-radius:8px;outline:0;background:var(--field);color:var(--text);font:14px ui-sans-serif,system-ui,sans-serif;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}input:focus{border-color:var(--accent);background:var(--raised);box-shadow:0 0 0 3px var(--ring)}
   button{width:100%;min-height:43px;margin-top:8px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:var(--accent-ink);cursor:pointer;font:650 13px/1 ui-sans-serif,system-ui,sans-serif;transition:background .15s ease,border-color .15s ease,transform .15s ease}button:hover{border-color:var(--accent-hover);background:var(--accent-hover)}button:active{transform:scale(.985)}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.deny{margin-top:8px;border-color:transparent;background:transparent;color:var(--muted);box-shadow:none}.deny:hover{border-color:var(--line);background:var(--raised);color:var(--text)}
-  .scope{overflow-wrap:anywhere;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--field);color:var(--quiet);font:11px/1.7 ui-monospace,monospace}.error{padding:10px 12px;border:1px solid var(--danger-line);border-radius:8px;background:var(--danger-bg);color:var(--danger);font-size:12px}.auth-links{display:flex;justify-content:space-between;gap:16px;margin:2px 0 16px}.auth-links a{color:var(--muted);font-size:12px;text-decoration:none}.auth-links a:hover{color:var(--text)}.foot{margin:22px 0 0;color:var(--quiet);font:10px/1.5 ui-monospace,monospace;text-align:center}
+  .detail{margin:0 0 12px;color:var(--muted);font-size:12px}.detail strong{color:var(--text)}code{overflow-wrap:anywhere;color:var(--quiet);font:11px ui-monospace,monospace}.scope{overflow-wrap:anywhere;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--field);color:var(--quiet);font:11px/1.7 ui-monospace,monospace}.error{padding:10px 12px;border:1px solid var(--danger-line);border-radius:8px;background:var(--danger-bg);color:var(--danger);font-size:12px}.auth-links{display:flex;justify-content:space-between;gap:16px;margin:2px 0 16px}.auth-links a{color:var(--muted);font-size:12px;text-decoration:none}.auth-links a:hover{color:var(--text)}.foot{margin:22px 0 0;color:var(--quiet);font:10px/1.5 ui-monospace,monospace;text-align:center}
   @media(max-width:480px){body{align-items:start;padding:16px}main{margin-top:8vh;padding:21px}.brand{margin-bottom:28px}}
   @media(prefers-reduced-motion:reduce){*{transition-duration:.01ms}}
   </style></head><body><main><div class="brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path fill="currentColor" d="M6 4h11.2C23.8 4 28 7.8 28 13.4s-4.2 9.4-10.8 9.4H12V28H6V4Zm6 5.2v8.4h5.2c3.1 0 4.8-1.5 4.8-4.2s-1.7-4.2-4.8-4.2H12Z"/><path fill="#79aa98" d="M14.2 20.6h5.7L28 28h-6.5l-7.3-7.4Z"/></svg><span>Rementum</span></div><h1>${prompt === "login" ? "Sign in" : "Approve connection"}</h1>
