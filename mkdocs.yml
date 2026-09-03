@@ -42,6 +42,7 @@ nav:
       - Backups and upgrades: operations.md
       - Security: security.md
   - Connect agents: integrations.md
+  - Architecture and FAQ: faq.md
   - Brand: brand.md
   - Development: development.md
   - System flow: rementum-flow.html

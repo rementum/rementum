@@ -55,6 +55,13 @@ export const PAGES = [
       "Copy a workspace MCP URL and connect Claude Code, Codex, Cursor, OpenCode, Claude, ChatGPT, or any MCP client, plus the tools an agent calls first.",
   },
   {
+    file: "faq.md",
+    title: "Architecture and FAQ",
+    path: "/faq/",
+    blurb:
+      "Design decisions and trade-offs: Git vs Rementum, Postgres vs SQLite, token efficiency, AGPL-3.0 licensing, and local LLM compaction.",
+  },
+  {
     file: "brand.md",
     title: "Brand",
     path: "/brand/",
