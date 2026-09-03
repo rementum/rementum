@@ -79,8 +79,17 @@ longer need the team's workspaces.
 
 The web interface uses a 14-day opaque session cookie. PostgreSQL stores only its hash. Logout revokes
 the current session; a password reset revokes every web session and MCP OAuth grant for the account.
-OAuth bearer tokens are accepted only at the exact workspace MCP URL, never by the REST API, so the
-MCP consent screen appears only while you connect an agent.
+OAuth bearer tokens are accepted only at the exact workspace MCP URL, never by the REST API, so an
+MCP client cannot reuse the browser cookie as an API credential.
+
+The browser portion of MCP OAuth uses the current web session as its identity. A browser without one
+is redirected through the normal sign-in page. Before Rementum grants the scopes requested by the
+client, it verifies that the signed-in account belongs to the team that owns the workspace. There is
+no second OAuth login. A new client, workspace, or expanded scope set shows a consent screen with the
+client identity, callback destination, resource, scopes, and a deny action; an already approved grant
+can reconnect silently. Knowing a workspace URL alone grants nothing, and the issued bearer token
+remains audience-bound to that one workspace. Successful clients remain individually revocable on
+**Connections**.
 
 An MCP client identifies itself in one of two ways. A client that publishes an OAuth Client ID
 Metadata Document, as Claude Code does at `https://claude.ai/oauth/claude-code-client-metadata`, uses
@@ -89,11 +98,9 @@ its own `client_id`, and takes the allowed callback addresses from it, so no cli
 or stored. The fetch has a 2.5-second timeout and a 5 KB size limit, refuses hosts that resolve to
 loopback, private, or other special-use addresses, and the document is cached for as long as its
 cache headers allow. Anything the document says about itself, including its name, is chosen by
-whoever controls that URL, so the consent screen names the document's host as the requesting party
-and shows the document URL underneath. Every consent screen also names the host the browser is sent
-to after approval and warns when that is a loopback address, because any program on the computer
-could be listening there; approve such a request only if you started the connection yourself. Clients
-without a hosted document register themselves dynamically and appear under the name they registered.
+whoever controls that URL. Clients without a hosted document register themselves dynamically and
+appear under the name they registered. In both cases Rementum validates the redirect URI before it
+returns an authorization code.
 
 The instance owner, the account `create-owner` made, has a read-only panel at `/admin` that counts
 what the instance holds and lists every registered account (see

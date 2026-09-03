@@ -8,16 +8,18 @@ https://rementum.dev/mcp/workspace/WORKSPACE_UUID
 ```
 
 The URL names the workspace; it is not a credential. When an agent connects, Rementum opens OAuth in
-your browser, checks your team membership, and limits the connection to that workspace's brains and
-tasks. This approval belongs to the MCP client. Signing in to the Rementum website uses a separate
-web session and never shows an OAuth screen.
+your browser and uses the account already signed in to the Rementum web app. If there is no web
+session, it sends you through the regular sign-in page and resumes automatically. Rementum verifies
+that account's team membership and limits the connection to that workspace's brains and tasks. A
+new client, workspace, or scope set needs one explicit approval; reconnecting an already approved
+grant is silent.
 
 Claude Code and the Claude apps identify themselves with a client metadata document that Anthropic
 hosts on `claude.ai` (an OAuth Client ID Metadata Document). Rementum advertises support for it, reads
-the document when Claude connects, and registers nothing, so the consent screen names `claude.ai` as
-the requesting party and the connection appears under that document's URL on the **Connections**
-page. Clients without a hosted document, such as Cursor and Codex, still register themselves
-dynamically. See [the security guide](security.md#accounts) for what Rementum checks.
+the document when Claude connects, and registers nothing; the connection appears under that
+document's URL on the **Connections** page. Clients without a hosted document, such as Cursor and
+Codex, still register themselves dynamically. See [the security guide](security.md#accounts) for
+what Rementum checks.
 
 ## Two parts: the plugin and the MCP URL
 
