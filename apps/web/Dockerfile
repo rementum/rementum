@@ -7,6 +7,9 @@ RUN pnpm install --filter @rementum/web... --frozen-lockfile
 
 FROM deps AS build
 COPY apps/web apps/web
+# Only the Markdown pages feed /llms.txt. Leaving the assets out keeps the build layer stable
+# across asset edits and bounds what Turbopack traces into the standalone output.
+COPY docs/*.md docs/
 ARG NEXT_PUBLIC_REMENTUM_API_URL
 ENV NEXT_PUBLIC_REMENTUM_API_URL=$NEXT_PUBLIC_REMENTUM_API_URL
 # Node sizes its default heap from the machine's total memory, which the build shares

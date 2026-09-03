@@ -22,7 +22,6 @@
     "db:migrate": "pnpm --filter @rementum/db migrate",
     "admin": "pnpm --filter @rementum/api admin",
     "auth:jwks": "pnpm --filter @rementum/api generate-jwks",
-    "llms:generate": "node scripts/generate-llms.mjs",
     "bench": "pnpm build && tsx bench/bench.ts"
   },
   "devDependencies": {

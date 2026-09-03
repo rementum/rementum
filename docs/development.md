@@ -77,14 +77,8 @@ mkdocs serve
 
 Run the release check with `mkdocs build --strict`.
 
-### Regenerate llms.txt
+### llms.txt
 
-`/llms.txt` and `/llms-full.txt` are built from these Markdown pages. After you edit `docs/`,
-regenerate the bundled copies the web app serves:
-
-```bash
-pnpm llms:generate
-```
-
-The script reads `docs/` and rewrites `apps/web/lib/llms-content.ts`. Commit that file with your doc
-change so the served files stay in sync.
+`/llms.txt` and `/llms-full.txt` are generated from these Markdown pages by the web app: re-read on
+every request under `next dev`, rendered once during `next build`. A container stack serves the copy
+captured when the `web` image was built, so rebuild that image after editing `docs/`.
