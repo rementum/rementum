@@ -9,6 +9,7 @@ describe("UsageAnalyticsView", () => {
     const html = renderToStaticMarkup(
       createElement(UsageAnalyticsView, {
         analytics: analytics(),
+        day: null,
         range: "30d",
         rangePath: "/activity",
       }),
@@ -25,6 +26,20 @@ describe("UsageAnalyticsView", () => {
     expect(html).toContain("Recent tool calls");
     expect(html).toContain("&lt;script&gt;client&lt;/script&gt;");
     expect(html).not.toContain("<script>client</script>");
+  });
+
+  it("names and outlines a selected UTC day", () => {
+    const html = renderToStaticMarkup(
+      createElement(UsageAnalyticsView, {
+        analytics: analytics(),
+        day: "2026-09-01",
+        range: "30d",
+        rangePath: "/activity",
+      }),
+    );
+
+    expect(html).toContain("Successful MCP tool calls · Sep 1, 2026 · UTC");
+    expect(html).toContain("ring-2 ring-ink");
   });
 });
 

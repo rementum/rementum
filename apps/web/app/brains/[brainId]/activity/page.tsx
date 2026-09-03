@@ -3,7 +3,11 @@ import { Chip } from "../../../../components/ui/chip";
 import { EmptyState } from "../../../../components/ui/empty-state";
 import { PageHeader } from "../../../../components/ui/page-header";
 import { UsageAnalyticsView } from "../../../../components/usage-analytics";
-import { parseAnalyticsRange, type UsageAnalytics } from "../../../../lib/analytics";
+import {
+  parseAnalyticsDay,
+  parseAnalyticsRange,
+  type UsageAnalytics,
+} from "../../../../lib/analytics";
 import { api } from "../../../../lib/api";
 import { formatDate, formatDateTime, relativeTime } from "../../../../lib/format";
 
@@ -22,16 +26,18 @@ export default async function ActivityPage({
   searchParams,
 }: {
   params: Promise<{ brainId: string }>;
-  searchParams: Promise<{ range?: string | string[] }>;
+  searchParams: Promise<{ range?: string | string[]; day?: string | string[] }>;
 }) {
   const { brainId } = await params;
-  const range = parseAnalyticsRange((await searchParams).range);
+  const query = await searchParams;
+  const range = parseAnalyticsRange(query.range);
+  const selectedDay = parseAnalyticsDay(query.day);
   const brain = await api<{ brain: { name: string; workspaceId: string } }>(
     `/api/v1/brains/${brainId}`,
   );
   const [analytics, activity] = await Promise.all([
     api<UsageAnalytics>(
-      `/api/v1/workspaces/${brain.brain.workspaceId}/analytics?range=${range}&brainId=${brainId}`,
+      `/api/v1/workspaces/${brain.brain.workspaceId}/analytics?range=${range}&brainId=${brainId}${selectedDay ? `&day=${selectedDay}` : ""}`,
     ),
     api<Activity[]>(`/api/v1/brains/${brainId}/activity?limit=200`),
   ]);
@@ -56,6 +62,7 @@ export default async function ActivityPage({
         <UsageAnalyticsView
           analytics={analytics}
           brainScoped
+          day={selectedDay}
           range={range}
           rangePath={`/brains/${brainId}/activity`}
           showLeaderboards={false}

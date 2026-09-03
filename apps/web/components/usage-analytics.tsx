@@ -37,6 +37,7 @@ export function UsageAnalyticsView({
   analytics,
   range,
   rangePath,
+  day,
   brainScoped = false,
   showLeaderboards = true,
   showRecentCalls = true,
@@ -44,13 +45,17 @@ export function UsageAnalyticsView({
   analytics: UsageAnalytics;
   range: AnalyticsRange;
   rangePath: string;
+  day: string | null;
   brainScoped?: boolean;
   showLeaderboards?: boolean;
   showRecentCalls?: boolean;
 }) {
-  const activeDays = analytics.daily
-    .slice(-RANGE_DAYS[range])
-    .filter((day) => day.tracked && day.calls > 0).length;
+  const activeDays = day
+    ? analytics.daily.some((entry) => entry.date === day && entry.tracked && entry.calls > 0)
+      ? 1
+      : 0
+    : analytics.daily.slice(-RANGE_DAYS[range]).filter((entry) => entry.tracked && entry.calls > 0)
+        .length;
   const metrics = [
     { label: "MCP calls", value: analytics.totals.calls },
     { label: "Active clients", value: analytics.totals.activeClients },
@@ -64,7 +69,8 @@ export function UsageAnalyticsView({
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <p className="font-mono text-2xs text-ink-3 uppercase tracking-[0.1em]">
-          Successful MCP tool calls · UTC
+          Successful MCP tool calls
+          {day ? ` · ${utcDateFormat.format(new Date(`${day}T00:00:00.000Z`))}` : null} · UTC
         </p>
         <RangePicker path={rangePath} selected={range} />
       </div>
@@ -88,7 +94,12 @@ export function UsageAnalyticsView({
         </dl>
       </Card>
 
-      <ContributionHeatmap analytics={analytics} />
+      <ContributionHeatmap
+        analytics={analytics}
+        basePath={rangePath}
+        range={range}
+        selectedDay={day}
+      />
 
       {showLeaderboards ? <Leaderboards analytics={analytics} /> : null}
       {showRecentCalls ? <RecentCalls calls={analytics.recentCalls} /> : null}
@@ -118,7 +129,17 @@ function RangePicker({ path, selected }: { path: string; selected: AnalyticsRang
   );
 }
 
-function ContributionHeatmap({ analytics }: { analytics: UsageAnalytics }) {
+function ContributionHeatmap({
+  analytics,
+  basePath,
+  range,
+  selectedDay,
+}: {
+  analytics: UsageAnalytics;
+  basePath: string;
+  range: AnalyticsRange;
+  selectedDay: string | null;
+}) {
   const heatmap = buildHeatmap(analytics.daily);
   const columns = Math.max(1, Math.ceil(heatmap.cells.length / 7));
   const columnTemplate = `repeat(${columns}, minmax(10px, 1fr))`;
@@ -160,7 +181,13 @@ function ContributionHeatmap({ analytics }: { analytics: UsageAnalytics }) {
                   </span>
                 ))}
               </div>
-              <HeatmapGrid cells={heatmap.cells} columnTemplate={columnTemplate} />
+              <HeatmapGrid
+                basePath={basePath}
+                cells={heatmap.cells}
+                columnTemplate={columnTemplate}
+                range={range}
+                selectedDay={selectedDay}
+              />
             </div>
           </div>
         </div>
@@ -174,13 +201,7 @@ function ContributionHeatmap({ analytics }: { analytics: UsageAnalytics }) {
               <span className={`size-3 rounded-[2px] ${level}`} key={level} />
             ))}
             <span>More</span>
-            <span
-              className="ml-2 size-3 rounded-[2px]"
-              style={{
-                backgroundImage:
-                  "repeating-linear-gradient(135deg, transparent, transparent 2px, var(--line) 2px, var(--line) 3px)",
-              }}
-            />
+            <span className="ml-2 size-3 rounded-[2px] ring-1 ring-line ring-inset" />
             <span>Not tracked</span>
           </div>
         </div>
@@ -303,7 +324,7 @@ function RankedCard({
           })}
         </ol>
       ) : (
-        <p className="px-4 py-8 text-center text-ink-3 text-sm">No usage in this range.</p>
+        <p className="px-4 py-8 text-center text-ink-3 text-sm">No usage in this window.</p>
       )}
     </Card>
   );
@@ -348,5 +369,10 @@ function RecentCalls({ calls }: { calls: UsageAnalytics["recentCalls"] }) {
 const utcDateTimeFormat = new Intl.DateTimeFormat("en", {
   dateStyle: "medium",
   timeStyle: "short",
+  timeZone: "UTC",
+});
+
+const utcDateFormat = new Intl.DateTimeFormat("en", {
+  dateStyle: "medium",
   timeZone: "UTC",
 });

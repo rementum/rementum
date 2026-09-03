@@ -179,6 +179,34 @@ integration("MCP usage analytics", () => {
       );
       expect(brainAnalytics.topMembers).toMatchObject([{ userId: owner.user.id, actions: 6 }]);
 
+      const today = new Date().toISOString().slice(0, 10);
+      const todayAnalytics = await service.getMcpAnalytics(
+        owner.workspaceId,
+        "30d",
+        ownerActor,
+        undefined,
+        today,
+      );
+      expect(todayAnalytics.totals.calls).toBe(3);
+      expect(todayAnalytics.topClients).toMatchObject([{ name: "Codex", calls: 3 }]);
+      expect(todayAnalytics.topMembers).toMatchObject([{ actions: 6 }]);
+      expect(todayAnalytics.recentCalls).toHaveLength(3);
+      expect(todayAnalytics.daily).toHaveLength(365);
+
+      const pastAnalytics = await service.getMcpAnalytics(
+        owner.workspaceId,
+        "30d",
+        ownerActor,
+        undefined,
+        "2020-01-01",
+      );
+      expect(pastAnalytics.totals.calls).toBe(0);
+      expect(pastAnalytics.topClients).toEqual([]);
+      expect(pastAnalytics.topTools).toEqual([]);
+      expect(pastAnalytics.topMembers[0]?.actions).toBe(0);
+      expect(pastAnalytics.recentCalls).toEqual([]);
+      expect(pastAnalytics.daily).toHaveLength(365);
+
       const member = await auth.registerAccount(
         `analytics-member-${suffix}@example.test`,
         "Analytics member",

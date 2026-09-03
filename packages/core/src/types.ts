@@ -487,6 +487,7 @@ export interface DataStore {
     range: McpAnalyticsRange,
     actor: Actor,
     brainId?: string,
+    day?: string,
   ): Promise<McpAnalytics>;
   /** Instance-wide; the store refuses an actor that is not a system owner. */
   getInstanceOverview(actor: Actor): Promise<InstanceOverview>;

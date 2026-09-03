@@ -405,6 +405,7 @@ export type ToolName = (typeof toolNames)[number];
 
 export const mcpAnalyticsRangeSchema = z.enum(["7d", "30d", "90d", "365d"]);
 export type McpAnalyticsRange = z.infer<typeof mcpAnalyticsRangeSchema>;
+export const mcpAnalyticsDaySchema = z.iso.date();
 
 export const mcpAnalyticsSchema = z.object({
   scope: z.object({

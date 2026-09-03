@@ -2129,6 +2129,7 @@ export class PostgresStore implements DataStore {
     range: McpAnalyticsRange,
     actor: Actor,
     brainId?: string,
+    day?: string,
   ): Promise<McpAnalytics> {
     const days = MCP_ANALYTICS_DAYS[range];
     return this.withActor(actor, async (tx) => {
@@ -2144,6 +2145,13 @@ export class PostgresStore implements DataStore {
             ) AT TIME ZONE 'UTC' AS range_start,
             today_date - 364 AS heatmap_start_date
           FROM clock
+        ), selection AS (
+          -- A selected day narrows every ranked section to that one UTC day. The heatmap keeps
+          -- its own fixed 365-day window below, so it still renders a year to pick the next from.
+          SELECT
+            coalesce((${day ?? null}::date)::timestamp AT TIME ZONE 'UTC', bounds.range_start) AS window_start,
+            coalesce((${day ?? null}::date + 1)::timestamp AT TIME ZONE 'UTC', bounds.tomorrow_start) AS window_end
+          FROM bounds
         ), scope AS (
           SELECT greatest(
             w.mcp_usage_started_at,
@@ -2154,11 +2162,11 @@ export class PostgresStore implements DataStore {
             AND b.workspace_id = w.id AND b.deleted_at IS NULL
           WHERE w.id = ${workspaceId}
         ), range_calls AS (
-          SELECT c.* FROM mcp_tool_calls c CROSS JOIN bounds
+          SELECT c.* FROM mcp_tool_calls c CROSS JOIN selection
           WHERE c.workspace_id = ${workspaceId}
             AND (${brainId ?? null}::uuid IS NULL OR c.brain_id = ${brainId ?? null})
-            AND c.created_at >= bounds.range_start
-            AND c.created_at < bounds.tomorrow_start
+            AND c.created_at >= selection.window_start
+            AND c.created_at < selection.window_end
         ), heatmap_counts AS (
           SELECT (c.created_at AT TIME ZONE 'UTC')::date AS day, count(*)::int AS calls
           FROM mcp_tool_calls c CROSS JOIN bounds
@@ -2306,13 +2314,13 @@ export class PostgresStore implements DataStore {
                 SELECT count(*)::int AS actions,
                   count(*) FILTER (WHERE e.action = 'write.promoted')::int AS writes,
                   max(e.created_at) AS last_active_at
-                FROM audit_events e CROSS JOIN bounds
+                FROM audit_events e CROSS JOIN selection
                 WHERE e.actor_id = tm.user_id
                   AND e.workspace_id = w.id
                   AND (${brainId ?? null}::uuid IS NULL OR e.brain_id = ${brainId ?? null})
                   AND e.action <> 'task.heartbeat'
-                  AND e.created_at >= bounds.range_start
-                  AND e.created_at < bounds.tomorrow_start
+                  AND e.created_at >= selection.window_start
+                  AND e.created_at < selection.window_end
               ) activity ON true
               WHERE w.id = ${workspaceId}
               ORDER BY actions DESC, last_active_at DESC NULLS LAST, lower(name), tm.user_id
@@ -2334,10 +2342,14 @@ export class PostgresStore implements DataStore {
               SELECT c.id, c.tool_name, c.client_name, c.brain_id, b.name AS brain_name,
                 c.created_at
               FROM mcp_tool_calls c
+              CROSS JOIN selection
               LEFT JOIN brains b ON b.id = c.brain_id
                 AND b.workspace_id = ${workspaceId} AND b.deleted_at IS NULL
               WHERE c.workspace_id = ${workspaceId}
                 AND (${brainId ?? null}::uuid IS NULL OR c.brain_id = ${brainId ?? null})
+                -- Ranges have never limited recent calls, so only a selected day constrains them.
+                AND (${day ?? null}::date IS NULL
+                  OR (c.created_at >= selection.window_start AND c.created_at < selection.window_end))
               ORDER BY c.created_at DESC, c.id DESC
               LIMIT 50
             ) recent
