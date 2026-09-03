@@ -55,14 +55,16 @@ send data by itself. Compaction must also be enabled on a workspace. The derived
 searchable metadata and is not covered by article-body encryption.
 
 When both settings are on, promotion keeps the submitted version encrypted while a background job is
-queued. The worker sends its title and body to the configured OpenAI-compatible provider. A success
-becomes the article's next encrypted version; the submitted version remains in history and the
+queued. The worker sends its title and body to the configured OpenAI-compatible provider. You can point
+`REMENTUM_LLM_BASE_URL` at a local or on-premises engine (such as Ollama, vLLM, or LocalAI) or a cloud
+provider; any endpoint supporting Chat Completions with strict JSON Schema is supported. If using a cloud
+provider, review their retention, training, regional processing, and access policies before enabling it.
+A success becomes the article's next encrypted version; the submitted version remains in history and the
 provider's output never replaces the only copy. After three failures the submitted body stays
 canonical and the article shows a failed status; the worker's maintenance pass keeps requeueing
 failed articles, so failed content is sent to the provider again until compaction succeeds or the
 workspace turns it off. Turning workspace compaction off cancels queued jobs but cannot recall a
-request already in flight. Review the provider's retention, training, regional processing, and access
-policies before you enable it.
+request already in flight.
 
 An agent connected over MCP can propose a brain invitation but never receives a link: the proposal
 waits on the brain page until an owner approves it in the browser, which is also where the link is
