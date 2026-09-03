@@ -1,6 +1,6 @@
 "use client";
 
-import { type PointerEvent, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { type HeatmapCell, heatLevels } from "../lib/analytics";
 
 const utcDateFormat = new Intl.DateTimeFormat("en", {
@@ -25,8 +25,51 @@ export function HeatmapGrid({
     y: number;
     below: boolean;
   } | null>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
 
-  function showTooltip(event: PointerEvent<HTMLElement>) {
+  useEffect(() => {
+    if (!tooltip) return;
+
+    function hide() {
+      setTooltip(null);
+    }
+
+    function onPointerDown(event: PointerEvent) {
+      if ((event.target as HTMLElement | null)?.closest("[data-label]")) return;
+      hide();
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") hide();
+    }
+
+    // Dismiss on scroll so the tooltip doesn't stay fixed in the viewport while the grid moves.
+    window.addEventListener("scroll", hide, { capture: true, passive: true });
+    window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    window.addEventListener("keydown", onKeyDown);
+
+    // Keep tooltip within viewport bounds if its measured width overflows near edge cells.
+    if (tooltipRef.current) {
+      const rect = tooltipRef.current.getBoundingClientRect();
+      const padding = 8;
+      if (rect.left < padding) {
+        tooltipRef.current.style.left = `${padding + rect.width / 2}px`;
+      } else if (rect.right > window.innerWidth - padding) {
+        tooltipRef.current.style.left = `${Math.max(
+          padding + rect.width / 2,
+          window.innerWidth - padding - rect.width / 2,
+        )}px`;
+      }
+    }
+
+    return () => {
+      window.removeEventListener("scroll", hide, { capture: true });
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [tooltip]);
+
+  function showTooltip(event: ReactPointerEvent<HTMLElement>) {
     const cell = (event.target as HTMLElement).closest<HTMLElement>("[data-label]");
     if (!cell) {
       // The container itself is the gaps between squares, and holding the tooltip open
@@ -39,8 +82,8 @@ export function HeatmapGrid({
     if (!label) return;
     const rect = cell.getBoundingClientRect();
     const centre = rect.left + rect.width / 2;
-    // Keep the roughly 220px-wide tooltip inside the viewport near edge cells.
-    const x = Math.min(Math.max(centre, 110), window.innerWidth - 110);
+    // Initial center position clamped to keep ~260px tooltip inside the viewport near edge cells.
+    const x = Math.min(Math.max(centre, 130), Math.max(130, window.innerWidth - 130));
     // Above the square by default, below it once the grid is scrolled far enough up that
     // the tooltip's own height would land off the top of the viewport.
     const below = rect.top < 40;
@@ -88,9 +131,10 @@ export function HeatmapGrid({
       {tooltip ? (
         <span
           aria-hidden="true"
-          className={`pointer-events-none fixed z-50 -translate-x-1/2 whitespace-nowrap rounded-control border border-line bg-surface px-2 py-1 text-2xs text-ink shadow-overlay ${
+          className={`pointer-events-none fixed z-50 max-w-[calc(100vw-16px)] -translate-x-1/2 truncate whitespace-nowrap rounded-control border border-line bg-surface px-2 py-1 text-2xs text-ink shadow-overlay ${
             tooltip.below ? "mt-1" : "-mt-1 -translate-y-full"
           }`}
+          ref={tooltipRef}
           style={{ left: tooltip.x, top: tooltip.y }}
         >
           {tooltip.label}
