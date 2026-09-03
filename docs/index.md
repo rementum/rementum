@@ -25,6 +25,7 @@ cd rementum
 ```
 
 Open the HTTPS URL the installer prints. Caddy gets and renews the TLS certificate for you.
+To try Rementum locally on your laptop without a domain, see [local evaluation](installation.md#try-locally-no-domain-required).
 
 [Read the install guide](installation.md){ .md-button .md-button--primary }
 [Review the security boundary](security.md){ .md-button }
