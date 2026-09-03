@@ -14,6 +14,7 @@ import {
   type SearchBrainsInput,
   type StageWriteInput,
   type Task,
+  type UpdateTeamInput,
   type UpdateWorkspaceInput,
 } from "@rementum/contracts";
 import {
@@ -90,6 +91,21 @@ export class RementumService {
       ...team,
       createdAt: team.createdAt.toISOString(),
     }));
+  }
+
+  async updateTeam(teamId: string, input: UpdateTeamInput, actor: Actor) {
+    requireTeamRole(actor, teamId, ["owner", "admin"]);
+    const patch: { name?: string; slug?: string } = {};
+    if (input.name !== undefined) {
+      const base = slugify(input.name) || "team";
+      patch.name = input.name.trim();
+      patch.slug = `${base.slice(0, 105)}-${randomBytes(6).toString("hex")}`;
+    }
+    const team = await this.store.updateTeam(teamId, patch, actor);
+    await this.store.audit(actor, "team.updated", `team:${team.id}`, {
+      name: team.name,
+    });
+    return { ...team, createdAt: team.createdAt.toISOString() };
   }
 
   async createWorkspace(teamId: string, input: CreateWorkspaceInput, actor: Actor) {

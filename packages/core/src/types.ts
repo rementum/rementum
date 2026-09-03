@@ -251,6 +251,11 @@ export interface DataStore {
     workspaceId: string,
   ): Promise<{ team: TeamRecord; workspace: WorkspaceRecord }>;
   listTeams(actor: Actor): Promise<TeamRecord[]>;
+  updateTeam(
+    teamId: string,
+    patch: { name?: string; slug?: string },
+    actor: Actor,
+  ): Promise<TeamRecord>;
   createWorkspace(
     teamId: string,
     name: string,

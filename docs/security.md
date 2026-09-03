@@ -101,8 +101,8 @@ anything:
 - **Brains.** Only the brain owner deletes a brain, and deletion needs the exact name. It also
   destroys the only copy of the brain's wrapped data key, so its encrypted bodies become
   unrecoverable even from backups taken afterward.
-- **Teams.** Only the team owner deletes a team, a user's last team is protected, and deletion needs
-  the exact name.
+- **Teams.** Owners and admins create or rename them; only the team owner deletes a team, a user's
+  last team is protected, and deletion needs the exact name.
 
 ## Backups
 

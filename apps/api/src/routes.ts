@@ -14,6 +14,7 @@ import {
   searchArticlesSchema,
   stageWriteSchema,
   taskStatusSchema,
+  updateTeamSchema,
   updateWorkspaceSchema,
 } from "@rementum/contracts";
 import {
@@ -294,6 +295,14 @@ export async function registerApiRoutes(
         ),
       ),
   );
+  app.patch("/api/v1/teams/:teamId", async (request) => {
+    const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
+    return service.updateTeam(
+      teamId,
+      updateTeamSchema.parse(request.body),
+      await authorize(request, "team:write"),
+    );
+  });
   app.delete("/api/v1/teams/:teamId", async (request, reply) => {
     const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
     const { confirmation } = z

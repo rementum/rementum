@@ -226,6 +226,12 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     deleteWorkspace: vi.fn(async () => ({ id: workspaceId, teamId, name: "Workspace" })),
     deleteBrain: vi.fn(async () => brainRecord()),
     deleteTeam: vi.fn(async () => ({ id: teamId, slug: "team", name: "Team" })),
+    updateTeam: vi.fn(async (_id: string, patch: Record<string, unknown>) => ({
+      id: teamId,
+      slug: (patch.slug as string) ?? "team",
+      name: (patch.name as string) ?? "Team",
+      createdAt: new Date(),
+    })),
     getStagedWriteByIdempotencyKey: vi.fn(async () => null),
     findPotentialConflicts: vi.fn(async () => []),
     createStagedWrite: vi.fn(async () => stagedWrite()),
@@ -365,6 +371,28 @@ describe("workspace and team role boundaries", () => {
     await expect(service.deleteTeam(teamId, "Team", admin)).rejects.toThrow(ForbiddenError);
     expect(store.deleteTeam).not.toHaveBeenCalled();
     await expect(service.deleteTeam(teamId, "Team", actor("owner"))).resolves.toBeUndefined();
+  });
+
+  it("only lets a team owner or admin rename the team", async () => {
+    const { service, store } = setup();
+    const member = actor("owner", { teamRoles: new Map([[teamId, "member"]]) });
+    await expect(service.updateTeam(teamId, { name: "Renamed Team" }, member)).rejects.toThrow(
+      ForbiddenError,
+    );
+    expect(store.updateTeam).not.toHaveBeenCalled();
+
+    const admin = actor("owner", { teamRoles: new Map([[teamId, "admin"]]) });
+    const adminResult = await service.updateTeam(teamId, { name: "Renamed Team" }, admin);
+    expect(adminResult.name).toBe("Renamed Team");
+    expect(adminResult.slug).toMatch(/^renamed-team-/);
+    expect(store.updateTeam).toHaveBeenCalledWith(
+      teamId,
+      expect.objectContaining({ name: "Renamed Team" }),
+      admin,
+    );
+
+    const ownerResult = await service.updateTeam(teamId, { name: "New Team Name" }, actor("owner"));
+    expect(ownerResult.name).toBe("New Team Name");
   });
 
   it("only lets a team owner or admin create a workspace", async () => {

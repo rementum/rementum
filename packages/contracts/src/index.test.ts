@@ -11,6 +11,7 @@ import {
   routingIndexSortSchema,
   stageWriteSchema,
   toolNames,
+  updateTeamSchema,
   updateWorkspaceSchema,
 } from "./index.js";
 
@@ -26,6 +27,23 @@ describe("stageWriteSchema", () => {
       changeSummary: "Create architecture memory",
     });
     expect(parsed).not.toHaveProperty("summary");
+  });
+});
+
+describe("updateTeamSchema", () => {
+  it("accepts a valid team name and trims whitespace", () => {
+    expect(updateTeamSchema.parse({ name: "  Engineering Core  " })).toEqual({
+      name: "Engineering Core",
+    });
+  });
+
+  it("rejects an empty or whitespace-only name", () => {
+    expect(() => updateTeamSchema.parse({ name: "" })).toThrow();
+    expect(() => updateTeamSchema.parse({ name: "   " })).toThrow();
+  });
+
+  it("rejects a name exceeding 160 characters", () => {
+    expect(() => updateTeamSchema.parse({ name: "a".repeat(161) })).toThrow();
   });
 });
 

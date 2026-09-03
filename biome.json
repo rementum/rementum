@@ -10,7 +10,8 @@
       "!!**/dist",
       "!!**/coverage",
       "!!**/pnpm-lock.yaml",
-      "!!**/site"
+      "!!**/site",
+      "!!**/.claude"
     ]
   },
   "formatter": {
