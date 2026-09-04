@@ -7,9 +7,7 @@ import { Button } from "./pui";
 import { ThemeToggle } from "./ui/theme-toggle";
 
 const LINKS = [
-  { href: "/#workflow", label: "How it works" },
-  { href: "/#features", label: "Features" },
-  { href: "/#architecture", label: "Architecture" },
+  { href: "/#how-it-works", label: "How it works" },
   { href: "/#pricing", label: "Pricing" },
   { href: "/#connect", label: "Connect" },
   { href: DOCS_URL, label: "Docs" },

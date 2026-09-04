@@ -18,9 +18,7 @@ export function LandingFooter({
         {
           heading: "Product",
           links: [
-            { label: "How it works", href: "#workflow" },
-            { label: "Features", href: "#features" },
-            { label: "Architecture", href: "#architecture" },
+            { label: "How it works", href: "#how-it-works" },
             { label: "Pricing", href: "#pricing" },
             { label: "Connect an agent", href: "#connect" },
             { label: "Documentation", href: DOCS_URL },
