@@ -25,9 +25,9 @@ replaces the previous version, so two agents never overwrite each other's work.
 
 <div align="center">
 
-![Multi-Agent Shared Memory Demo](docs/assets/rementum-demo.gif)
+![How Rementum works, in 45 seconds](docs/assets/rementum-promo.gif)
 
-*Two agents (Cursor & Claude Code) collaborating concurrently on https://rementum.dev: Cursor publishes an architectural decision to the shared brain, and Claude Code instantly discovers and adopts it.*
+*Illustrated overview: agents read a compact index, stage writes, and share one versioned brain. Watch the full-resolution video on [rementum.dev](https://rementum.dev/#how-it-works).*
 
 </div>
 
