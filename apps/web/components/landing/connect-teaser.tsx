@@ -31,8 +31,8 @@ export function ConnectTeaser({ githubUrl }: { githubUrl: string }) {
       <div className="grid items-center gap-12 lg:grid-cols-2">
         <div>
           <SectionHead kicker="Plugin + MCP" title="Give your agents a memory.">
-            You host Rementum on your own server and connect over MCP. The plugin adds its
-            skills and tools to your coding agent, and you approve each grant in your browser.
+            You host Rementum on your own server and connect over MCP. The plugin adds its skills
+            and tools to your coding agent, and you approve each grant in your browser.
           </SectionHead>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             {/* Full-page link: the force-static landing caches the signed-out root layout, so a
