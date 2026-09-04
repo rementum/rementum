@@ -176,7 +176,8 @@ prompt setup.
 A typical read path is:
 
 1. `search_brains` finds the brain that matches the current project by name, slug, or description.
-   `list_brains` pages through accessible brains when search is not enough.
+   `list_brains` pages through accessible brains when search is not enough. Resolve the brain once
+   per thread and reuse its id in later turns instead of searching again.
 2. `get_brain` returns 25 routing entries by default. Pass its opaque `nextCursor` back unchanged
    while `hasMore` is true, when the rest of the index matters.
 3. `load_context` runs the metadata, full-text, and embedding search and returns whole relevant
