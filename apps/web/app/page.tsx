@@ -6,12 +6,12 @@ import { CTASection } from "../components/landing/cta";
 import { FeatureGrid } from "../components/landing/feature-grid";
 import { LandingFooter } from "../components/landing/footer";
 import { Hero } from "../components/landing/hero";
+import { HowItWorks } from "../components/landing/how-it-works";
 import { MotionProvider } from "../components/landing/motion-provider";
 import { Pricing } from "../components/landing/pricing";
 import { ScrollProgress } from "../components/landing/scroll-progress";
 import { SectionHead } from "../components/landing/section-head";
 import { Stepper } from "../components/landing/stepper";
-import { VideoShowcase } from "../components/landing/video-showcase";
 import { GradientText } from "../components/pui";
 import { publicAuthConfig } from "../lib/api";
 import { GITHUB_URL, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
@@ -75,7 +75,7 @@ export default async function Home() {
       <MotionProvider>
         <ScrollProgress />
         <Hero githubUrl={GITHUB_URL} />
-        <VideoShowcase />
+        <HowItWorks />
         <CapabilityMarquee />
         <WorkflowLanding />
         <FeatureGrid />

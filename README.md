@@ -27,7 +27,7 @@ replaces the previous version, so two agents never overwrite each other's work.
 
 ![How Rementum works, in 45 seconds](docs/assets/rementum-promo.gif)
 
-*Illustrated overview: agents read a compact index, stage writes, and share one versioned brain. Watch the full-resolution video on [rementum.dev](https://rementum.dev/#how-it-works).*
+*Illustrated overview: agents read a compact index, stage writes, and share one versioned brain. See it live, drawn in your browser, on [rementum.dev](https://rementum.dev/#how-it-works).*
 
 </div>
 
