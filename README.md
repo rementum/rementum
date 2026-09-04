@@ -46,6 +46,14 @@ An agent never loads the whole brain. It reads a compact index, opens the one ar
 proposes changes through a staged protocol that checks for conflicts before anything replaces the
 current version.
 
+<div align="center">
+
+![How Rementum works, in 52 seconds](docs/assets/rementum-promo.gif)
+
+*Illustrated overview: agents read a compact index, stage writes, and share one versioned brain. Watch the full-resolution video on [rementum.dev](https://rementum.dev/#how-it-works).*
+
+</div>
+
 ```mermaid
 flowchart LR
     IDX[Agent reads the routing index] --> ART[Opens the one article it needs]
