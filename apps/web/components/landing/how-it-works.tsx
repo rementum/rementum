@@ -10,22 +10,22 @@ const STEPS = [
   {
     num: "01",
     title: "Compact Routing Index",
-    desc: "Agents never load the entire memory. They query a fast, token-efficient index to find only the exact article needed.",
+    desc: "You query a compact index of titles, summaries, keywords, and freshness, then open the one article you need. You leave the rest of the brain alone.",
   },
   {
     num: "02",
     title: "Staged Write Isolation",
-    desc: "Proposed changes are staged in an isolated buffer against the base version, completely separate from live canon.",
+    desc: "You stage each proposal as written in a buffer tied to its base version, apart from live canon.",
   },
   {
     num: "03",
     title: "Conflict Resolution Shield",
-    desc: "Rementum checks if the article changed while the agent was working. Conflicts are parked safely instead of overwriting.",
+    desc: "Rementum checks the article for changes since you staged your write. You review each conflict and decide what lands.",
   },
   {
     num: "04",
     title: "Immutable Versioned Canon",
-    desc: "On promotion, changes are encrypted with AES-256-GCM, committed as an audited version, and shared instantly.",
+    desc: "You promote. Rementum encrypts the change with AES-256-GCM and commits an audited, immutable version. Your agents read the new version on their next call.",
   },
 ];
 
@@ -101,8 +101,8 @@ export function HowItWorks() {
           </>
         }
       >
-        How Cursor, Claude Code, and Codex stay perfectly synchronized without overwriting each
-        other<span className="hidden md:inline">, in 45 seconds</span>.
+        How your agents stay synchronized without overwriting each other
+        <span className="hidden md:inline">, in 45 seconds</span>.
       </SectionHead>
 
       <Reveal delay={0.1}>
