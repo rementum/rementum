@@ -483,11 +483,11 @@ integration("worker identity", () => {
         { writeId: write.id, decision: "promote", decisionSummary: "ok" },
         teamOwner,
       );
+      // Scoped to this brain: the suites share one database and run in parallel, so
+      // an unscoped claim could lease a job another file had just queued.
       let claim = null;
       for (let attempt = 0; attempt < 25 && !claim; attempt += 1) {
-        const candidate = await store.claimCompaction(`worker-${suffix}`, 120);
-        if (!candidate) break;
-        if (candidate.brainId === brain.brain.id) claim = candidate;
+        claim = await store.claimCompaction(`worker-${suffix}`, 120, brain.brain.id);
       }
       if (!claim) throw new Error("Expected to claim the queued compaction");
       expect(claim.ownerId).toBe(owner.user.id);

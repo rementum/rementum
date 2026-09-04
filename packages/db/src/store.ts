@@ -94,10 +94,19 @@ export class PostgresStore implements DataStore {
   async claimCompaction(
     workerId: string,
     leaseSeconds: number,
+    brainId?: string,
   ): Promise<ClaimedCompactionJob | null> {
-    const [row] = await this.client.sql<any[]>`
-      SELECT * FROM owl_worker_claim_compaction(${workerId}, ${leaseSeconds})
-    `;
+    // The worker drains the whole instance; callers that share the database with
+    // other writers pass their own brain so parallel suites stop leasing each
+    // other's queued jobs.
+    const [row] =
+      brainId === undefined
+        ? await this.client.sql<any[]>`
+          SELECT * FROM owl_worker_claim_compaction(${workerId}, ${leaseSeconds})
+        `
+        : await this.client.sql<any[]>`
+          SELECT * FROM owl_worker_claim_compaction(${workerId}, ${leaseSeconds}, ${brainId}::uuid)
+        `;
     if (!row) return null;
     return {
       jobId: row.job_id,

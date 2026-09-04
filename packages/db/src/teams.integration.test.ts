@@ -144,7 +144,13 @@ integration("account and team authorization", () => {
       await expect(
         llmService.queueWorkspaceCompactions(owner.workspaceId, ownerActor),
       ).resolves.toEqual({ queued: 1 });
-      const existingClaim = await store.claimCompaction(`existing-worker-${suffix}`, 120);
+      // Scoped to this brain: the suites share one database and run in parallel, so
+      // an unscoped claim could lease a job another file had just queued.
+      const existingClaim = await store.claimCompaction(
+        `existing-worker-${suffix}`,
+        120,
+        brain.brain.id,
+      );
       expect(existingClaim?.articleId).toBe(existingArticle.article.id);
       if (!existingClaim) throw new Error("Existing article was not queued");
       await llmService.compactClaimedJob(existingClaim, ownerActor);
@@ -182,7 +188,11 @@ integration("account and team authorization", () => {
         ownerActor,
       );
       expect(promoted.article.compactionStatus).toBe("queued");
-      const claim = await store.claimCompaction(`integration-worker-${suffix}`, 120);
+      const claim = await store.claimCompaction(
+        `integration-worker-${suffix}`,
+        120,
+        secondBrain.brain.id,
+      );
       expect(claim).toMatchObject({
         articleId: promoted.article.id,
         articleVersion: 1,
@@ -232,7 +242,11 @@ integration("account and team authorization", () => {
         },
         ownerActor,
       );
-      const cancelledClaim = await store.claimCompaction(`cancel-worker-${suffix}`, 120);
+      const cancelledClaim = await store.claimCompaction(
+        `cancel-worker-${suffix}`,
+        120,
+        secondBrain.brain.id,
+      );
       expect(cancelledClaim?.articleId).toBe(cancelledArticle.article.id);
       if (!cancelledClaim) throw new Error("Cancellation article was not claimed");
       await llmService.updateWorkspace(
@@ -274,10 +288,10 @@ integration("account and team authorization", () => {
       expect(retryArticle.article.compactionStatus).toBe("queued");
       // A zero-second lease lets each reclaim count as an expired attempt without waiting
       // out the failure backoff, driving the job to its terminal third attempt.
-      let retryClaim = await store.claimCompaction(`retry-worker-${suffix}`, 0);
+      let retryClaim = await store.claimCompaction(`retry-worker-${suffix}`, 0, brain.brain.id);
       expect(retryClaim).toMatchObject({ articleId: retryArticle.article.id, attempts: 1 });
       for (let attempt = 2; attempt <= 3; attempt += 1) {
-        retryClaim = await store.claimCompaction(`retry-worker-${suffix}`, 0);
+        retryClaim = await store.claimCompaction(`retry-worker-${suffix}`, 0, brain.brain.id);
         expect(retryClaim).toMatchObject({
           articleId: retryArticle.article.id,
           attempts: attempt,
@@ -308,7 +322,11 @@ integration("account and team authorization", () => {
       await expect(
         llmService.queueArticleCompaction(retryArticle.article.id, ownerActor),
       ).resolves.toMatchObject({ status: "queued" });
-      const requeuedClaim = await store.claimCompaction(`retry-worker-${suffix}`, 120);
+      const requeuedClaim = await store.claimCompaction(
+        `retry-worker-${suffix}`,
+        120,
+        brain.brain.id,
+      );
       expect(requeuedClaim).toMatchObject({ articleId: retryArticle.article.id, attempts: 1 });
       if (!requeuedClaim) throw new Error("Requeued job was not claimed");
       await llmService.compactClaimedJob(requeuedClaim, ownerActor);
