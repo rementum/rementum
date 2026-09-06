@@ -25,8 +25,8 @@ what Rementum checks.
 
 - **MCP** exposes the tools.
 - **The Rementum plugin** adds skills that teach a coding agent when to load context, how to stage
-  and promote writes, and how to import or maintain a brain safely. It ships `brain-context`,
-  `brain-write`, `brain-import`, and `brain-maintenance`.
+  and promote writes, and how to import or maintain a brain safely. It ships as a single
+  `rementum` skill.
 
 Install the plugin once, then add the workspace MCP URL. The steps below cover each client.
 
@@ -100,7 +100,7 @@ npx -y skills add rementum/rementum --global --all --full-depth
 After that one-time install, refresh them without reinstalling:
 
 ```bash
-npx -y skills update brain-context brain-write brain-import brain-maintenance --global --yes
+npx -y skills update rementum --global --yes
 ```
 
 ## Claude and Claude Desktop

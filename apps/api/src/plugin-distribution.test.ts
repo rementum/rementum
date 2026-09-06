@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const skills = ["brain-context", "brain-write", "brain-import", "brain-maintenance"];
+const skills = ["rementum"];
 const hostedWorkspaceUrl = "https://rementum.dev/mcp/workspace/WORKSPACE_UUID";
 const pluginDisplayName = "Rementum Memory";
 const marketplaceDescription = "Durable shared memory for coding agents.";
@@ -43,7 +43,7 @@ describe("agent plugin distribution", () => {
       $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       name: "rementum",
     });
-    expect(new Set([codex.version, claude.version, portable.version])).toEqual(new Set(["0.1.0"]));
+    expect(new Set([codex.version, claude.version, portable.version])).toEqual(new Set(["0.2.0"]));
   });
 
   it("publishes host marketplaces that resolve the shared plugin", () => {
@@ -72,7 +72,7 @@ describe("agent plugin distribution", () => {
           name: "rementum",
           displayName: pluginDisplayName,
           source: "plugins/rementum",
-          version: "0.1.0",
+          version: "0.2.0",
         },
       ],
     });
