@@ -67,7 +67,7 @@ limits and inflates token costs. Rementum minimizes prompt overhead at three lay
 - **OAuth scope-based tool filtering:** The tool catalog is filtered strictly to the scopes granted
   during authentication. Clients never receive definitions for tools they are unauthorized to call.
 - **Task and maintenance tools stay deferred:** Client plugins (Claude Code, Cursor, Codex) register
-  only core reading and staging skills (`brain-context`, `brain-write`). Task management and
+  the single `rementum` skill, whose everyday workflow is reading and staging. Task management and
   maintenance candidate tools are invoked on demand rather than crowding everyday prompts.
 - **Private catalog caching:** Modern MCP clients receive a 5-minute private `Cache-Control` header
   on the tool catalog, eliminating redundant schema discovery requests.
