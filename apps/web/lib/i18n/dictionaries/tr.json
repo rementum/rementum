@@ -40,7 +40,7 @@
     "howItWorks": "Nasıl çalışır",
     "pricing": "Fiyatlandırma",
     "connect": "Bağlan",
-    "banner": "Ücretsiz ve kendini barındırabilir · Rementum'a GitHub'da yıldız ver"
+    "banner": "Ücretsiz ve self-hosted · Rementum'a GitHub'da yıldız ver"
   },
   "hero": {
     "kicker": "Açık kaynak bellek altyapısı",
@@ -93,22 +93,22 @@
     "steps": [
       {
         "num": "01",
-        "title": "Kompakt Yönlendirme Dizini",
+        "title": "Compact Routing Index",
         "desc": "Başlık, özet, anahtar sözcük ve güncellikten oluşan kompakt dizini sorgular, sonra yalnızca ihtiyacınız olan makaleyi açarsınız. Brain'in geri kalanına dokunmazsınız."
       },
       {
         "num": "02",
-        "title": "Aşamalı Yazım Yalıtımı",
+        "title": "Staged Write Isolation",
         "desc": "Her öneriyi, taban sürümüne bağlı ve canlı içerikten ayrı bir tampona yazarsınız."
       },
       {
         "num": "03",
-        "title": "Çakışma Çözümü Kalkanı",
+        "title": "Conflict Resolution Shield",
         "desc": "Rementum, yazımınızı hazırladığınızdan beri makalede değişiklik olup olmadığını denetler. Her çakışmayı siz inceler ve neyin yayınlanacağına karar verirsiniz."
       },
       {
         "num": "04",
-        "title": "Değişmez Sürümlü İçerik",
+        "title": "Immutable Versioned Canon",
         "desc": "Yayınlarsınız. Rementum değişikliği AES-256-GCM ile şifreler ve denetlenebilir, değişmez bir sürüm işler. Ajanlarınız bir sonraki çağrıda yeni sürümü okur."
       }
     ]
@@ -116,10 +116,10 @@
   "pricing": {
     "kicker": "Fiyatlandırma",
     "titleA": "Sonsuza dek ücretsiz.",
-    "titleB": "Kendini barındıran",
+    "titleB": "Self-hosted",
     "titleC": "olarak tasarlandı.",
     "subtitle": "Rementum açık kaynaktır; ücretli katman yok, koltuk başına ödeme yok. Kendi donanımınızda çalıştırır, her baytın sahibi olursunuz.",
-    "planLabel": "Kendini barındırma",
+    "planLabel": "Self-hosted",
     "price": "$0",
     "priceNote": "/ sonsuza dek",
     "priceBody": "Depoyu klonlayın, tek kurulum betiğini çalıştırın ve MCP üzerinden bir ajan bağlayın.",

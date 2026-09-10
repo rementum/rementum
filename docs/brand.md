@@ -39,10 +39,32 @@ Rementum uses Inter for product and documentation copy and JetBrains Mono for co
 and identifiers. Headlines use tight spacing and sentence case. Body copy stays compact and
 functional.
 
+Both are vendored as variable WOFF2 subsets (Inter 4.1 with `opsz` pinned to 14, JetBrains Mono
+2.304, both OFL) so the production image builds without reaching Google Fonts. **A subset must
+cover Latin Extended-A, U+0100–U+017F.** Google Fonts' `latin` range stops at U+00FF and excludes
+`ğ ı İ ş` and the rest of that block, and a font missing a glyph falls back to a system font
+mid-word — so a latin-only subset renders Turkish in two typefaces at once. Regenerate with the
+same feature set as the committed file, or unused stylistic sets roughly double the size:
+
+```bash
+uvx --from fonttools --with brotli pyftsubset InterVariable.ttf \
+  --unicodes="<existing cmap plus U+0100-U+017F>" --flavor=woff2 \
+  --layout-features=calt,ccmp,dnom,frac,locl,numr,pnum,tnum \
+  --name-IDs=1,2,3,4,5,6 --output-file=apps/web/app/fonts/inter-variable.woff2
+```
+
+CJK is deliberately not bundled; `--font-sans` falls through to the system CJK fonts instead of
+shipping a multi-megabyte webfont for `zh`.
+
 ## Voice
 
 - Describe concrete behavior before benefits.
 - Prefer short sentences and active verbs.
 - Use `brain`, `article`, `canon`, and `staged write` consistently with the product model.
+- Keep terms that are English in the source English instead of calquing them. In Turkish that means
+  `self-hosted`, not `kendini barındıran`, and the feature names — `Compact Routing Index`,
+  `Staged Write Isolation`, `Conflict Resolution Shield`, `Immutable Versioned Canon` — which are
+  product vocabulary rather than descriptive prose. Follow what developers actually write in the
+  language: Chinese uses the established `自托管`, and translating these headings there is normal.
 - Avoid claims about intelligence, magic, or replacing human review.
 - Explain security boundaries without euphemisms.
