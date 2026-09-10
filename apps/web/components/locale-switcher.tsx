@@ -4,12 +4,61 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   isLocalizedRoutePath,
+  LOCALE_CODES,
   LOCALE_COOKIE,
   LOCALE_LABELS,
   LOCALES,
   type Locale,
   SITE_URL_HREF,
 } from "../lib/i18n/locales";
+
+// The open menu's own box, used to decide where it fits. min-w-32 is 128px; the height is
+// the three rows plus the p-1 padding, measured in the browser at 117px. Both are only
+// used to choose a side, so a few pixels either way cannot misplace the menu.
+const MENU_WIDTH = 128;
+const MENU_HEIGHT = 117;
+const MENU_GAP = 8; // mt-2 / mb-2
+
+export interface Placement {
+  direction: "down" | "up";
+  align: "start" | "end";
+}
+
+interface Box {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+// Where the menu can actually be read.
+//
+// The switcher lives at the right edge of the public header and at the bottom-left of the
+// sidebar, so no single fixed side works: in the sidebar a menu that opens downward is
+// rendered past the bottom of the viewport (its `bottom-full` half is off-screen and
+// unclickable), and a menu aligned to the trigger's right edge in a 87px-wide sidebar
+// starts at a negative x. Deciding from the trigger's position fixes both without the
+// call sites having to know where they put the switcher.
+//
+// Pure so it can be tested without a DOM: the sidebar and header geometries below are the
+// measured ones.
+export function placementFor(
+  trigger: Box,
+  viewport: { width: number; height: number },
+  menu: { width: number; height: number } = { width: MENU_WIDTH, height: MENU_HEIGHT },
+): Placement {
+  const fitsBelow = trigger.bottom + MENU_GAP + menu.height <= viewport.height;
+  const fitsAbove = trigger.top - MENU_GAP - menu.height >= 0;
+  return {
+    direction: !fitsBelow && fitsAbove ? "up" : "down",
+    // Right-aligned to the trigger is the default; fall back to its left edge only when
+    // that would push the menu off the left of the viewport (or when neither side fits).
+    align:
+      trigger.right - menu.width >= 0 || trigger.left + menu.width > viewport.width
+        ? "end"
+        : "start",
+  };
+}
 
 // Cookie-backed locale switcher shared by PublicNav and AppNavigation.
 // Where the target is a real navigation (the landing page exists at /, /zh, and /tr) it
@@ -26,6 +75,7 @@ export function LocaleSwitcher({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<Placement>({ direction: "down", align: "end" });
   const rootRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
@@ -45,6 +95,18 @@ export function LocaleSwitcher({
     };
   }, [open]);
 
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const trigger = rootRef.current?.getBoundingClientRect();
+    if (trigger) {
+      setPlacement(placementFor(trigger, { width: window.innerWidth, height: window.innerHeight }));
+    }
+    setOpen(true);
+  };
+
   const select = (next: Locale) => {
     setOpen(false);
     if (next === locale) return;
@@ -62,20 +124,21 @@ export function LocaleSwitcher({
     <div className={`relative ${className ?? ""}`} ref={rootRef}>
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={toggle}
         aria-expanded={open}
         aria-label={label}
         title={label}
         className="inline-flex h-8 items-center gap-1.5 rounded-control px-2 font-mono text-ink-2 text-xs transition-colors hover:bg-hover hover:text-ink"
       >
-        <span aria-hidden="true">🌐</span>
-        <span>{LOCALE_LABELS[locale]}</span>
+        <span>{LOCALE_CODES[locale]}</span>
       </button>
       {open ? (
         <div
           role="menu"
           aria-label={label}
-          className="absolute right-0 z-50 mt-2 min-w-32 overflow-hidden rounded-card border border-line bg-surface p-1 shadow-overlay"
+          className={`absolute z-50 min-w-32 overflow-hidden rounded-card border border-line bg-surface p-1 shadow-overlay ${
+            placement.direction === "up" ? "bottom-full mb-2" : "top-full mt-2"
+          } ${placement.align === "start" ? "left-0" : "right-0"}`}
         >
           {LOCALES.map((option: Locale) => (
             <button

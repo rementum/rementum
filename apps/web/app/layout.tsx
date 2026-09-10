@@ -8,6 +8,7 @@ import { publicAuthConfig, sessionInfo, workspaceContext } from "../lib/api";
 import { getDictionary } from "../lib/i18n/get-dictionary";
 import { HTML_LANG, LOCALE_HEADER, resolveLayoutLocale } from "../lib/i18n/locales";
 import { GITHUB_URL, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
+import { parseSurface, SURFACE_HEADER } from "../lib/surface";
 import "./globals.css";
 
 // Fonts are vendored (Inter + JetBrains Mono, OFL) and loaded from disk so the production
@@ -105,6 +106,7 @@ try {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies();
+  const headerStore = await headers();
   const theme = cookieStore.get("rementum_theme")?.value === "light" ? "light" : "dark";
   const sidebarCollapsed = cookieStore.get("rementum_sidebar")?.value === "collapsed";
   const session = await sessionInfo();
@@ -113,12 +115,16 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // server component cannot read the pathname itself. Off those routes it is the
   // cookie, then Accept-Language. See resolveLayoutLocale for the precedence.
   const locale = resolveLayoutLocale(
-    (await headers()).get(LOCALE_HEADER),
+    headerStore.get(LOCALE_HEADER),
     cookieStore.get("rementum_locale")?.value,
-    (await headers()).get("accept-language"),
+    headerStore.get("accept-language"),
   );
   const dict = getDictionary(locale);
-  const context = signedIn ? await workspaceContext() : null;
+  // A signed-in visitor on a marketing route keeps the public shell: the sidebar is the
+  // app's frame, and the landing page is not laid out inside it. Signing in no longer
+  // changes what rementum.dev/ looks like.
+  const appShell = signedIn && parseSurface(headerStore.get(SURFACE_HEADER)) === "app";
+  const context = appShell ? await workspaceContext() : null;
   const authConfig = signedIn ? null : await publicAuthConfig();
 
   return (
@@ -133,7 +139,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <script dangerouslySetInnerHTML={{ __html: themeInitializer }} />
       </head>
       <body>
-        {signedIn ? (
+        {appShell ? (
           <div className="min-h-dvh md:flex">
             <AppNavigation
               teams={context?.teams ?? []}
@@ -159,6 +165,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             </StickyBanner>
             <PublicNav
               signupEnabled={authConfig?.signupEnabled ?? false}
+              signedIn={signedIn}
               locale={locale}
               dict={dict}
             />

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { LOCALE_HEADER, LOCALES, type Locale, parseLocale } from "./lib/i18n/locales";
+import { SURFACE_HEADER, surfaceForPath } from "./lib/surface";
 
 // Server components cannot read the current pathname, so the effective locale is
 // published as a request header: /zh and /tr are their own routes, everything else
@@ -27,6 +28,9 @@ export function middleware(request: NextRequest) {
   );
   const headers = new Headers(request.headers);
   headers.set(LOCALE_HEADER, locale);
+  // The layout also needs to know whether this is a marketing route, so a signed-in
+  // visitor reads the landing page in the public shell instead of the app sidebar.
+  headers.set(SURFACE_HEADER, surfaceForPath(request.nextUrl.pathname));
   return NextResponse.next({ request: { headers } });
 }
 
@@ -35,4 +39,4 @@ export const config = {
   matcher: ["/((?!_next|favicon.ico|.*\\..*).*)"],
 };
 
-export { LOCALE_HEADER };
+export { LOCALE_HEADER, SURFACE_HEADER };

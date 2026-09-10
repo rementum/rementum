@@ -11,10 +11,12 @@ import { ThemeToggle } from "./ui/theme-toggle";
 
 export function PublicNav({
   signupEnabled,
+  signedIn,
   locale,
   dict,
 }: {
   signupEnabled: boolean;
+  signedIn: boolean;
   locale: Locale;
   dict: Dictionary;
 }) {
@@ -45,21 +47,31 @@ export function PublicNav({
             </a>
           ))}
         </nav>
-        {/* Full-page links, not next/link. The landing page is force-static, so the root layout
-            is cached as the signed-out shell (public header). A soft navigation into the app would
-            keep that stale header over authenticated content; a document load re-renders the layout
-            against the real session — a signed-in visitor lands on the sidebar, not this header. */}
+        {/* Full-page links, not next/link, either way. The landing routes are cached, and a
+            soft navigation would keep the fetched shell in place; a document load asks the
+            server again, so a visitor who signed in in another tab lands on the sidebar
+            rather than this header. */}
         <div className="flex items-center gap-2 md:ml-4 max-md:ml-auto">
           <LocaleSwitcher locale={locale} label={dict.common.language} />
           <ThemeToggle />
-          <Button as="a" href="/auth/login" variant="ghost" size="sm">
-            {dict.common.signIn}
-          </Button>
-          {signupEnabled ? (
-            <Button as="a" href="/register" variant="solid" size="sm">
-              {dict.common.createAccount}
+          {/* This shell is what a signed-in visitor sees on the marketing routes, so the
+              account buttons become a way back into the app instead of a sign-in pitch. */}
+          {signedIn ? (
+            <Button as="a" href="/dashboard" variant="solid" size="sm">
+              {dict.common.dashboard}
             </Button>
-          ) : null}
+          ) : (
+            <>
+              <Button as="a" href="/auth/login" variant="ghost" size="sm">
+                {dict.common.signIn}
+              </Button>
+              {signupEnabled ? (
+                <Button as="a" href="/register" variant="solid" size="sm">
+                  {dict.common.createAccount}
+                </Button>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
     </header>

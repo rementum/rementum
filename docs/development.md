@@ -42,9 +42,17 @@ Set host-side database and embedding URLs in the shell when they differ from the
 `.env`. Use the container stack for end-to-end authentication testing, because the web session API and
 the MCP OAuth endpoints share one public origin behind Caddy.
 
-The public landing page at `/` is statically rendered and refreshes its public auth config at most
-once a minute. The signed-in web app lives at `/dashboard`; sign-in and workspace selection return
-there by default.
+The public landing page at `/` is cached and refreshes its public auth config at most once a minute.
+It keeps the public shell even when the visitor is signed in. The signed-in web app lives at
+`/dashboard`; sign-in and workspace selection return there by default.
+
+`middleware.ts` decides two things the root layout cannot work out on its own — the route locale and
+whether the request is a marketing route — and publishes both as request headers (`x-rementum-locale`
+and `x-rementum-surface`). Both are set on the request, so they never reach the client and cannot be
+forged from outside. The layout reads them, which is why the landing routes must not be
+`force-static`: that flag applies to the whole render tree and makes `headers()` return an empty
+object, silently dropping both back to their defaults. `apps/web/app/landing-routes.test.ts` guards
+that, and `apps/web/lib/surface.ts` holds the routing rule.
 
 ## Checks
 
