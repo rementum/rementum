@@ -16,7 +16,10 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Inter ships no CJK glyphs; the stack falls through to system CJK fonts for zh. */
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 
   /* Semantic radius scale: chip < control < card < window */
@@ -224,7 +227,9 @@
   --pui-success: var(--green);
   --pui-danger: var(--red);
   --pui-warn: var(--orange);
-  --pui-font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --pui-font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, "Noto Sans SC", "PingFang SC", "Microsoft YaHei",
+    sans-serif;
   --pui-font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
   --pui-radius-sm: var(--radius-chip);
   --pui-radius: var(--radius-control);

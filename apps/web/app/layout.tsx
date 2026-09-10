@@ -1,11 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { AppNavigation } from "../components/app-navigation";
 import { PublicNav } from "../components/public-nav";
 import { StickyBanner } from "../components/pui";
 import { publicAuthConfig, sessionInfo, workspaceContext } from "../lib/api";
+import { getDictionary } from "../lib/i18n/get-dictionary";
+import { DEFAULT_LOCALE, HTML_LANG, parseLocale, resolveLocale } from "../lib/i18n/locales";
 import { GITHUB_URL, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
+import { LOCALE_HEADER } from "../middleware";
 import "./globals.css";
 
 // Fonts are vendored (Inter + JetBrains Mono, OFL) and loaded from disk so the production
@@ -107,12 +110,24 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const sidebarCollapsed = cookieStore.get("rementum_sidebar")?.value === "collapsed";
   const session = await sessionInfo();
   const signedIn = session.authenticated;
+  // middleware publishes the route locale (/zh, /tr) as a request header, because a
+  // server component cannot read the pathname itself. Elsewhere: cookie first, then
+  // Accept-Language. The static landing pages ignore both and use their route locale.
+  const routeLocale = parseLocale((await headers()).get(LOCALE_HEADER));
+  const locale =
+    routeLocale !== DEFAULT_LOCALE
+      ? routeLocale
+      : resolveLocale(
+          cookieStore.get("rementum_locale")?.value,
+          (await headers()).get("accept-language"),
+        );
+  const dict = getDictionary(locale);
   const context = signedIn ? await workspaceContext() : null;
   const authConfig = signedIn ? null : await publicAuthConfig();
 
   return (
     <html
-      lang="en"
+      lang={HTML_LANG[locale]}
       data-theme={theme}
       className={`${inter.variable} ${jetbrainsMono.variable}${theme === "dark" ? " dark" : ""}`}
       suppressHydrationWarning
@@ -130,6 +145,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               activeWorkspaceId={context?.activeWorkspace?.id ?? null}
               initialCollapsed={sidebarCollapsed}
               systemOwner={session.systemOwner}
+              locale={locale}
+              dict={dict}
             />
             <div className="min-w-0 flex-1">{children}</div>
           </div>
@@ -144,7 +161,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             >
               <a href={GITHUB_URL}>Free and self-hosted · star Rementum on GitHub</a>
             </StickyBanner>
-            <PublicNav signupEnabled={authConfig?.signupEnabled ?? false} />
+            <PublicNav
+              signupEnabled={authConfig?.signupEnabled ?? false}
+              locale={locale}
+              dict={dict}
+            />
             {children}
           </div>
         )}

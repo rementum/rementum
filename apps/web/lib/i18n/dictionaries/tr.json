@@ -1,0 +1,228 @@
+{
+  "common": {
+    "copy": "Kopyala",
+    "copyAll": "Tümünü kopyala",
+    "copied": "Kopyalandı",
+    "copyFailed": "Kopyalama başarısız",
+    "copyFailedNote": "Kopyalama başarısız. Metni elle seçin.",
+    "previous": "Önceki",
+    "next": "Sonraki",
+    "pageOf": "Sayfa {page} / {pageCount}",
+    "pagination": "Sayfalama",
+    "close": "Kapat",
+    "docs": "Belgeler",
+    "documentation": "Belgeler",
+    "signIn": "Giriş yap",
+    "signOut": "Çıkış yap",
+    "createAccount": "Hesap oluştur",
+    "language": "Dil"
+  },
+  "meta": {
+    "title": "Rementum — Yapay zeka ajanları için self-hosted, sürümlü bellek",
+    "description": "Rementum, yapay zeka ajanları için self-hosted, açık kaynak bir bellek katmanıdır: sürümlü Markdown bilgisi, çakışma denetimli aşamalı yazımlar ve sizin kontrolünüzde OAuth korumalı MCP erişimi.",
+    "keywords": [
+      "yapay zeka ajan belleği",
+      "ajanlar için paylaşılan bellek",
+      "Model Context Protocol",
+      "MCP sunucusu",
+      "self-hosted bilgi tabanı",
+      "sürümlü Markdown",
+      "ajan bilgi tabanı",
+      "açık kaynak",
+      "pgvector"
+    ]
+  },
+  "publicNav": {
+    "mainNavigation": "Ana gezinti",
+    "mobileNavigation": "Mobil gezinti",
+    "openNavigation": "Gezintiyi aç",
+    "closeNavigation": "Gezintiyi kapat",
+    "howItWorks": "Nasıl çalışır",
+    "pricing": "Fiyatlandırma",
+    "connect": "Bağlan"
+  },
+  "hero": {
+    "kicker": "Açık kaynak bellek altyapısı",
+    "headline": ["Ajanlarınız", "her şeyi", "hatırlamalı", "diyoruz."],
+    "subtitle": "Her MCP istemcisi için tek bir sürümlü bilgi katmanı. Rementum, paylaşılan belleğin üzerine yazmadan önce her yazımı incelemeye sunar.",
+    "getStarted": "Başlayın",
+    "starOnGithub": "GitHub'da yıldız verin",
+    "worksWith": "Şunlarla çalışır",
+    "clients": ["Claude Code", "Codex", "OpenCode"],
+    "terminalLabel": "rementum / mcp",
+    "terminalSteps": [
+      {
+        "prompt": "agent",
+        "text": "search_articles 'staged write conflict policy'"
+      },
+      {
+        "text": "4 eşleşme · yönlendirme dizini taraması"
+      },
+      {
+        "prompt": "agent",
+        "text": "read_article 'write-promotion-policy'"
+      },
+      {
+        "text": "v2 · güncel · 2 kaynak"
+      },
+      {
+        "prompt": "agent",
+        "text": "stage_write baseVersion=2 ..."
+      },
+      {
+        "text": "hazırlandı · çakışmasız · writeId 9c4f"
+      },
+      {
+        "prompt": "agent",
+        "text": "promote_staged_write 9c4f"
+      },
+      {
+        "text": "yayınlandı → canon v3 · denetim kaydedildi"
+      }
+    ]
+  },
+  "howItWorks": {
+    "kicker": "Nasıl çalışır",
+    "titleA": "Sade mimari.",
+    "titleB": "Sıfır çakışma.",
+    "subtitleA": "Ajanlarınız birbirinin üzerine yazmadan nasıl eşitlenir",
+    "subtitleB": ", 45 saniyede",
+    "windowTitle": "how-it-works",
+    "animationLabel": "Çizimli genel bakış: ajanlar kompakt dizini okur, yazım hazırlar ve tek bir sürümlü brain'i paylaşır",
+    "steps": [
+      {
+        "num": "01",
+        "title": "Kompakt Yönlendirme Dizini",
+        "desc": "Başlık, özet, anahtar sözcük ve güncellikten oluşan kompakt dizini sorgular, sonra yalnızca ihtiyacınız olan makaleyi açarsınız. Brain'in geri kalanına dokunmazsınız."
+      },
+      {
+        "num": "02",
+        "title": "Aşamalı Yazım Yalıtımı",
+        "desc": "Her öneriyi, taban sürümüne bağlı ve canlı içerikten ayrı bir tampona yazarsınız."
+      },
+      {
+        "num": "03",
+        "title": "Çakışma Çözümü Kalkanı",
+        "desc": "Rementum, yazımınızı hazırladığınızdan beri makalede değişiklik olup olmadığını denetler. Her çakışmayı siz inceler ve neyin yayınlanacağına karar verirsiniz."
+      },
+      {
+        "num": "04",
+        "title": "Değişmez Sürümlü İçerik",
+        "desc": "Yayınlarsınız. Rementum değişikliği AES-256-GCM ile şifreler ve denetlenebilir, değişmez bir sürüm işler. Ajanlarınız bir sonraki çağrıda yeni sürümü okur."
+      }
+    ]
+  },
+  "pricing": {
+    "kicker": "Fiyatlandırma",
+    "titleA": "Sonsuza dek ücretsiz.",
+    "titleB": "Self-hosted",
+    "titleC": "olarak tasarlandı.",
+    "subtitle": "Rementum açık kaynaktır; ücretli katman yok, koltuk başına ödeme yok. Kendi donanımınızda çalıştırır, her baytın sahibi olursunuz.",
+    "planLabel": "Self-hosted",
+    "price": "$0",
+    "priceNote": "/ sonsuza dek",
+    "priceBody": "Depoyu klonlayın, tek kurulum betiğini çalıştırın ve MCP üzerinden bir ajan bağlayın.",
+    "getStarted": "Başlayın",
+    "installGuide": "Kurulum kılavuzunu okuyun",
+    "advantagesTitle": "Neler elde edersiniz",
+    "considerationsTitle": "Sizin planlamanız gerekenler",
+    "advantages": [
+      "Koltuk, kullanım kotası veya ücretli özellik olmadan sonsuza dek ücretsiz",
+      "Veriniz sunucunuzda kalır; anahtar hiçbir zaman dışarı çıkmaz",
+      "Sınırsız brain, çalışma alanı, ajan ve sürüm",
+      "Denetlemek, çatallamak ve geliştirmek için AGPL-3.0 kapsamında tam kaynak",
+      "Kendi yapay zeka sağlayıcınızı getirin ya da yalnızca yerel modellerle çalışın"
+    ],
+    "considerations": [
+      "Linux sunucusunu, alan adını ve 80 ile 443 portlarını siz sağlarsınız",
+      "Güncellemeleri, şifreli yedekleri ve zaman zaman geçişleri siz yaparsınız",
+      "Ölçekleme ve erişilebilirlik sizin planınıza ve izlemenize bağlıdır",
+      "Barındırılan bir SaaS katmanı yok; bugün tek yol self-hosting"
+    ]
+  },
+  "connectTeaser": {
+    "kicker": "Eklenti + MCP",
+    "title": "Ajanlarınıza bellek kazandırın.",
+    "subtitle": "Rementum'u kendi sunucunuzda barındırır ve MCP üzerinden bağlanırsınız. Eklenti, becerilerini ve araçlarını kodlama ajanınıza ekler; her izni tarayıcınızda onaylarsınız.",
+    "getStarted": "Başlayın",
+    "starTitle": "GitHub'da bize yıldız verin",
+    "starSubtitle": "Ücretsiz · self-hosted"
+  },
+  "footer": {
+    "product": "Ürün",
+    "openSource": "Açık kaynak",
+    "account": "Hesap",
+    "howItWorks": "Nasıl çalışır",
+    "pricing": "Fiyatlandırma",
+    "connectAgent": "Ajan bağla",
+    "documentation": "Belgeler",
+    "github": "GitHub",
+    "license": "AGPL-3.0 lisansı",
+    "releases": "Sürümler",
+    "resetPassword": "Parolayı sıfırla",
+    "copyright": "Açık kaynak · self-hosted"
+  },
+  "appNav": {
+    "brains": "Brain'ler",
+    "analytics": "Analitik",
+    "teams": "Takımlar",
+    "connections": "Bağlantılar",
+    "instance": "Örnek",
+    "workspace": "Çalışma alanı",
+    "switchWorkspace": "Çalışma alanını değiştir",
+    "expandToSwitch": "Çalışma alanını değiştirmek için kenar çubuğunu genişlet",
+    "expandSidebar": "Kenar çubuğunu genişlet",
+    "collapseSidebar": "Kenar çubuğunu daralt",
+    "openMenu": "Menüyü aç",
+    "closeMenu": "Menüyü kapat"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "overview": "Genel bakış",
+    "subtitle": "Brain'lerinizdeki son değişiklikler ve incelemenizi bekleyen yazımlar.",
+    "statBrains": "Brain'ler",
+    "statArticles": "Makaleler",
+    "statReview": "İnceleme bekliyor",
+    "needsReview": "İnceleme bekliyor",
+    "emptyReview": "İncelenecek hazırlanmış yazım yok.",
+    "brains": "Brain'ler",
+    "sortBrains": "Brain'leri sırala",
+    "sortUpdated": "Güncellenme",
+    "sortArticles": "Makale",
+    "sortName": "Ad",
+    "sortNoteUpdated": "Önce en son güncellenen",
+    "sortNoteArticles": "Önce en çok makaleli",
+    "sortNoteName": "A'dan Z'ye",
+    "brainsLayout": "Brain görünümü",
+    "listView": "Liste görünümü",
+    "cardView": "Kart görünümü",
+    "articleOne": "1 makale",
+    "articleMany": "{count} makale",
+    "toReview": "{count} incelemelik",
+    "noDescription": "Henüz açıklama yok.",
+    "updated": "{time} güncellendi",
+    "guest": "Misafir",
+    "sharedWithMe": "Benimle paylaşılan",
+    "sharedNote": "Takımlarınız dışında misafir erişimi",
+    "noWorkspaceKicker": "Çalışma alanı",
+    "noWorkspaceTitle": "Henüz çalışma alanı yok.",
+    "noWorkspaceBody": "Brain toplamak ve üye davet etmek için bir takım ve çalışma alanı oluşturun.",
+    "setupTeam": "Takımınızı kurun",
+    "noBrainsTitle": "Henüz brain yok.",
+    "noBrainsBody": "İlk brain'inizi oluşturmak için MCP üzerinden bir ajan bağlayın. Makaleleri, hazırlanmış yazımları ve hareketleriyle burada görünecek.",
+    "viewConnections": "Bağlantıları görüntüle"
+  },
+  "agentConnect": {
+    "eyebrow": "Çalışma alanı MCP",
+    "title": "{workspace} alanını bir ajana bağlayın.",
+    "body": "Ajanınızı seçin, Rementum eklentisini veya becerileri kurun, sonra MCP ile bağlanın. Tarayıcınız bu çalışma alanı için onay isteyecek. Kurulum bitince ajanı yeniden başlatın.",
+    "otherClients": "Diğer istemciler ve kurulum ayrıntıları",
+    "harnessLegend": "Ajan türü"
+  },
+  "time": {
+    "justNow": "az önce",
+    "minutesAgo": "{count} dk önce",
+    "hoursAgo": "{count} sa önce",
+    "daysAgo": "{count} gün önce"
+  }
+}

@@ -72,6 +72,22 @@ limits and inflates token costs. Rementum minimizes prompt overhead at three lay
 - **Private catalog caching:** Modern MCP clients receive a 5-minute private `Cache-Control` header
   on the tool catalog, eliminating redundant schema discovery requests.
 
+## Interface languages
+
+### Which languages does the web interface support?
+
+The homepage and the dashboard are available in **English**, **Simplified Chinese (中文)**, and
+**Turkish (Türkçe)**.
+
+- **Homepage:** each language has its own URL — `/`, `/zh`, and `/tr` — so a translated page is
+  still a static, cacheable, indexable page with its own canonical URL and `hreflang` links.
+- **Dashboard:** use the globe switcher in the sidebar. The choice is stored in the
+  `rementum_locale` cookie; without one, the dashboard follows the browser's `Accept-Language`.
+
+Every other page stays English for now — brains, articles, writes, tasks, teams, connections,
+analytics, auth flows, and admin — as do the `/docs` site, API messages, and email templates.
+User content (brain names, article bodies, comments) is never translated.
+
 ## Licensing and privacy
 
 ### Can my company or startup use Rementum internally under AGPL-3.0?

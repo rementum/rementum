@@ -1,47 +1,51 @@
 "use client";
 
+import type { Dictionary } from "../../lib/i18n/get-dictionary";
 import { DOCS_URL } from "../../lib/site";
 import { BigBack } from "../pui";
 
 export function LandingFooter({
   githubUrl,
   signupEnabled,
+  dict,
 }: {
   githubUrl: string;
   signupEnabled: boolean;
+  dict: Dictionary;
 }) {
+  const footer = dict.footer;
   return (
     <BigBack
       company="Rementum"
-      copyright="Open source · self-hosted"
+      copyright={footer.copyright}
       columns={[
         {
-          heading: "Product",
+          heading: footer.product,
           links: [
-            { label: "How it works", href: "#how-it-works" },
-            { label: "Pricing", href: "#pricing" },
-            { label: "Connect an agent", href: "#connect" },
-            { label: "Documentation", href: DOCS_URL },
+            { label: footer.howItWorks, href: "#how-it-works" },
+            { label: footer.pricing, href: "#pricing" },
+            { label: footer.connectAgent, href: "#connect" },
+            { label: footer.documentation, href: DOCS_URL },
           ],
         },
         {
-          heading: "Open source",
+          heading: footer.openSource,
           links: [
-            { label: "GitHub", href: githubUrl },
-            { label: "AGPL-3.0 license", href: `${githubUrl}/blob/main/LICENSE` },
-            { label: "Releases", href: `${githubUrl}/releases` },
+            { label: footer.github, href: githubUrl },
+            { label: footer.license, href: `${githubUrl}/blob/main/LICENSE` },
+            { label: footer.releases, href: `${githubUrl}/releases` },
           ],
         },
         {
-          heading: "Account",
+          heading: footer.account,
           links: [
-            { label: "Sign in", href: "/auth/login" },
-            ...(signupEnabled ? [{ label: "Create account", href: "/register" }] : []),
-            { label: "Reset password", href: "/forgot-password" },
+            { label: dict.common.signIn, href: "/auth/login" },
+            ...(signupEnabled ? [{ label: dict.common.createAccount, href: "/register" }] : []),
+            { label: footer.resetPassword, href: "/forgot-password" },
           ],
         },
       ]}
-      social={[{ label: "GitHub", href: githubUrl }]}
+      social={[{ label: footer.github, href: githubUrl }]}
     />
   );
 }

@@ -1,19 +1,29 @@
 "use client";
 
 import Link from "next/link";
+import type { Dictionary } from "../lib/i18n/get-dictionary";
+import type { Locale } from "../lib/i18n/locales";
 import { DOCS_URL } from "../lib/site";
 import { BrandMark } from "./brand";
+import { LocaleSwitcher } from "./locale-switcher";
 import { Button } from "./pui";
 import { ThemeToggle } from "./ui/theme-toggle";
 
-const LINKS = [
-  { href: "/#how-it-works", label: "How it works" },
-  { href: "/#pricing", label: "Pricing" },
-  { href: "/#connect", label: "Connect" },
-  { href: DOCS_URL, label: "Docs" },
-];
-
-export function PublicNav({ signupEnabled }: { signupEnabled: boolean }) {
+export function PublicNav({
+  signupEnabled,
+  locale,
+  dict,
+}: {
+  signupEnabled: boolean;
+  locale: Locale;
+  dict: Dictionary;
+}) {
+  const LINKS = [
+    { href: "/#how-it-works", label: dict.publicNav.howItWorks },
+    { href: "/#pricing", label: dict.publicNav.pricing },
+    { href: "/#connect", label: dict.publicNav.connect },
+    { href: DOCS_URL, label: dict.common.docs },
+  ];
   return (
     <header className="sticky top-0 z-50 border-b border-line/60 bg-surface/70 backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-6xl items-center gap-6 px-6 py-3">
@@ -40,13 +50,14 @@ export function PublicNav({ signupEnabled }: { signupEnabled: boolean }) {
             keep that stale header over authenticated content; a document load re-renders the layout
             against the real session — a signed-in visitor lands on the sidebar, not this header. */}
         <div className="flex items-center gap-2 md:ml-4 max-md:ml-auto">
+          <LocaleSwitcher locale={locale} label={dict.common.language} />
           <ThemeToggle />
           <Button as="a" href="/auth/login" variant="ghost" size="sm">
-            Sign in
+            {dict.common.signIn}
           </Button>
           {signupEnabled ? (
             <Button as="a" href="/register" variant="solid" size="sm">
-              Create account
+              {dict.common.createAccount}
             </Button>
           ) : null}
         </div>

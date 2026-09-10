@@ -2,6 +2,9 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { api, workspaceContext } from "../lib/api";
 import { relativeTime } from "../lib/format";
+import type { Dictionary } from "../lib/i18n/get-dictionary";
+import { template } from "../lib/i18n/get-dictionary";
+import type { Locale } from "../lib/i18n/locales";
 import {
   BRAINS_SORT_COOKIE,
   BRAINS_SORTS,
@@ -87,7 +90,18 @@ function dashboardHref(page: number, sharedPage: number) {
   return query ? `/dashboard?${query}` : "/dashboard";
 }
 
-export async function Dashboard({ page, sharedPage }: { page?: string; sharedPage?: string }) {
+export async function Dashboard({
+  page,
+  sharedPage,
+  locale,
+  dict,
+}: {
+  page?: string;
+  sharedPage?: string;
+  locale: Locale;
+  dict: Dictionary;
+}) {
+  const dash = dict.dashboard;
   const cookieStore = await cookies();
   const view = parsePref(cookieStore.get(BRAINS_VIEW_COOKIE)?.value, BRAINS_VIEWS, "card");
   const sort = parsePref(cookieStore.get(BRAINS_SORT_COOKIE)?.value, BRAINS_SORTS, "updated");
@@ -105,7 +119,15 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
   const lastUpdated = (brain: Brain) =>
     statsByBrain.get(brain.id)?.latestArticleUpdatedAt ?? brain.updatedAt;
   if (!activeWorkspace || !activeTeam)
-    return <NoWorkspace shared={shared} view={view} lastUpdated={lastUpdated} />;
+    return (
+      <NoWorkspace
+        shared={shared}
+        view={view}
+        lastUpdated={lastUpdated}
+        locale={locale}
+        dict={dict}
+      />
+    );
   // One request answers both the review queue and the per-brain badge counts; it used to
   // take a request per brain on the page plus one per recently updated brain.
   const [brainPage, workspaceCounts, reviewQueueData] = await Promise.all([
@@ -122,6 +144,8 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
         shared={shared}
         view={view}
         lastUpdated={lastUpdated}
+        locale={locale}
+        dict={dict}
       />
     );
 
@@ -144,22 +168,20 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
             <EyebrowPill statusColor="var(--grad-mid)">
               {activeTeam.name} · {activeWorkspace.name}
             </EyebrowPill>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Overview</h1>
-            <p className="mt-1.5 max-w-xl text-sm text-ink-2">
-              Recent changes across your brains and the writes that need your review.
-            </p>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">{dash.overview}</h1>
+            <p className="mt-1.5 max-w-xl text-sm text-ink-2">{dash.subtitle}</p>
           </div>
           <dl className="flex items-stretch divide-x divide-dashed divide-line">
-            <StatTile label="Brains" value={brainPage.total} />
-            <StatTile label="Articles" value={articleTotal} />
-            <StatTile label="Awaiting review" value={reviewQueue.length} attention />
+            <StatTile label={dash.statBrains} value={brainPage.total} />
+            <StatTile label={dash.statArticles} value={articleTotal} />
+            <StatTile label={dash.statReview} value={reviewQueue.length} attention />
           </dl>
         </header>
 
         <section className="mt-10" aria-labelledby="dash-review-title">
           <Card>
             <CardHeader
-              title={<span id="dash-review-title">Needs review</span>}
+              title={<span id="dash-review-title">{dash.needsReview}</span>}
               count={reviewQueue.length || undefined}
             />
             {reviewQueue.length ? (
@@ -187,7 +209,7 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
                         className="font-mono text-2xs tabular-nums text-ink-3"
                         dateTime={write.createdAt}
                       >
-                        {relativeTime(write.createdAt)}
+                        {relativeTime(write.createdAt, locale)}
                       </time>
                     </div>
                   </Link>
@@ -196,7 +218,7 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
             ) : (
               <p className="flex items-center gap-2 px-4 py-4 text-sm text-ink-2">
                 <span aria-hidden="true" className="size-1.5 rounded-full bg-green" />
-                No staged writes need review.
+                {dash.emptyReview}
               </p>
             )}
           </Card>
@@ -205,27 +227,27 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
         <section className="mt-10" aria-labelledby="dash-brains-title">
           <SectionHead
             id="dash-brains-title"
-            title="Brains"
-            note={SORT_NOTES[sort]}
+            title={dash.brains}
+            note={SORT_NOTES[sort](dash)}
             actions={
               <>
                 <PrefToggle
                   cookieName={BRAINS_SORT_COOKIE}
                   value={sort}
-                  label="Sort brains"
+                  label={dash.sortBrains}
                   options={[
-                    { value: "updated", label: "Updated" },
-                    { value: "articles", label: "Articles" },
-                    { value: "name", label: "Name" },
+                    { value: "updated", label: dash.sortUpdated },
+                    { value: "articles", label: dash.sortArticles },
+                    { value: "name", label: dash.sortName },
                   ]}
                 />
                 <PrefToggle
                   cookieName={BRAINS_VIEW_COOKIE}
                   value={view}
-                  label="Brains layout"
+                  label={dash.brainsLayout}
                   options={[
-                    { value: "card", label: "Card view", icon: <IconGrid /> },
-                    { value: "list", label: "List view", icon: <IconIndex /> },
+                    { value: "card", label: dash.cardView, icon: <IconGrid /> },
+                    { value: "list", label: dash.listView, icon: <IconIndex /> },
                   ]}
                 />
               </>
@@ -233,20 +255,22 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
           />
           <BrainCollection
             view={view}
+            locale={locale}
+            dict={dict}
             items={brains.map((brain) => {
               const pending = pendingByBrain.get(brain.id) ?? 0;
               const count = countByBrain.get(brain.id) ?? 0;
               return {
                 brain,
                 updatedAt: lastUpdated(brain),
-                meta: `${count} ${count === 1 ? "article" : "articles"}`,
+                meta: count === 1 ? dash.articleOne : template(dash.articleMany, { count }),
                 badge: pending ? (
                   <Chip tone="orange">
                     <span
                       aria-hidden="true"
                       className="size-1.5 animate-pulse-dot rounded-full bg-current"
                     />
-                    {pending} to review
+                    {template(dash.toReview, { count: pending })}
                   </Chip>
                 ) : null,
               };
@@ -261,7 +285,11 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
         </section>
 
         <div className="mt-10">
-          <AgentConnect workspaceName={activeWorkspace.name} mcpUrl={activeWorkspace.mcpUrl} />
+          <AgentConnect
+            workspaceName={activeWorkspace.name}
+            mcpUrl={activeWorkspace.mcpUrl}
+            dict={dict}
+          />
         </div>
 
         <SharedBrains
@@ -269,6 +297,8 @@ export async function Dashboard({ page, sharedPage }: { page?: string; sharedPag
           view={view}
           lastUpdated={lastUpdated}
           mainPage={brainPage.page}
+          locale={locale}
+          dict={dict}
         />
       </main>
     </div>
@@ -308,10 +338,10 @@ function StatTile({
   );
 }
 
-const SORT_NOTES: Record<BrainsSort, string> = {
-  updated: "Most recently updated first",
-  articles: "Most articles first",
-  name: "A to Z",
+const SORT_NOTES: Record<BrainsSort, (dash: Dictionary["dashboard"]) => string> = {
+  updated: (dash) => dash.sortNoteUpdated,
+  articles: (dash) => dash.sortNoteArticles,
+  name: (dash) => dash.sortNoteName,
 };
 
 function SectionHead({
@@ -346,13 +376,23 @@ interface BrainItem {
   meta?: string | null;
 }
 
-function BrainCollection({ view, items }: { view: BrainsView; items: BrainItem[] }) {
+function BrainCollection({
+  view,
+  items,
+  locale,
+  dict,
+}: {
+  view: BrainsView;
+  items: BrainItem[];
+  locale: Locale;
+  dict: Dictionary;
+}) {
   if (view === "list") {
     return (
       <Card>
         <div className="divide-y divide-line">
           {items.map((item) => (
-            <BrainListRow key={item.brain.id} {...item} />
+            <BrainListRow key={item.brain.id} dict={dict} {...item} />
           ))}
         </div>
       </Card>
@@ -361,13 +401,21 @@ function BrainCollection({ view, items }: { view: BrainsView; items: BrainItem[]
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((item) => (
-        <BrainCard key={item.brain.id} {...item} />
+        <BrainCard key={item.brain.id} locale={locale} dict={dict} {...item} />
       ))}
     </div>
   );
 }
 
-function BrainCard({ brain, updatedAt, badge, meta }: BrainItem) {
+function BrainCard({
+  brain,
+  updatedAt,
+  badge,
+  meta,
+  locale,
+  dict,
+}: BrainItem & { locale: Locale; dict: Dictionary }) {
+  const dash = dict.dashboard;
   return (
     <Link
       className="group relative flex flex-col rounded-card border border-line bg-surface/70 p-4 shadow-card backdrop-blur-sm transition-all duration-150 hover:border-accent/30 hover:shadow-raised active:scale-[0.98]"
@@ -381,17 +429,20 @@ function BrainCard({ brain, updatedAt, badge, meta }: BrainItem) {
       </div>
       <h3 className="mt-3 text-base font-semibold tracking-tight text-ink">{brain.name}</h3>
       <p className="mb-4 mt-1 line-clamp-2 text-xs text-ink-2">
-        {brain.description || "No description yet."}
+        {brain.description || dash.noDescription}
       </p>
       <div className="mt-auto flex items-center justify-between border-t border-line pt-2.5 font-mono text-2xs tabular-nums text-ink-3">
         <span>{meta}</span>
-        <time dateTime={updatedAt}>Updated {relativeTime(updatedAt)}</time>
+        <time dateTime={updatedAt}>
+          {template(dash.updated, { time: relativeTime(updatedAt, locale) })}
+        </time>
       </div>
     </Link>
   );
 }
 
-function BrainListRow({ brain, updatedAt, badge, meta }: BrainItem) {
+function BrainListRow({ brain, updatedAt, badge, meta, dict }: BrainItem & { dict: Dictionary }) {
+  const dash = dict.dashboard;
   return (
     <Link
       className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-hover active:scale-[0.98]"
@@ -402,9 +453,7 @@ function BrainListRow({ brain, updatedAt, badge, meta }: BrainItem) {
       </Chip>
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium text-ink">{brain.name}</h3>
-        <p className="line-clamp-1 text-xs text-ink-2">
-          {brain.description || "No description yet."}
-        </p>
+        <p className="line-clamp-1 text-xs text-ink-2">{brain.description || dash.noDescription}</p>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         {badge}
@@ -422,26 +471,29 @@ function SharedBrains({
   view,
   lastUpdated,
   mainPage = 1,
+  locale,
+  dict,
 }: {
   shared: BrainPage;
   view: BrainsView;
   lastUpdated: (brain: Brain) => string;
   mainPage?: number;
+  locale: Locale;
+  dict: Dictionary;
 }) {
+  const dash = dict.dashboard;
   if (!shared.total) return null;
   return (
     <section className="mt-10" aria-labelledby="dash-shared-title">
-      <SectionHead
-        id="dash-shared-title"
-        title="Shared with me"
-        note="Guest access outside your teams"
-      />
+      <SectionHead id="dash-shared-title" title={dash.sharedWithMe} note={dash.sharedNote} />
       <BrainCollection
         view={view}
+        locale={locale}
+        dict={dict}
         items={shared.items.map((brain) => ({
           brain,
           updatedAt: lastUpdated(brain),
-          badge: <Chip tone="accent">Guest</Chip>,
+          badge: <Chip tone="accent">{dash.guest}</Chip>,
         }))}
       />
       <Pager
@@ -454,7 +506,16 @@ function SharedBrains({
   );
 }
 
-function EmptyShell({ kicker, children }: { kicker: string; children: React.ReactNode }) {
+function EmptyShell({
+  kicker,
+  children,
+  dict,
+}: {
+  kicker: string;
+  children: React.ReactNode;
+  dict: Dictionary;
+}) {
+  const dash = dict.dashboard;
   return (
     <div className="relative">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] overflow-hidden opacity-80 [mask-image:linear-gradient(black,transparent)]">
@@ -463,7 +524,7 @@ function EmptyShell({ kicker, children }: { kicker: string; children: React.Reac
       <main className="relative mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
         <header>
           <EyebrowPill icon={false}>{kicker}</EyebrowPill>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Overview</h1>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">{dash.overview}</h1>
         </header>
         {children}
       </main>
@@ -475,27 +536,36 @@ function NoWorkspace({
   shared,
   view,
   lastUpdated,
+  locale,
+  dict,
 }: {
   shared: BrainPage;
   view: BrainsView;
   lastUpdated: (brain: Brain) => string;
+  locale: Locale;
+  dict: Dictionary;
 }) {
+  const dash = dict.dashboard;
   return (
-    <EmptyShell kicker="Workspace">
+    <EmptyShell kicker={dash.noWorkspaceKicker} dict={dict}>
       <section className="mt-12 rounded-card border border-dashed border-line bg-surface/50 px-6 py-14 text-center backdrop-blur-sm">
         <h2 className="bg-gradient-to-r from-grad-from via-grad-mid to-grad-to bg-clip-text text-2xl font-semibold tracking-tight text-transparent">
-          No workspace yet.
+          {dash.noWorkspaceTitle}
         </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-ink-2">
-          Create a team and workspace to collect brains and invite members.
-        </p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-ink-2">{dash.noWorkspaceBody}</p>
         <div className="mt-6 flex justify-center">
           <ButtonLink href="/teams" variant="solid" sparkle>
-            Set up your team
+            {dash.setupTeam}
           </ButtonLink>
         </div>
       </section>
-      <SharedBrains shared={shared} view={view} lastUpdated={lastUpdated} />
+      <SharedBrains
+        shared={shared}
+        view={view}
+        lastUpdated={lastUpdated}
+        locale={locale}
+        dict={dict}
+      />
     </EmptyShell>
   );
 }
@@ -507,6 +577,8 @@ function EmptyWorkspace({
   shared,
   view,
   lastUpdated,
+  locale,
+  dict,
 }: {
   teamName: string;
   workspaceName: string;
@@ -514,27 +586,33 @@ function EmptyWorkspace({
   shared: BrainPage;
   view: BrainsView;
   lastUpdated: (brain: Brain) => string;
+  locale: Locale;
+  dict: Dictionary;
 }) {
+  const dash = dict.dashboard;
   return (
-    <EmptyShell kicker={`${teamName} · ${workspaceName}`}>
+    <EmptyShell kicker={`${teamName} · ${workspaceName}`} dict={dict}>
       <div className="mt-8">
-        <AgentConnect workspaceName={workspaceName} mcpUrl={mcpUrl} />
+        <AgentConnect workspaceName={workspaceName} mcpUrl={mcpUrl} dict={dict} />
       </div>
       <section className="mt-8 rounded-card border border-dashed border-line bg-surface/50 px-6 py-14 text-center backdrop-blur-sm">
         <h2 className="bg-gradient-to-r from-grad-from via-grad-mid to-grad-to bg-clip-text text-2xl font-semibold tracking-tight text-transparent">
-          No brains yet.
+          {dash.noBrainsTitle}
         </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-ink-2">
-          Connect an agent over MCP to create your first brain. It will appear here with its
-          articles, staged writes, and activity.
-        </p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-ink-2">{dash.noBrainsBody}</p>
         <div className="mt-6 flex justify-center">
           <ButtonLink href="/connections" variant="ghost">
-            View connections
+            {dash.viewConnections}
           </ButtonLink>
         </div>
       </section>
-      <SharedBrains shared={shared} view={view} lastUpdated={lastUpdated} />
+      <SharedBrains
+        shared={shared}
+        view={view}
+        lastUpdated={lastUpdated}
+        locale={locale}
+        dict={dict}
+      />
     </EmptyShell>
   );
 }

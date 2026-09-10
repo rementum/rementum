@@ -2,6 +2,7 @@
 
 import { useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
+import type { Dictionary } from "../../lib/i18n/get-dictionary";
 
 type Kind = "cmd" | "out" | "ok" | "mut";
 
@@ -11,16 +12,8 @@ interface Line {
   kind: Kind;
 }
 
-const SCRIPT: Line[] = [
-  { prompt: "agent", text: "search_articles 'staged write conflict policy'", kind: "cmd" },
-  { text: "4 matches · routing index scan", kind: "out" },
-  { prompt: "agent", text: "read_article 'write-promotion-policy'", kind: "cmd" },
-  { text: "v2 · current · 2 sources", kind: "out" },
-  { prompt: "agent", text: "stage_write baseVersion=2 ...", kind: "cmd" },
-  { text: "staged · conflict-free · writeId 9c4f", kind: "ok" },
-  { prompt: "agent", text: "promote_staged_write 9c4f", kind: "cmd" },
-  { text: "promoted → canon v3 · audit recorded", kind: "mut" },
-];
+// The script alternates command/output/ok/mutate; mirrored in the dictionary order.
+const KIND_ORDER: Kind[] = ["cmd", "out", "cmd", "out", "cmd", "ok", "cmd", "mut"];
 
 const KIND_CLASSES: Record<Kind, string> = {
   cmd: "text-ink",
@@ -29,11 +22,18 @@ const KIND_CLASSES: Record<Kind, string> = {
   mut: "text-accent",
 };
 
-export function TerminalDemo() {
+export function TerminalDemo({ dict }: { dict: Dictionary }) {
+  // Commands stay in English; only the human-readable output is translated.
+  const SCRIPT: Line[] = dict.hero.terminalSteps.map((step, index) => ({
+    ...(step.prompt ? { prompt: step.prompt } : {}),
+    text: step.text,
+    kind: KIND_ORDER[index % KIND_ORDER.length],
+  }));
   const reduce = useReducedMotion();
   const [line, setLine] = useState(0);
   const [chars, setChars] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: SCRIPT is rebuilt per render from the dictionary; the animation advances on line/chars alone.
   useEffect(() => {
     if (reduce) return;
     if (line >= SCRIPT.length) {
@@ -59,8 +59,8 @@ export function TerminalDemo() {
 
   return (
     <div aria-hidden="true">
-      <div className="flex items-center border-b border-line px-4 py-2.5">
-        <span className="font-mono text-2xs tracking-[0.08em] text-ink-3">rementum / mcp</span>
+      <div className="flex items-center border-line border-b px-4 py-2.5">
+        <span className="font-mono text-2xs text-ink-3 tracking-[0.08em]">rementum / mcp</span>
       </div>
       <pre className="min-h-[264px] overflow-x-auto px-4 py-3 font-mono text-xs leading-7">
         {SCRIPT.slice(0, visible).map((l) => (

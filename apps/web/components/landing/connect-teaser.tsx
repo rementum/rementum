@@ -1,5 +1,6 @@
 "use client";
 
+import type { Dictionary } from "../../lib/i18n/get-dictionary";
 import { Button, CommunityBadge, MockIDE } from "../pui";
 import { IconGitHub } from "../ui/icons";
 import { Reveal } from "./reveal";
@@ -25,26 +26,26 @@ const TOKENS = [
   { c: "# approved · brain attached", cls: "com" as const },
 ];
 
-export function ConnectTeaser({ githubUrl }: { githubUrl: string }) {
+export function ConnectTeaser({ githubUrl, dict }: { githubUrl: string; dict: Dictionary }) {
+  const section = dict.connectTeaser;
   return (
     <section className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 py-20" id="connect">
       <div className="grid items-center gap-12 lg:grid-cols-2">
         <div>
-          <SectionHead kicker="Plugin + MCP" title="Give your agents a memory.">
-            You host Rementum on your own server and connect over MCP. The plugin adds its skills
-            and tools to your coding agent, and you approve each grant in your browser.
+          <SectionHead kicker={section.kicker} title={section.title}>
+            {section.subtitle}
           </SectionHead>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             {/* Full-page link: the force-static landing caches the signed-out root layout, so a
                 soft nav would strand a signed-in visitor on the public header. */}
             <Button as="a" href="/auth/login" variant="solid" size="lg" sparkle>
-              Get started
+              {section.getStarted}
             </Button>
             <CommunityBadge
               href={githubUrl}
               iconNode={<IconGitHub className="size-[18px]" />}
-              title="Star us on GitHub"
-              subtitle="Free · self-hosted"
+              title={section.starTitle}
+              subtitle={section.starSubtitle}
             />
           </div>
         </div>
