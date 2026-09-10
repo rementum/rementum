@@ -103,6 +103,16 @@ in turn.
 User content (brain names, article titles and bodies, comments) is never translated, and neither
 are shell commands, MCP URLs, or slugs.
 
+### Is the repository README translated?
+
+Yes. `README.md` is the English source, and [`README.tr.md`](https://github.com/rementum/rementum/blob/main/README.tr.md)
+and [`README.zh.md`](https://github.com/rementum/rementum/blob/main/README.zh.md) are the Turkish and
+Simplified Chinese translations. Each links to the others at the top.
+
+The English file is canonical. When a translation drifts, treat the English text as correct; the
+translated files carry a note saying so. Shell commands, MCP URLs, and identifiers stay
+untranslated in all three; only prose is translated.
+
 ## Licensing and privacy
 
 ### Can my company or startup use Rementum internally under AGPL-3.0?
