@@ -1,41 +1,18 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { Dictionary } from "../../lib/i18n/get-dictionary";
 import { GradientText } from "../pui";
 import type { PromoController } from "./promo/mount";
 import { Reveal } from "./reveal";
 import { SectionHead } from "./section-head";
 
-const STEPS = [
-  {
-    num: "01",
-    title: "Compact Routing Index",
-    desc: "You query a compact index of titles, summaries, keywords, and freshness, then open the one article you need. You leave the rest of the brain alone.",
-  },
-  {
-    num: "02",
-    title: "Staged Write Isolation",
-    desc: "You stage each proposal as written in a buffer tied to its base version, apart from live canon.",
-  },
-  {
-    num: "03",
-    title: "Conflict Resolution Shield",
-    desc: "Rementum checks the article for changes since you staged your write. You review each conflict and decide what lands.",
-  },
-  {
-    num: "04",
-    title: "Immutable Versioned Canon",
-    desc: "You promote. Rementum encrypts the change with AES-256-GCM and commits an audited, immutable version. Your agents read the new version on their next call.",
-  },
-];
-
-const DESCRIPTION =
-  "Illustrated overview: agents read a compact index, stage writes, and share one versioned brain";
-
 /* Tailwind's `md` breakpoint; the window below carries the matching `hidden md:block`. */
 const SHOW_ANIMATION = "(min-width: 48rem)";
 
-export function HowItWorks() {
+export function HowItWorks({ dict }: { dict: Dictionary }) {
+  const section = dict.howItWorks;
+  const promo = dict.promo;
   const host = useRef<HTMLDivElement>(null);
 
   // The animation engine is a separate chunk and only runs in the browser: it measures text, so it
@@ -43,6 +20,8 @@ export function HowItWorks() {
   // Below the `md` breakpoint the window is hidden (the 1920px stage shrinks past legibility on a
   // phone) and the engine is never loaded; the same query keeps the two in step, because text
   // measured inside a `display: none` box comes back as zero and would break the layout.
+  // `promo` is a dependency because the engine draws its copy from it: different copy means the
+  // built SVG has to be thrown away and drawn again.
   useEffect(() => {
     const element = host.current;
     if (!element) return;
@@ -67,7 +46,7 @@ export function HowItWorks() {
       import("./promo/mount").then(({ mountPromo }) => {
         loading = false;
         if (cancelled || !wide.matches) return;
-        mounted = mountPromo(element);
+        mounted = mountPromo(element, promo);
         observer = new IntersectionObserver(
           ([entry]) => {
             if (!entry) return;
@@ -86,7 +65,7 @@ export function HowItWorks() {
       wide.removeEventListener("change", sync);
       unmount();
     };
-  }, []);
+  }, [promo]);
 
   return (
     <section
@@ -94,15 +73,15 @@ export function HowItWorks() {
       id="how-it-works"
     >
       <SectionHead
-        kicker="How it works"
+        kicker={section.kicker}
         title={
           <>
-            Simple architecture. <GradientText>Zero collisions.</GradientText>
+            {section.titleA} <GradientText>{section.titleB}</GradientText>
           </>
         }
       >
-        How your agents stay synchronized without overwriting each other
-        <span className="hidden md:inline">, in 45 seconds</span>.
+        {section.subtitleA}
+        <span className="hidden md:inline">{section.subtitleB}</span>.
       </SectionHead>
 
       <Reveal delay={0.1}>
@@ -122,20 +101,20 @@ export function HowItWorks() {
                 <span className="size-2.5 rounded-full bg-[#FF5F57]/80" />
                 <span className="size-2.5 rounded-full bg-[#F59E0B]/80" />
                 <span className="size-2.5 rounded-full bg-[#4AA48F]/80" />
-                <span className="ml-2 font-mono text-2xs text-ink-3">how-it-works</span>
+                <span className="ml-2 font-mono text-2xs text-ink-3">{section.windowTitle}</span>
               </div>
 
               {/* Stage: a 1920x1080 canvas the engine scales to this box */}
               <div
                 ref={host}
                 role="img"
-                aria-label={DESCRIPTION}
+                aria-label={section.animationLabel}
                 className="relative aspect-[16/9] w-full overflow-hidden bg-[#0b1614]"
               >
                 <noscript>
                   {/* biome-ignore lint/performance/noImgElement: next/image needs JavaScript, and this is the no-JavaScript fallback */}
                   <img
-                    alt={DESCRIPTION}
+                    alt={section.animationLabel}
                     className="absolute inset-0 size-full object-cover"
                     src="/assets/rementum-promo-poster.jpg"
                   />
@@ -146,7 +125,7 @@ export function HowItWorks() {
 
           {/* 4-Step Architecture Highlights */}
           <div className="grid gap-4 sm:grid-cols-2 md:mt-8 lg:grid-cols-4">
-            {STEPS.map((step) => (
+            {section.steps.map((step) => (
               <div
                 key={step.num}
                 className="rounded-card border border-line/60 bg-surface/60 p-4 shadow-hairline backdrop-blur-sm transition-colors hover:border-line-strong hover:bg-surface/80"

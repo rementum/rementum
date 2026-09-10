@@ -5,8 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Team, Workspace } from "../lib/api";
+import type { Dictionary } from "../lib/i18n/get-dictionary";
+import type { Locale } from "../lib/i18n/locales";
 import { DOCS_URL } from "../lib/site";
 import { BrandMark } from "./brand";
+import { LocaleSwitcher } from "./locale-switcher";
 import { GlideNav } from "./ui/glide";
 import {
   IconActivity,
@@ -24,18 +27,21 @@ import {
 } from "./ui/icons";
 import { ThemeToggle } from "./ui/theme-toggle";
 
-const NAV_ITEMS = [
-  { label: "Brains", href: "/dashboard", icon: IconBrains },
-  { label: "Analytics", href: "/activity", icon: IconActivity },
-  { label: "Teams", href: "/teams", icon: IconTeams },
-  { label: "Connections", href: "/connections", icon: IconConnections },
-];
-
-// Shown to the instance owner only. The link is a convenience; the pages and the API
-// each check the flag themselves.
-const INSTANCE_ITEM = { label: "Instance", href: "/admin", icon: IconShield };
-
-export function navItemsFor(systemOwner: boolean) {
+export function navItemsFor(systemOwner: boolean, dict?: Dictionary) {
+  const labels = dict?.appNav;
+  const NAV_ITEMS = [
+    { label: labels?.brains ?? "Brains", href: "/dashboard", icon: IconBrains },
+    { label: labels?.analytics ?? "Analytics", href: "/activity", icon: IconActivity },
+    { label: labels?.teams ?? "Teams", href: "/teams", icon: IconTeams },
+    { label: labels?.connections ?? "Connections", href: "/connections", icon: IconConnections },
+  ];
+  // Shown to the instance owner only. The link is a convenience; the pages and the API
+  // each check the flag themselves.
+  const INSTANCE_ITEM = {
+    label: labels?.instance ?? "Instance",
+    href: "/admin",
+    icon: IconShield,
+  };
   return systemOwner ? [...NAV_ITEMS, INSTANCE_ITEM] : NAV_ITEMS;
 }
 
@@ -55,10 +61,12 @@ function WorkspacePicker({
   teams,
   workspaces,
   activeWorkspaceId,
+  dict,
 }: {
   teams: Team[];
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
+  dict: Dictionary;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -99,7 +107,7 @@ function WorkspacePicker({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label="Switch workspace"
+        aria-label={dict.appNav.switchWorkspace}
         className="flex w-full items-center gap-2.5 rounded-control border border-line bg-surface px-2 py-1.5 text-left shadow-btn transition-colors hover:bg-hover"
       >
         <span
@@ -157,25 +165,30 @@ function WorkspacePicker({
 
 // Docs are served in-stack at /docs (outside the Next router), so this is a plain anchor that
 // opens the documentation site in a new tab rather than a next/link soft navigation.
-function DocsLink() {
+function DocsLink({ dict }: { dict: Dictionary }) {
   return (
     <a
       href={DOCS_URL}
       target="_blank"
       rel="noreferrer"
       className={iconButtonClass}
-      aria-label="Documentation"
-      title="Documentation"
+      aria-label={dict.common.documentation}
+      title={dict.common.documentation}
     >
       <IconBook />
     </a>
   );
 }
 
-function SignOutButton() {
+function SignOutButton({ dict }: { dict: Dictionary }) {
   return (
     <form action="/auth/logout" method="post">
-      <button type="submit" className={iconButtonClass} aria-label="Sign out" title="Sign out">
+      <button
+        type="submit"
+        className={iconButtonClass}
+        aria-label={dict.common.signOut}
+        title={dict.common.signOut}
+      >
         <IconSignOut />
       </button>
     </form>
@@ -188,17 +201,21 @@ export function AppNavigation({
   activeWorkspaceId,
   initialCollapsed = false,
   systemOwner = false,
+  locale,
+  dict,
 }: {
   teams: Team[];
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
   initialCollapsed?: boolean;
   systemOwner?: boolean;
+  locale: Locale;
+  dict: Dictionary;
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = navItemsFor(systemOwner);
+  const navItems = navItemsFor(systemOwner, dict);
   const activeIndex = activeIndexFor(pathname);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: close the drawer on navigation
@@ -231,8 +248,8 @@ export function AppNavigation({
             <button
               type="button"
               onClick={toggleCollapsed}
-              title="Expand sidebar to switch workspace"
-              aria-label="Expand sidebar to switch workspace"
+              title={dict.appNav.expandToSwitch}
+              aria-label={dict.appNav.expandToSwitch}
               className="mx-auto mb-4 grid size-7 place-items-center rounded-chip bg-gradient-to-br from-grad-from to-grad-to font-mono text-[10px] font-bold uppercase text-white transition-transform active:scale-[0.94]"
             >
               {(
@@ -246,6 +263,7 @@ export function AppNavigation({
               teams={teams}
               workspaces={workspaces}
               activeWorkspaceId={activeWorkspaceId}
+              dict={dict}
             />
           </div>
         )}
@@ -254,26 +272,27 @@ export function AppNavigation({
           activeIndex={activeIndex}
           collapsed={collapsed}
           className={collapsed ? "px-1.5" : "px-2"}
-          ariaLabel="Workspace"
+          ariaLabel={dict.appNav.workspace}
         />
         <div
           className={`mt-auto flex items-center gap-1 border-t border-line py-2.5 ${
             collapsed ? "flex-col px-1.5" : "px-2"
           }`}
         >
+          <LocaleSwitcher locale={locale} label={dict.common.language} />
           <ThemeToggle />
-          <DocsLink />
+          <DocsLink dict={dict} />
           <button
             type="button"
             onClick={toggleCollapsed}
             className={iconButtonClass}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? dict.appNav.expandSidebar : dict.appNav.collapseSidebar}
+            title={collapsed ? dict.appNav.expandSidebar : dict.appNav.collapseSidebar}
           >
             <IconSidebar />
           </button>
           <div className={collapsed ? "" : "ml-auto"}>
-            <SignOutButton />
+            <SignOutButton dict={dict} />
           </div>
         </div>
       </aside>
@@ -290,7 +309,7 @@ export function AppNavigation({
           type="button"
           onClick={() => setMobileOpen(true)}
           className={iconButtonClass}
-          aria-label="Open menu"
+          aria-label={dict.appNav.openMenu}
         >
           <IconMenu />
         </button>
@@ -301,7 +320,7 @@ export function AppNavigation({
           <div className="fixed inset-0 z-50 md:hidden">
             <motion.button
               type="button"
-              aria-label="Close menu"
+              aria-label={dict.appNav.closeMenu}
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
               onClick={() => setMobileOpen(false)}
               initial={{ opacity: 0 }}
@@ -323,7 +342,7 @@ export function AppNavigation({
                   type="button"
                   onClick={() => setMobileOpen(false)}
                   className={iconButtonClass}
-                  aria-label="Close menu"
+                  aria-label={dict.appNav.closeMenu}
                 >
                   <IconClose />
                 </button>
@@ -332,14 +351,20 @@ export function AppNavigation({
                 teams={teams}
                 workspaces={workspaces}
                 activeWorkspaceId={activeWorkspaceId}
+                dict={dict}
               />
-              <GlideNav items={navItems} activeIndex={activeIndex} ariaLabel="Workspace" />
+              <GlideNav
+                items={navItems}
+                activeIndex={activeIndex}
+                ariaLabel={dict.appNav.workspace}
+              />
               <div className="mt-auto flex items-center justify-between border-t border-line pt-3">
                 <div className="flex items-center gap-1">
+                  <LocaleSwitcher locale={locale} label={dict.common.language} />
                   <ThemeToggle />
-                  <DocsLink />
+                  <DocsLink dict={dict} />
                 </div>
-                <SignOutButton />
+                <SignOutButton dict={dict} />
               </div>
             </motion.div>
           </div>

@@ -6,6 +6,7 @@
  * Loaded lazily by the landing-page component; nothing here runs on the server.
  */
 
+import type { PromoStrings } from "./parts";
 import { buildScenes, DURATION, type SceneCtx } from "./scenes";
 import {
   applyTextKind,
@@ -56,7 +57,9 @@ async function waitForFonts(stage: HTMLElement) {
   await document.fonts.ready;
 }
 
-export function mountPromo(host: HTMLElement): PromoController {
+// `p` is the locale's animation copy, read from the dictionary by the caller. It is passed in
+// rather than imported so the engine stays free of locale logic and can be unit-tested.
+export function mountPromo(host: HTMLElement, p: PromoStrings): PromoController {
   const stage = el(
     "div",
     {
@@ -244,6 +247,7 @@ export function mountPromo(host: HTMLElement): PromoController {
   const ctx: SceneCtx = {
     tl,
     measure,
+    p,
     say(start, end, head, sub = "") {
       tl.at(
         start,

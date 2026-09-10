@@ -1,78 +1,24 @@
-import type { Metadata } from "next";
-import { ConnectTeaser } from "../components/landing/connect-teaser";
-import { LandingFooter } from "../components/landing/footer";
-import { Hero } from "../components/landing/hero";
-import { HowItWorks } from "../components/landing/how-it-works";
-import { MotionProvider } from "../components/landing/motion-provider";
-import { Pricing } from "../components/landing/pricing";
-import { ScrollProgress } from "../components/landing/scroll-progress";
-import { publicAuthConfig } from "../lib/api";
-import { GITHUB_URL, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
+import { LandingPage } from "../components/landing-page";
+import { landingMetadata } from "../lib/landing-metadata";
 
-// This route deliberately sees empty cookies, including in the parent layout, so Next can serve
-// one cached public landing page. Session-dependent rendering lives at /dashboard.
-export const dynamic = "force-static";
+// Do NOT add `export const dynamic = "force-static"` here, or to /zh and /tr.
+//
+// The root layout learns this route's locale from the `x-rementum-locale` header that
+// middleware.ts sets, and uses it for <html lang> and for the navigation's language.
+// `force-static` makes Next set workStore.forceStatic for the whole render tree, and
+// headers() then returns an empty Headers object instead of the request's — silently,
+// with no error. The layout would fall through to English, so /zh would serve Chinese
+// copy inside lang="en" with an English nav and a language chip reading "English".
+// (Next applies the page's segment config to the layout too: see
+// create-component-tree.js, "the nested most config wins".)
+//
+// Instead this route is cached with ISR: rendered on the first request, then reused for
+// 60s. The output is still a fully rendered, cacheable, indexable page with its own
+// canonical URL and hreflang links — it is just not prerendered at build time.
+// apps/web/app/landing-routes.test.ts fails if this export comes back.
 export const revalidate = 60;
+export const metadata = landingMetadata("en");
 
-// The landing page is the one indexable, canonical URL; every private route stays out of robots.
-export const metadata: Metadata = {
-  alternates: { canonical: "/" },
-};
-
-// Structured data lets search engines describe Rementum as a free, self-hosted developer app and
-// tie the site to its GitHub organization. Kept in sync with the marketing copy and the license.
-const structuredData = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Organization",
-      "@id": `${SITE_URL}/#organization`,
-      name: SITE_NAME,
-      url: SITE_URL,
-      logo: `${SITE_URL}/icon.svg`,
-      sameAs: [GITHUB_URL],
-    },
-    {
-      "@type": "WebSite",
-      "@id": `${SITE_URL}/#website`,
-      url: SITE_URL,
-      name: SITE_NAME,
-      description: SITE_DESCRIPTION,
-      publisher: { "@id": `${SITE_URL}/#organization` },
-      inLanguage: "en",
-    },
-    {
-      "@type": "SoftwareApplication",
-      "@id": `${SITE_URL}/#software`,
-      name: SITE_NAME,
-      description: SITE_DESCRIPTION,
-      url: SITE_URL,
-      applicationCategory: "DeveloperApplication",
-      operatingSystem: "Linux, Docker",
-      license: "https://www.gnu.org/licenses/agpl-3.0.html",
-      author: { "@id": `${SITE_URL}/#organization` },
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-    },
-  ],
-};
-
-export default async function Home() {
-  const authConfig = await publicAuthConfig();
-  return (
-    <main className="relative">
-      <script
-        type="application/ld+json"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: static, first-party JSON-LD string
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
-      <MotionProvider>
-        <ScrollProgress />
-        <Hero githubUrl={GITHUB_URL} />
-        <HowItWorks />
-        <Pricing />
-        <ConnectTeaser githubUrl={GITHUB_URL} />
-        <LandingFooter githubUrl={GITHUB_URL} signupEnabled={authConfig.signupEnabled} />
-      </MotionProvider>
-    </main>
-  );
+export default function Home() {
+  return <LandingPage locale="en" />;
 }

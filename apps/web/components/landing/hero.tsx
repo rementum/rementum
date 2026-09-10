@@ -1,15 +1,15 @@
 "use client";
 
 import { motion } from "motion/react";
+import type { Dictionary } from "../../lib/i18n/get-dictionary";
 import { AsciiHero, Button, EyebrowPill, GradientText, WordRoll } from "../pui";
 import { AURORA_HERO, AuroraBackdrop, LazyCanvas } from "../ui/backdrop";
 import { IconGitHub } from "../ui/icons";
 import { GREEN_PALETTE } from "./palette";
 import { TerminalDemo } from "./terminal-demo";
 
-const HEADLINE = ["Your", "agents", "should", "remember."];
-
-export function Hero({ githubUrl }: { githubUrl: string }) {
+export function Hero({ githubUrl, dict }: { githubUrl: string; dict: Dictionary }) {
+  const hero = dict.hero;
   return (
     <section className="relative overflow-hidden">
       <AuroraBackdrop blobs={AURORA_HERO} blur={100} intensity="bold" />
@@ -31,20 +31,27 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.05 }}
           >
-            <EyebrowPill statusColor="var(--grad-mid)">
-              Open source memory infrastructure
-            </EyebrowPill>
+            <EyebrowPill statusColor="var(--grad-mid)">{hero.kicker}</EyebrowPill>
           </motion.div>
           <h1 className="mt-5 text-display font-medium tracking-tighter text-ink">
-            {HEADLINE.map((word, i) => (
-              <span className="inline-block overflow-hidden pb-1 align-bottom" key={word}>
+            {hero.headline.map((word, i) => (
+              // Each word is its own mask for the slide-up reveal. The bottom padding has to
+              // clear the deepest descender or `overflow-hidden` slices it off: at this size
+              // (up to 84px, line-height 0.98) Inter's `g` and `ğ` reach 0.2158em below the
+              // baseline while the line box ends 0.1262em below it, so the padding must be at
+              // least 0.09em. A fixed `pb-1` is 0.048em at 84px and cut the tail off "agents";
+              // an em value scales with the clamp so it holds at every size.
+              <span className="inline-block overflow-hidden pb-[0.14em] align-bottom" key={word}>
                 <motion.span
                   className="mr-[0.24em] inline-block"
                   initial={{ opacity: 0, y: "0.5em", filter: "blur(8px)" }}
                   animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                   transition={{ duration: 0.7, delay: 0.15 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  {word === "remember." ? <GradientText>remember.</GradientText> : word}
+                  {/* The gradient word is named by the dictionary, not assumed to be the last
+                      one: languages put the emphasis in different places, and Turkish ends on
+                      the verb, so "last" would highlight the wrong word. */}
+                  {i === hero.headlineHighlight ? <GradientText>{word}</GradientText> : word}
                 </motion.span>
               </span>
             ))}
@@ -55,8 +62,7 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.62 }}
           >
-            One versioned knowledge layer for every MCP client. Rementum stages each write for
-            review before it replaces shared memory.
+            {hero.subtitle}
           </motion.p>
           <motion.div
             className="mt-8 flex flex-wrap items-center gap-3"
@@ -67,12 +73,12 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
             {/* Full-page link: the force-static landing caches the signed-out root layout, so a
                 soft nav would strand a signed-in visitor on the public header. */}
             <Button as="a" href="/auth/login" variant="solid" size="lg" sparkle>
-              Get started
+              {hero.getStarted}
             </Button>
             <Button as="a" href={githubUrl} variant="wave" size="lg">
               <span className="inline-flex items-center gap-2">
                 <IconGitHub />
-                Star on GitHub
+                {hero.starOnGithub}
               </span>
             </Button>
           </motion.div>
@@ -82,13 +88,8 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.7, delay: 0.9 }}
           >
-            Works with
-            <WordRoll
-              words={["Claude Code", "Codex", "OpenCode"]}
-              intervalMs={2400}
-              gradient
-              className="font-semibold"
-            />
+            {hero.worksWith}
+            <WordRoll words={hero.clients} intervalMs={2400} gradient className="font-semibold" />
           </motion.p>
         </div>
         <motion.div
@@ -102,7 +103,7 @@ export function Hero({ githubUrl }: { githubUrl: string }) {
             className="absolute -inset-[12%] bg-[radial-gradient(closest-side,rgb(47_138_112/30%),transparent)] blur-2xl"
           />
           <div className="relative overflow-hidden rounded-window border border-line-strong/60 bg-surface/70 shadow-raised backdrop-blur-xl">
-            <TerminalDemo />
+            <TerminalDemo dict={dict} />
           </div>
         </motion.div>
       </div>

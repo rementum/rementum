@@ -3,6 +3,7 @@
  * stations. Each is built once into the SVG and returns the `Item` (or items) the scenes animate.
  */
 
+import type { Dictionary } from "../../../lib/i18n/get-dictionary";
 import { BRAND_LAYERS_PATH, BRAND_LETTER_PATH } from "../../brand-paths";
 import {
   C,
@@ -16,10 +17,19 @@ import {
   txt,
 } from "./timeline";
 
+/**
+ * The animation's copy. Every string the engine draws comes from here, so a translated
+ * dictionary re-draws the whole loop rather than leaving English behind. Identifiers that
+ * are never translated — `stage_write`, `load_context`, agent and product names, version
+ * labels — stay in the code instead of the dictionary.
+ */
+export type PromoStrings = Dictionary["promo"];
+
 export interface Ctx {
   tl: Timeline;
   /** Rendered width of a string in a text role; chips and bubbles size themselves from it. */
   measure(str: string, kind: TextKind): number;
+  p: PromoStrings;
 }
 
 export interface Agent {
@@ -32,7 +42,6 @@ export const AGENTS: readonly Agent[] = [
   { name: "Cursor", color: "#9ec9c1" },
   { name: "Codex", color: "#7cc9b0" },
 ];
-export const NOTES = ["Task queue → Postgres", "Auth header: X-Api-Key", "Retry limit is 3"];
 
 type Pos = Partial<ItemState>;
 
@@ -272,7 +281,7 @@ export function makeCore(ctx: Ctx, parent: Element, pos: Pos): Item {
   svg("path", { d: BRAND_LAYERS_PATH, fill: DEFS.tealMark }, mark);
   svg("path", { d: BRAND_LETTER_PATH, fill: C.ink }, mark);
   txt(g, "Rementum", { y: 192, "text-anchor": "middle", kind: "coreLabel", fill: C.ink });
-  txt(g, "one shared brain", { y: 226, "text-anchor": "middle", kind: "mono", fill: C.ink3 });
+  txt(g, ctx.p.coreSubtitle, { y: 226, "text-anchor": "middle", kind: "mono", fill: C.ink3 });
   return it;
 }
 
@@ -387,14 +396,14 @@ export function makeProposal(ctx: Ctx, parent: Element, title: string, pos: Pos)
     kind: "cardTitle",
     fill: C.ink,
   });
-  txt(g, "base: v3", {
+  txt(g, ctx.p.write.base, {
     x: -w / 2 + 20,
     y: -h / 2 + 62,
     "dominant-baseline": "central",
     kind: "mono",
     fill: C.ink3,
   });
-  const status = txt(g, "status: staged", {
+  const status = txt(g, ctx.p.write.statusStaged, {
     x: -w / 2 + 20,
     y: -h / 2 + 90,
     "dominant-baseline": "central",
@@ -418,7 +427,7 @@ export function makeProposal(ctx: Ctx, parent: Element, title: string, pos: Pos)
   );
   ctx.tl.onReset(() => {
     tint.setAttribute("opacity", "0");
-    status.textContent = "status: staged";
+    status.textContent = ctx.p.write.statusStaged;
     status.setAttribute("fill", C.green);
   });
   return {
@@ -426,7 +435,7 @@ export function makeProposal(ctx: Ctx, parent: Element, title: string, pos: Pos)
     conflict(start, dur) {
       ctx.tl.at(start, dur, (p) => {
         tint.setAttribute("opacity", String(p));
-        status.textContent = "status: conflicted";
+        status.textContent = ctx.p.write.statusConflicted;
         status.setAttribute("fill", C.amber);
       });
     },

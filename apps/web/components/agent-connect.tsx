@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { Dictionary } from "../lib/i18n/get-dictionary";
 import { EyebrowPill } from "./pui";
 import { CopyButton } from "./ui/copy-button";
 import { IconArrowUpRight } from "./ui/icons";
@@ -51,7 +52,16 @@ const HARNESSES = [
   },
 ] as const;
 
-export function AgentConnect({ workspaceName, mcpUrl }: { workspaceName: string; mcpUrl: string }) {
+export function AgentConnect({
+  workspaceName,
+  mcpUrl,
+  dict,
+}: {
+  workspaceName: string;
+  mcpUrl: string;
+  dict: Dictionary;
+}) {
+  const section = dict.agentConnect;
   const [active, setActive] = useState<HarnessId>("claude");
   const activeHarness = HARNESSES.find((harness) => harness.id === active) ?? HARNESSES[0];
 
@@ -63,12 +73,9 @@ export function AgentConnect({ workspaceName, mcpUrl }: { workspaceName: string;
       <div className="border-b border-dashed border-line bg-gradient-to-br from-accent-tint to-transparent p-5 lg:border-b-0 lg:border-r">
         <EyebrowPill icon={false}>Workspace MCP</EyebrowPill>
         <h2 id="dash-connect-title" className="mt-3 text-lg font-semibold tracking-tight text-ink">
-          Connect {workspaceName} to an agent.
+          {section.title.replace("{workspace}", workspaceName)}
         </h2>
-        <p className="mt-2 text-sm text-ink-2">
-          Pick your agent, install the Rementum plugin or skills, then connect MCP. Your browser
-          will ask you to approve this workspace. Restart the agent when setup completes.
-        </p>
+        <p className="mt-2 text-sm text-ink-2">{section.body}</p>
         <a
           className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent transition-colors hover:text-ink"
           href={INTEGRATION_DOCS_URL}
@@ -81,7 +88,7 @@ export function AgentConnect({ workspaceName, mcpUrl }: { workspaceName: string;
       <div className="p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <fieldset className="flex items-center gap-0.5 rounded-control border border-line bg-inset p-0.5">
-            <legend className="sr-only">Agent harness</legend>
+            <legend className="sr-only">{section.harnessLegend}</legend>
             {HARNESSES.map((harness) => (
               <button
                 key={harness.id}
@@ -98,7 +105,10 @@ export function AgentConnect({ workspaceName, mcpUrl }: { workspaceName: string;
               </button>
             ))}
           </fieldset>
-          <CopyButton text={activeHarness.commands(mcpUrl).join("\n")} label="Copy all" />
+          <CopyButton
+            text={activeHarness.commands(mcpUrl).join("\n")}
+            label={dict.common.copyAll}
+          />
         </div>
         {HARNESSES.map((harness) => (
           <ol

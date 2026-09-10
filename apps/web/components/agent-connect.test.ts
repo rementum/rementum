@@ -1,13 +1,18 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { getDictionary } from "../lib/i18n/get-dictionary";
 import { AgentConnect } from "./agent-connect";
 
 describe("AgentConnect", () => {
   it("renders workspace-scoped commands for every harness with the integration guide", () => {
     const mcpUrl = "https://memory.example.test/mcp/workspace/workspace-id";
     const html = renderToStaticMarkup(
-      createElement(AgentConnect, { workspaceName: "Product knowledge", mcpUrl }),
+      createElement(AgentConnect, {
+        workspaceName: "Product knowledge",
+        mcpUrl,
+        dict: getDictionary("en"),
+      }),
     );
 
     expect(html).toContain("Connect Product knowledge to an agent.");
