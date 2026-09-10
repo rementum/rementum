@@ -45,6 +45,14 @@ export const LOCALE_LABELS: Record<Locale, string> = {
   tr: "Türkçe",
 };
 
+// The switcher's collapsed label. A globe icon says "this is a language control" but not
+// which language is active, and the two-letter code fits the sidebar's bottom bar.
+export const LOCALE_CODES: Record<Locale, string> = {
+  en: "EN",
+  zh: "ZH",
+  tr: "TR",
+};
+
 // The path segments that carry their own localized page. English lives at the root, so it
 // has no segment of its own.
 const LOCALIZED_SEGMENTS: readonly string[] = LOCALES.filter((each) => each !== DEFAULT_LOCALE);

@@ -84,10 +84,14 @@ The homepage and the dashboard are available in **English**, **Simplified Chines
   cookie-dependent one. Each is cached and revalidated every 60 seconds. They are deliberately
   *not* prerendered at build time: the language the page shell renders in comes from the request,
   so freezing the HTML would ship `/zh` with `lang="en"` and an English navigation.
-- **Dashboard:** use the globe switcher in the sidebar. The choice is stored in the
-  `rementum_locale` cookie; without one, the dashboard follows the browser's `Accept-Language`.
-  Off the homepage the switcher keeps you on the page you are on and re-renders it in the new
-  language instead of sending you back to the marketing site.
+- **Dashboard:** use the language switcher (`EN` / `中文` / `Türkçe`) in the sidebar. The choice is
+  stored in the `rementum_locale` cookie; without one, the dashboard follows the browser's
+  `Accept-Language`. Off the homepage the switcher keeps you on the page you are on and re-renders
+  it in the new language instead of sending you back to the marketing site.
+
+The homepage stays in the public shell when you are signed in: the sidebar is the app's frame, and
+the marketing page is not laid out inside it. The account buttons in the header and the footer
+become a **Dashboard** link in that case, so the page still leads into the app.
 
 The **navigation shell** — sidebar, header, footer, and the language switcher — follows your chosen
 language on every signed-in page. **Page content** is translated only on the homepage and the

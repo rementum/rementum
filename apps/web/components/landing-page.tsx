@@ -1,4 +1,4 @@
-import { publicAuthConfig } from "../lib/api";
+import { hasSession, publicAuthConfig } from "../lib/api";
 import { getDictionary } from "../lib/i18n/get-dictionary";
 import type { Locale } from "../lib/i18n/locales";
 import { GITHUB_URL, SITE_NAME, SITE_URL } from "../lib/site";
@@ -50,11 +50,13 @@ function structuredData(locale: Locale) {
   };
 }
 
-// One landing body shared by /, /zh, and /tr. Each locale is rendered statically at
-// build time, so the public shell stays cacheable and never needs to read cookies.
+// One landing body shared by /, /zh, and /tr. The root layout renders it in the public shell
+// even for a signed-in visitor, so the account links here have to reflect the session rather
+// than always pitching sign-in.
 export async function LandingPage({ locale }: { locale: Locale }) {
   const dict = getDictionary(locale);
-  const authConfig = await publicAuthConfig();
+  const signedIn = await hasSession();
+  const authConfig = signedIn ? null : await publicAuthConfig();
   return (
     <main className="relative">
       <script
@@ -70,7 +72,8 @@ export async function LandingPage({ locale }: { locale: Locale }) {
         <ConnectTeaser githubUrl={GITHUB_URL} dict={dict} />
         <LandingFooter
           githubUrl={GITHUB_URL}
-          signupEnabled={authConfig.signupEnabled}
+          signupEnabled={authConfig?.signupEnabled ?? false}
+          signedIn={signedIn}
           dict={dict}
         />
       </MotionProvider>

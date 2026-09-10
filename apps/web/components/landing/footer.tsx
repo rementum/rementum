@@ -7,10 +7,12 @@ import { BigBack } from "../pui";
 export function LandingFooter({
   githubUrl,
   signupEnabled,
+  signedIn,
   dict,
 }: {
   githubUrl: string;
   signupEnabled: boolean;
+  signedIn: boolean;
   dict: Dictionary;
 }) {
   const footer = dict.footer;
@@ -38,9 +40,17 @@ export function LandingFooter({
         },
         {
           heading: footer.account,
+          // A signed-in visitor keeps reading the marketing page in the public shell, so
+          // the header swaps these for a Dashboard link; the footer has to agree with it.
           links: [
-            { label: dict.common.signIn, href: "/auth/login" },
-            ...(signupEnabled ? [{ label: dict.common.createAccount, href: "/register" }] : []),
+            ...(signedIn
+              ? [{ label: dict.common.dashboard, href: "/dashboard" }]
+              : [
+                  { label: dict.common.signIn, href: "/auth/login" },
+                  ...(signupEnabled
+                    ? [{ label: dict.common.createAccount, href: "/register" }]
+                    : []),
+                ]),
             { label: footer.resetPassword, href: "/forgot-password" },
           ],
         },
