@@ -35,7 +35,13 @@ export function Hero({ githubUrl, dict }: { githubUrl: string; dict: Dictionary 
           </motion.div>
           <h1 className="mt-5 text-display font-medium tracking-tighter text-ink">
             {hero.headline.map((word, i) => (
-              <span className="inline-block overflow-hidden pb-1 align-bottom" key={word}>
+              // Each word is its own mask for the slide-up reveal. The bottom padding has to
+              // clear the deepest descender or `overflow-hidden` slices it off: at this size
+              // (up to 84px, line-height 0.98) Inter's `g` and `ğ` reach 0.2158em below the
+              // baseline while the line box ends 0.1262em below it, so the padding must be at
+              // least 0.09em. A fixed `pb-1` is 0.048em at 84px and cut the tail off "agents";
+              // an em value scales with the clamp so it holds at every size.
+              <span className="inline-block overflow-hidden pb-[0.14em] align-bottom" key={word}>
                 <motion.span
                   className="mr-[0.24em] inline-block"
                   initial={{ opacity: 0, y: "0.5em", filter: "blur(8px)" }}

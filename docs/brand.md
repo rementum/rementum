@@ -56,6 +56,12 @@ uvx --from fonttools --with brotli pyftsubset InterVariable.ttf \
 CJK is deliberately not bundled; `--font-sans` falls through to the system CJK fonts instead of
 shipping a multi-megabyte webfont for `zh`.
 
+Display type runs at line-height 0.98, which is tighter than Inter's own 1.21em content box. Text
+that is masked with `overflow-hidden` — the hero headline reveals each word from behind its own
+line — therefore clips descenders unless the mask adds bottom padding: `g` and `ğ` reach 0.2158em
+below the baseline while the line box ends 0.1262em below it, so any such mask needs at least
+0.09em of bottom padding, and it must be an `em` value so it scales with the size clamp.
+
 ## Voice
 
 - Describe concrete behavior before benefits.
