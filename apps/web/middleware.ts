@@ -1,11 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { LOCALES, type Locale, parseLocale } from "./lib/i18n/locales";
+import { LOCALE_HEADER, LOCALES, type Locale, parseLocale } from "./lib/i18n/locales";
 
 // Server components cannot read the current pathname, so the effective locale is
 // published as a request header: /zh and /tr are their own routes, everything else
 // falls back to the cookie (or English). The header is set on the *request*, so it
 // never reaches the client and cannot be forged from outside.
-const LOCALE_HEADER = "x-rementum-locale";
+//
+// The reader is resolveLayoutLocale in the root layout. That reader only sees this
+// header when the route is not force-statically prerendered — see the comment in
+// app/zh/page.tsx before adding `dynamic = "force-static"` back to a landing route.
 
 // Extracted from `middleware` so the routing rule is unit-testable on its own.
 export function resolveRequestLocale(pathname: string, cookieValue?: string): Locale {

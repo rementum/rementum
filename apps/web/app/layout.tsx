@@ -6,9 +6,8 @@ import { PublicNav } from "../components/public-nav";
 import { StickyBanner } from "../components/pui";
 import { publicAuthConfig, sessionInfo, workspaceContext } from "../lib/api";
 import { getDictionary } from "../lib/i18n/get-dictionary";
-import { DEFAULT_LOCALE, HTML_LANG, parseLocale, resolveLocale } from "../lib/i18n/locales";
+import { HTML_LANG, LOCALE_HEADER, resolveLayoutLocale } from "../lib/i18n/locales";
 import { GITHUB_URL, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
-import { LOCALE_HEADER } from "../middleware";
 import "./globals.css";
 
 // Fonts are vendored (Inter + JetBrains Mono, OFL) and loaded from disk so the production
@@ -111,16 +110,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const session = await sessionInfo();
   const signedIn = session.authenticated;
   // middleware publishes the route locale (/zh, /tr) as a request header, because a
-  // server component cannot read the pathname itself. Elsewhere: cookie first, then
-  // Accept-Language. The static landing pages ignore both and use their route locale.
-  const routeLocale = parseLocale((await headers()).get(LOCALE_HEADER));
-  const locale =
-    routeLocale !== DEFAULT_LOCALE
-      ? routeLocale
-      : resolveLocale(
-          cookieStore.get("rementum_locale")?.value,
-          (await headers()).get("accept-language"),
-        );
+  // server component cannot read the pathname itself. Off those routes it is the
+  // cookie, then Accept-Language. See resolveLayoutLocale for the precedence.
+  const locale = resolveLayoutLocale(
+    (await headers()).get(LOCALE_HEADER),
+    cookieStore.get("rementum_locale")?.value,
+    (await headers()).get("accept-language"),
+  );
   const dict = getDictionary(locale);
   const context = signedIn ? await workspaceContext() : null;
   const authConfig = signedIn ? null : await publicAuthConfig();
@@ -159,7 +155,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 </span>
               }
             >
-              <a href={GITHUB_URL}>Free and self-hosted · star Rementum on GitHub</a>
+              <a href={GITHUB_URL}>{dict.publicNav.banner}</a>
             </StickyBanner>
             <PublicNav
               signupEnabled={authConfig?.signupEnabled ?? false}

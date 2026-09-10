@@ -39,7 +39,8 @@
     "closeNavigation": "Gezintiyi kapat",
     "howItWorks": "Nasıl çalışır",
     "pricing": "Fiyatlandırma",
-    "connect": "Bağlan"
+    "connect": "Bağlan",
+    "banner": "Ücretsiz ve kendini barındırabilir · Rementum'a GitHub'da yıldız ver"
   },
   "hero": {
     "kicker": "Açık kaynak bellek altyapısı",
@@ -115,10 +116,10 @@
   "pricing": {
     "kicker": "Fiyatlandırma",
     "titleA": "Sonsuza dek ücretsiz.",
-    "titleB": "Self-hosted",
+    "titleB": "Kendini barındıran",
     "titleC": "olarak tasarlandı.",
     "subtitle": "Rementum açık kaynaktır; ücretli katman yok, koltuk başına ödeme yok. Kendi donanımınızda çalıştırır, her baytın sahibi olursunuz.",
-    "planLabel": "Self-hosted",
+    "planLabel": "Kendini barındırma",
     "price": "$0",
     "priceNote": "/ sonsuza dek",
     "priceBody": "Depoyu klonlayın, tek kurulum betiğini çalıştırın ve MCP üzerinden bir ajan bağlayın.",

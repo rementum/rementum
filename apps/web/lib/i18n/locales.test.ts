@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LOCALE,
+  isLocalizedRoutePath,
   LOCALES,
   localeFromAcceptLanguage,
   parseLocale,
+  resolveLayoutLocale,
   resolveLocale,
 } from "./locales";
 
@@ -60,5 +62,60 @@ describe("resolveLocale", () => {
 
   it("negotiates from the header when no cookie exists", () => {
     expect(resolveLocale(undefined, "zh-TW")).toBe("zh");
+  });
+});
+
+// This is the function the root layout uses for <html lang> and the navigation's language.
+// The header arg is what middleware publishes for /zh and /tr.
+describe("resolveLayoutLocale", () => {
+  it("takes the route locale even when the visitor has no cookie", () => {
+    // Regression: with the landing routes force-statically prerendered, headers() came
+    // back empty here and /zh rendered lang="en" with an English navigation.
+    expect(resolveLayoutLocale("zh", undefined, undefined)).toBe("zh");
+    expect(resolveLayoutLocale("tr", undefined, undefined)).toBe("tr");
+  });
+
+  it("lets the route beat a contradictory cookie", () => {
+    expect(resolveLayoutLocale("zh", "tr", "en-US")).toBe("zh");
+    expect(resolveLayoutLocale("tr", "en", "zh-CN")).toBe("tr");
+  });
+
+  it("falls back to the cookie, then Accept-Language, off the localized routes", () => {
+    expect(resolveLayoutLocale("en", "tr", "zh-CN")).toBe("tr");
+    expect(resolveLayoutLocale("en", undefined, "zh-CN")).toBe("zh");
+    expect(resolveLayoutLocale(null, undefined, "tr-TR")).toBe("tr");
+    expect(resolveLayoutLocale(undefined, undefined, undefined)).toBe("en");
+  });
+
+  it("does not let a tampered header or cookie through", () => {
+    // A junk header is not a locale, so it falls through to the cookie...
+    expect(resolveLayoutLocale("de", undefined, "tr")).toBe("tr");
+    // ...but a present-but-invalid cookie is treated as an explicit English choice, the
+    // same rule resolveLocale already applies, rather than silently negotiating.
+    expect(resolveLayoutLocale("de", "bogus", "tr")).toBe("en");
+  });
+});
+
+describe("isLocalizedRoutePath", () => {
+  it("is true only on the routes that exist per locale", () => {
+    for (const path of ["/", "/zh", "/tr", "/zh/"]) {
+      expect(isLocalizedRoutePath(path), path).toBe(true);
+    }
+    for (const path of ["/dashboard", "/activity", "/auth/login", "/brains/zh", "/zh/extra"]) {
+      expect(isLocalizedRoutePath(path), path).toBe(false);
+    }
+  });
+
+  it("is false for a missing pathname", () => {
+    expect(isLocalizedRoutePath(null)).toBe(false);
+    expect(isLocalizedRoutePath(undefined)).toBe(false);
+  });
+
+  // Guards the switcher bug where /dashboard sent the visitor to the marketing homepage.
+  it("does not claim the app routes are localized", () => {
+    for (const locale of LOCALES) {
+      const href = `/dashboard${locale === "en" ? "" : `?locale=${locale}`}`;
+      expect(isLocalizedRoutePath(href)).toBe(false);
+    }
   });
 });

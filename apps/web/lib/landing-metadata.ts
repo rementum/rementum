@@ -6,6 +6,10 @@ import { SITE_URL } from "../lib/site";
 
 // Per-locale landing metadata. Each locale is its own canonical URL and advertises the
 // others through hreflang, so a Turkish query can surface /tr without splitting signals.
+//
+// Segment config (`dynamic`, `revalidate`) deliberately does not live here: Next only
+// reads those exports from a route file, so on a shared module they are inert and read
+// as if they did something. Each landing route declares its own.
 export function landingMetadata(locale: Locale): Metadata {
   const meta = getDictionary(locale).meta;
   return {
@@ -23,9 +27,14 @@ export function landingMetadata(locale: Locale): Metadata {
       title: meta.title,
       description: meta.description,
     },
+    // The root layout sets English twitter tags; without these a shared /zh link would
+    // preview in English while og: already previewed in Chinese. Next replaces the whole
+    // twitter object rather than merging it, so the card has to be repeated here or it
+    // silently falls back to "summary".
+    twitter: {
+      card: "summary_large_image",
+      title: meta.title,
+      description: meta.description,
+    },
   };
 }
-
-// One static render per locale: the public shell stays cacheable and never reads cookies.
-export const dynamic = "force-static";
-export const revalidate = 60;

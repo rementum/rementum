@@ -8,6 +8,11 @@ export const DEFAULT_LOCALE: Locale = "en";
 
 export const LOCALE_COOKIE = "rementum_locale";
 
+// Internal request header the middleware sets so a server component can learn the
+// route locale (/zh, /tr) without reading the pathname, which it cannot do. It is set
+// on the request and never reaches the client.
+export const LOCALE_HEADER = "x-rementum-locale";
+
 // BCP 47 tags for <html lang>, Intl, Open Graph, and JSON-LD.
 export const HTML_LANG: Record<Locale, string> = {
   en: "en",
@@ -40,6 +45,21 @@ export const LOCALE_LABELS: Record<Locale, string> = {
   tr: "Türkçe",
 };
 
+// The path segments that carry their own localized page. English lives at the root, so it
+// has no segment of its own.
+const LOCALIZED_SEGMENTS: readonly string[] = LOCALES.filter((each) => each !== DEFAULT_LOCALE);
+
+// True on the routes that exist once per locale ("/", "/zh", "/tr"). The language switcher
+// navigates to the target locale's URL here, and stays put everywhere else: those pages
+// fall back to the cookie, and sending the visitor to a marketing URL from /dashboard
+// would throw away what they were doing.
+export function isLocalizedRoutePath(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  const trimmed = pathname.replace(/\/+$/, "");
+  if (trimmed === "") return true;
+  return LOCALIZED_SEGMENTS.some((segment) => trimmed === `/${segment}`);
+}
+
 // Closed-set parser mirroring lib/prefs.ts#parsePref: tampered or stale
 // cookie values fall back to English and never reach a render branch.
 export function parseLocale(value: string | undefined | null): Locale {
@@ -71,9 +91,26 @@ export function localeFromAcceptLanguage(header: string | null | undefined): Loc
   return DEFAULT_LOCALE;
 }
 
-// Resolve the effective locale: explicit cookie wins, otherwise negotiate
-// from Accept-Language (dashboard / layout only — the static landing page
-// deliberately sees empty cookies and stays English-first, see app/page.tsx).
+// The locale the shell should render in, given everything a request offers.
+// The route segment wins (a visitor on /zh asked for Chinese, whatever their
+// cookie says); off the localized routes it is the cookie, then Accept-Language.
+//
+// This runs in the root layout, which passes it to <html lang> and the navigation.
+// It has to stay a pure function: it is the one place that decides what language
+// the public shell renders in, and a mistake here is invisible to a build.
+export function resolveLayoutLocale(
+  routeLocale: string | null | undefined,
+  cookieValue: string | null | undefined,
+  acceptLanguage: string | null | undefined,
+): Locale {
+  const route = parseLocale(routeLocale);
+  if (route !== DEFAULT_LOCALE) return route;
+  return resolveLocale(cookieValue, acceptLanguage);
+}
+
+// Resolve a stored preference: explicit cookie wins, otherwise negotiate
+// from Accept-Language. Used for the cookie-driven dashboard, and by
+// resolveLayoutLocale for requests that carry no localized route segment.
 export function resolveLocale(
   cookieValue: string | undefined | null,
   acceptLanguage: string | null | undefined,

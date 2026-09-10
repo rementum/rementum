@@ -79,14 +79,25 @@ limits and inflates token costs. Rementum minimizes prompt overhead at three lay
 The homepage and the dashboard are available in **English**, **Simplified Chinese (中文)**, and
 **Turkish (Türkçe)**.
 
-- **Homepage:** each language has its own URL — `/`, `/zh`, and `/tr` — so a translated page is
-  still a static, cacheable, indexable page with its own canonical URL and `hreflang` links.
+- **Homepage:** each language has its own URL — `/`, `/zh`, and `/tr` — with its own canonical URL
+  and `hreflang` links, so search engines see three real translated pages rather than one
+  cookie-dependent one. Each is cached and revalidated every 60 seconds. They are deliberately
+  *not* prerendered at build time: the language the page shell renders in comes from the request,
+  so freezing the HTML would ship `/zh` with `lang="en"` and an English navigation.
 - **Dashboard:** use the globe switcher in the sidebar. The choice is stored in the
   `rementum_locale` cookie; without one, the dashboard follows the browser's `Accept-Language`.
+  Off the homepage the switcher keeps you on the page you are on and re-renders it in the new
+  language instead of sending you back to the marketing site.
 
-Every other page stays English for now — brains, articles, writes, tasks, teams, connections,
-analytics, auth flows, and admin — as do the `/docs` site, API messages, and email templates.
-User content (brain names, article bodies, comments) is never translated.
+The **navigation shell** — sidebar, header, footer, and the language switcher — follows your chosen
+language on every signed-in page. **Page content** is translated only on the homepage and the
+dashboard. So choosing Chinese gives you a Chinese shell around English content on brains,
+articles, writes, tasks, teams, connections, analytics, auth flows, and admin, and on the `/docs`
+site, in API messages, and in email templates. Those bodies stay English until they are translated
+in turn.
+
+User content (brain names, article titles and bodies, comments) is never translated, and neither
+are shell commands, MCP URLs, or slugs.
 
 ## Licensing and privacy
 

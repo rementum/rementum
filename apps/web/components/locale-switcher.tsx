@@ -1,12 +1,21 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LOCALE_COOKIE, LOCALE_LABELS, LOCALES, type Locale } from "../lib/i18n/locales";
+import {
+  isLocalizedRoutePath,
+  LOCALE_COOKIE,
+  LOCALE_LABELS,
+  LOCALES,
+  type Locale,
+  SITE_URL_HREF,
+} from "../lib/i18n/locales";
 
 // Cookie-backed locale switcher shared by PublicNav and AppNavigation.
-// The homepage is served per locale at /, /zh, and /tr, so a switch there is a real
-// navigation; inside the app there is no localized route yet, so it writes the cookie
-// and loads the equivalent route so server components re-read it.
+// Where the target is a real navigation (the landing page exists at /, /zh, and /tr) it
+// goes to that URL; everywhere else it reloads in place so the server components re-read
+// the cookie. Deciding by path rather than by which nav rendered this keeps the app from
+// bouncing a dashboard visitor to the marketing homepage.
 export function LocaleSwitcher({
   locale,
   label,
@@ -18,6 +27,7 @@ export function LocaleSwitcher({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
@@ -39,9 +49,13 @@ export function LocaleSwitcher({
     setOpen(false);
     if (next === locale) return;
     document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`;
-    // A document load re-renders every server component against the new cookie;
-    // on the public site it also lands on that locale's own URL.
-    window.location.assign(next === "en" ? "/" : `/${next}`);
+    // A document load, not a soft navigation, either way: every localized string is
+    // rendered by a server component, so only a real request can re-render them.
+    if (isLocalizedRoutePath(pathname)) {
+      window.location.assign(`${SITE_URL_HREF[next] || "/"}`);
+    } else {
+      window.location.reload();
+    }
   };
 
   return (
