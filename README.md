@@ -13,6 +13,8 @@ Self-hosted shared memory for Claude, Codex, Cursor, and any remote MCP client.
 [![PostgreSQL + pgvector](https://img.shields.io/badge/PostgreSQL-pgvector-336791.svg)](https://github.com/pgvector/pgvector)
 [![MCP-native](https://img.shields.io/badge/MCP-native-8a6b2f.svg)](https://modelcontextprotocol.io/)
 
+**English** · [Türkçe](README.tr.md) · [中文](README.zh.md)
+
 [Documentation](https://rementum.dev/docs/) · [Install](https://rementum.dev/docs/installation/) · [Security](https://rementum.dev/docs/security/) · [Contributing](CONTRIBUTING.md)
 
 </div>
