@@ -44,7 +44,8 @@
   },
   "hero": {
     "kicker": "Açık kaynak bellek altyapısı",
-    "headline": ["Ajanlarınız", "her şeyi", "hatırlamalı", "diyoruz."],
+    "headline": ["Ajanlarınız", "her şeyi", "hatırlamalı"],
+    "headlineHighlight": 1,
     "subtitle": "Her MCP istemcisi için tek bir sürümlü bilgi katmanı. Rementum, paylaşılan belleğin üzerine yazmadan önce her yazımı incelemeye sunar.",
     "getStarted": "Başlayın",
     "starOnGithub": "GitHub'da yıldız verin",
@@ -93,25 +94,117 @@
     "steps": [
       {
         "num": "01",
-        "title": "Compact Routing Index",
+        "title": "Kompakt Yönlendirme Dizini",
         "desc": "Başlık, özet, anahtar sözcük ve güncellikten oluşan kompakt dizini sorgular, sonra yalnızca ihtiyacınız olan makaleyi açarsınız. Brain'in geri kalanına dokunmazsınız."
       },
       {
         "num": "02",
-        "title": "Staged Write Isolation",
+        "title": "Aşamalı Yazım Yalıtımı",
         "desc": "Her öneriyi, taban sürümüne bağlı ve canlı içerikten ayrı bir tampona yazarsınız."
       },
       {
         "num": "03",
-        "title": "Conflict Resolution Shield",
+        "title": "Çakışma Çözümü Kalkanı",
         "desc": "Rementum, yazımınızı hazırladığınızdan beri makalede değişiklik olup olmadığını denetler. Her çakışmayı siz inceler ve neyin yayınlanacağına karar verirsiniz."
       },
       {
         "num": "04",
-        "title": "Immutable Versioned Canon",
+        "title": "Değişmez Sürümlü İçerik",
         "desc": "Yayınlarsınız. Rementum değişikliği AES-256-GCM ile şifreler ve denetlenebilir, değişmez bir sürüm işler. Ajanlarınız bir sonraki çağrıda yeni sürümü okur."
       }
     ]
+  },
+  "promo": {
+    "coreSubtitle": "tek paylaşılan brain",
+    "notes": ["Görev kuyruğu → Postgres", "Auth başlığı: X-Api-Key", "Deneme sınırı 3"],
+    "kick": {
+      "problem": "01 / sorun",
+      "sharedBrain": "02 / tek paylaşılan brain",
+      "reading": "03 / okuma",
+      "writing": "04 / güvenli yazma",
+      "everywhere": "05 / her yerde"
+    },
+    "say": {
+      "ownNotes": "Her AI ajanı kendi notlarını tutar.",
+      "sessionEnds": "Oturum biter. Notlar kaybolur.",
+      "nothingShared": "Aralarında hiçbir şey paylaşılmaz. Hiçbir şey sürümlenmez.",
+      "oneBrain": "Rementum onlara tek bir paylaşılan brain verir.",
+      "markdown": "Bilgi, birbirine bağlı Markdown makalelerinde yaşar.",
+      "markdownSub": "Self-hosted · Bekleyen veri şifreli · Her değişiklik sürümlü",
+      "everyAgent": "Her ajan, her oturum, aynı güncel bilgi.",
+      "neverLoads": "Bir ajan brain'in tamamını asla yüklemez.",
+      "compactIndex": "Kompakt dizini okur ve yalnızca ihtiyacı olan makaleyi açar.",
+      "everyWrite": "Her yazım önce hazırlanır, sonra güncel sürümle karşılaştırılır.",
+      "promoted": "v4 olarak yayınlandı. Önceki sürümlerin hepsi geçmişte kalır.",
+      "stale": "Eski bir yazım asla üzerine yazmaz. İnceleme için bekler."
+    },
+    "sharedChip": "v4 · Görev kuyruğu → Postgres",
+    "badges": ["AES-256-GCM şifreli", "Sürümlü ve atıflı", "OAuth korumalı MCP"],
+    "read": {
+      "panelTitle": "yönlendirme dizini",
+      "panelCount": "6 makale · 412 token",
+      "rows": [
+        {
+          "title": "API auth başlığı",
+          "sub": "Her istek X-Api-Key gönderir"
+        },
+        {
+          "title": "Dağıtım listesi",
+          "sub": "Migrate, build, sonra restart"
+        },
+        {
+          "title": "Görev kuyruğu Postgres'te",
+          "sub": "Redis yerine seçildi · 2026-08-12"
+        },
+        {
+          "title": "Yeniden deneme kuralı",
+          "sub": "Üç deneme, artan bekleme"
+        },
+        {
+          "title": "Adlandırma kuralları",
+          "sub": "Commit kapsamı: api, web, core, db"
+        },
+        {
+          "title": "Embedding servisi",
+          "sub": "Yerel model, dış çağrı yok"
+        }
+      ],
+      "cardMeta": "v3 · güncel · Cursor güncelledi",
+      "body": [
+        {
+          "label": "Karar",
+          "line": "Görevler Redis'te değil, PostgreSQL'de."
+        },
+        {
+          "label": "Neden",
+          "line": "Tek veri deposu, işlemsel sahiplik, RLS."
+        },
+        {
+          "label": "Dikkat",
+          "line": "Sahiplik kiralaması beş dakikada dolar."
+        }
+      ],
+      "footChips": ["şifreli", "sürümlü", "bağlantılı"]
+    },
+    "articleTitle": "Görev kuyruğu Postgres'te",
+    "articleProposed": "Görev kuyruğu: önbellek ekle",
+    "write": {
+      "stationTitles": ["Hazırlanan yazım", "Çakışma denetimi", "Canon"],
+      "conflictSub": "taban hâlâ güncel mi?",
+      "isolated": "canlı içerikten yalıtılmış",
+      "baseChip": "taban v3",
+      "currentChip": "güncel v3",
+      "currentChipNew": "güncel v4",
+      "history": "Her sürüm geçmişte kalır",
+      "parked": "inceleme bekliyor",
+      "base": "taban: v3",
+      "statusStaged": "durum: hazırlandı",
+      "statusConflicted": "durum: çakışma"
+    },
+    "outro": {
+      "tagline": "Her AI ajanının arkasında tek, sürümlü ve denetlenebilir bir brain.",
+      "pills": ["Açık kaynak", "Self-hosted", "MCP-native", "AGPL-3.0"]
+    }
   },
   "pricing": {
     "kicker": "Fiyatlandırma",

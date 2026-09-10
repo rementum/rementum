@@ -45,6 +45,7 @@
   "hero": {
     "kicker": "开源记忆基础设施",
     "headline": ["你的 Agent", "应该", "记得", "一切。"],
+    "headlineHighlight": 3,
     "subtitle": "为每个 MCP 客户端提供统一的版本化知识层。Rementum 会把每次写入先暂存待审，再替换共享记忆。",
     "getStarted": "开始使用",
     "starOnGithub": "在 GitHub 上 Star",
@@ -112,6 +113,98 @@
         "desc": "你执行采纳后，Rementum 用 AES-256-GCM 加密变更，并提交一个可审计、不可变的版本。其他 Agent 下次调用时即可读到新版本。"
       }
     ]
+  },
+  "promo": {
+    "coreSubtitle": "一个共享大脑",
+    "notes": ["任务队列 → Postgres", "接口认证头: X-Api-Key", "重试上限 3 次"],
+    "kick": {
+      "problem": "01 / 问题",
+      "sharedBrain": "02 / 一个共享大脑",
+      "reading": "03 / 读取",
+      "writing": "04 / 安全写入",
+      "everywhere": "05 / 处处共享"
+    },
+    "say": {
+      "ownNotes": "每个 AI Agent 都各自记笔记。",
+      "sessionEnds": "会话结束，笔记随之丢失。",
+      "nothingShared": "彼此之间没有共享，也没有版本记录。",
+      "oneBrain": "Rementum 让它们共用一个大脑。",
+      "markdown": "知识存放在相互链接的 Markdown 文章中。",
+      "markdownSub": "自托管 · 静态加密 · 每次变更都有版本",
+      "everyAgent": "每个 Agent、每次会话，看到同一份最新知识。",
+      "neverLoads": "Agent 从不会加载整个大脑。",
+      "compactIndex": "它只读精简索引，并打开真正需要的那篇文章。",
+      "everyWrite": "每次写入都先暂存，再与当前版本核对。",
+      "promoted": "已提升为 v4，此前的版本都留在历史中。",
+      "stale": "过期写入不会覆盖，而是等待评审。"
+    },
+    "sharedChip": "v4 · 任务队列 → Postgres",
+    "badges": ["AES-256-GCM 加密", "带版本与归属", "OAuth 保护的 MCP"],
+    "read": {
+      "panelTitle": "路由索引",
+      "panelCount": "6 篇文章 · 412 tokens",
+      "rows": [
+        {
+          "title": "接口认证头",
+          "sub": "每个请求都发送 X-Api-Key"
+        },
+        {
+          "title": "部署清单",
+          "sub": "迁移、构建，然后重启"
+        },
+        {
+          "title": "任务队列用 Postgres",
+          "sub": "选用它而非 Redis · 2026-08-12"
+        },
+        {
+          "title": "重试策略",
+          "sub": "三次尝试，指数退避"
+        },
+        {
+          "title": "命名约定",
+          "sub": "提交范围：api、web、core、db"
+        },
+        {
+          "title": "向量化服务",
+          "sub": "本地模型，无外部调用"
+        }
+      ],
+      "cardMeta": "v3 · 当前 · 由 Cursor 更新",
+      "body": [
+        {
+          "label": "决策",
+          "line": "任务存在 PostgreSQL，而不是 Redis。"
+        },
+        {
+          "label": "原因",
+          "line": "单一数据存储、事务化占用、RLS。"
+        },
+        {
+          "label": "注意",
+          "line": "占用租约五分钟后过期。"
+        }
+      ],
+      "footChips": ["已加密", "有版本", "已链接"]
+    },
+    "articleTitle": "任务队列用 Postgres",
+    "articleProposed": "任务队列：加入缓存",
+    "write": {
+      "stationTitles": ["暂存写入", "冲突检查", "Canon"],
+      "conflictSub": "基线仍是最新吗？",
+      "isolated": "与正式内容隔离",
+      "baseChip": "基线 v3",
+      "currentChip": "当前 v3",
+      "currentChipNew": "当前 v4",
+      "history": "每个版本都留在历史中",
+      "parked": "等待评审",
+      "base": "基线: v3",
+      "statusStaged": "状态: 已暂存",
+      "statusConflicted": "状态: 冲突"
+    },
+    "outro": {
+      "tagline": "为每个 AI Agent 提供同一个带版本、可审计的大脑。",
+      "pills": ["开源", "自托管", "MCP 原生", "AGPL-3.0"]
+    }
   },
   "pricing": {
     "kicker": "定价",

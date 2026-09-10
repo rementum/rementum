@@ -68,3 +68,18 @@ shipping a multi-megabyte webfont for `zh`.
   language: Chinese uses the established `自托管`, and translating these headings there is normal.
 - Avoid claims about intelligence, magic, or replacing human review.
 - Explain security boundaries without euphemisms.
+
+## Translating the "How it works" animation
+
+The animation is a 1920x1080 canvas drawn at fixed coordinates, and most of its text sits in
+containers with hard-coded geometry, so a longer translation overflows rather than reflowing. Its
+copy lives in the `promo` namespace, and the tightest budgets are the version slabs (the demo
+article title at 17px must fit 225px) and the index rows (500px each). English already uses 94% of
+the slab budget, so anything appreciably longer than the English wording will not fit; shorten the
+translation instead of widening the box.
+
+`hero.headline` is the one array whose length is a property of the language rather than the
+layout, so it may be re-split freely. `hero.headlineHighlight` names the word that gets the
+gradient — do not assume it is the last one. Turkish ends its sentence on the verb, so the
+highlighted word sits mid-sentence there. Every other array maps to fixed geometry and must keep
+its length; `get-dictionary.test.ts` enforces both rules.

@@ -12,6 +12,7 @@ const SHOW_ANIMATION = "(min-width: 48rem)";
 
 export function HowItWorks({ dict }: { dict: Dictionary }) {
   const section = dict.howItWorks;
+  const promo = dict.promo;
   const host = useRef<HTMLDivElement>(null);
 
   // The animation engine is a separate chunk and only runs in the browser: it measures text, so it
@@ -19,6 +20,8 @@ export function HowItWorks({ dict }: { dict: Dictionary }) {
   // Below the `md` breakpoint the window is hidden (the 1920px stage shrinks past legibility on a
   // phone) and the engine is never loaded; the same query keeps the two in step, because text
   // measured inside a `display: none` box comes back as zero and would break the layout.
+  // `promo` is a dependency because the engine draws its copy from it: different copy means the
+  // built SVG has to be thrown away and drawn again.
   useEffect(() => {
     const element = host.current;
     if (!element) return;
@@ -43,7 +46,7 @@ export function HowItWorks({ dict }: { dict: Dictionary }) {
       import("./promo/mount").then(({ mountPromo }) => {
         loading = false;
         if (cancelled || !wide.matches) return;
-        mounted = mountPromo(element);
+        mounted = mountPromo(element, promo);
         observer = new IntersectionObserver(
           ([entry]) => {
             if (!entry) return;
@@ -62,7 +65,7 @@ export function HowItWorks({ dict }: { dict: Dictionary }) {
       wide.removeEventListener("change", sync);
       unmount();
     };
-  }, []);
+  }, [promo]);
 
   return (
     <section

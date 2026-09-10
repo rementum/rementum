@@ -45,6 +45,7 @@
   "hero": {
     "kicker": "Open source memory infrastructure",
     "headline": ["Your", "agents", "should", "remember."],
+    "headlineHighlight": 3,
     "subtitle": "One versioned knowledge layer for every MCP client. Rementum stages each write for review before it replaces shared memory.",
     "getStarted": "Get started",
     "starOnGithub": "Star on GitHub",
@@ -112,6 +113,98 @@
         "desc": "You promote. Rementum encrypts the change with AES-256-GCM and commits an audited, immutable version. Your agents read the new version on their next call."
       }
     ]
+  },
+  "promo": {
+    "coreSubtitle": "one shared brain",
+    "notes": ["Task queue → Postgres", "Auth header: X-Api-Key", "Retry limit is 3"],
+    "kick": {
+      "problem": "01 / the problem",
+      "sharedBrain": "02 / one shared brain",
+      "reading": "03 / reading",
+      "writing": "04 / writing safely",
+      "everywhere": "05 / shared everywhere"
+    },
+    "say": {
+      "ownNotes": "Every AI agent keeps its own notes.",
+      "sessionEnds": "The session ends. The notes are gone.",
+      "nothingShared": "Nothing is shared between them. Nothing is versioned.",
+      "oneBrain": "Rementum gives them one shared brain.",
+      "markdown": "Knowledge lives in linked Markdown articles.",
+      "markdownSub": "Self-hosted · Encrypted at rest · Every change versioned",
+      "everyAgent": "Every agent, every session, the same current knowledge.",
+      "neverLoads": "An agent never loads the whole brain.",
+      "compactIndex": "It reads a compact index and opens only the article it needs.",
+      "everyWrite": "Every write is staged, then checked against the current version.",
+      "promoted": "Promoted as v4. Every earlier version stays in history.",
+      "stale": "A stale write never overwrites. It waits for review instead."
+    },
+    "sharedChip": "v4 · Task queue → Postgres",
+    "badges": ["AES-256-GCM encrypted", "Versioned & attributed", "OAuth-secured MCP"],
+    "read": {
+      "panelTitle": "routing index",
+      "panelCount": "6 articles · 412 tokens",
+      "rows": [
+        {
+          "title": "Auth header for the API",
+          "sub": "Every request sends X-Api-Key"
+        },
+        {
+          "title": "Deploy checklist",
+          "sub": "Migrate, build, then restart"
+        },
+        {
+          "title": "Task queue uses Postgres",
+          "sub": "Chosen over Redis · decided 2026-08-12"
+        },
+        {
+          "title": "Retry policy",
+          "sub": "Three attempts, exponential backoff"
+        },
+        {
+          "title": "Naming conventions",
+          "sub": "Commit scopes: api, web, core, db"
+        },
+        {
+          "title": "Embedding service",
+          "sub": "Local model, no external calls"
+        }
+      ],
+      "cardMeta": "v3 · current · updated by Cursor",
+      "body": [
+        {
+          "label": "Decision",
+          "line": "Tasks live in PostgreSQL, not Redis."
+        },
+        {
+          "label": "Why",
+          "line": "One datastore, transactional claims, RLS."
+        },
+        {
+          "label": "Gotcha",
+          "line": "Claim leases expire after five minutes."
+        }
+      ],
+      "footChips": ["encrypted", "versioned", "linked"]
+    },
+    "articleTitle": "Task queue uses Postgres",
+    "articleProposed": "Task queue: add a cache",
+    "write": {
+      "stationTitles": ["Staged write", "Conflict check", "Canon"],
+      "conflictSub": "base still current?",
+      "isolated": "Isolated from live canon",
+      "baseChip": "base v3",
+      "currentChip": "current v3",
+      "currentChipNew": "current v4",
+      "history": "Every version stays in history",
+      "parked": "parked for review",
+      "base": "base: v3",
+      "statusStaged": "status: staged",
+      "statusConflicted": "status: conflicted"
+    },
+    "outro": {
+      "tagline": "One versioned, auditable brain behind every AI agent.",
+      "pills": ["Open source", "Self-hosted", "MCP-native", "AGPL-3.0"]
+    }
   },
   "pricing": {
     "kicker": "Pricing",

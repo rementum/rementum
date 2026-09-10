@@ -42,7 +42,10 @@ export function Hero({ githubUrl, dict }: { githubUrl: string; dict: Dictionary 
                   animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                   transition={{ duration: 0.7, delay: 0.15 + i * 0.1, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  {i === hero.headline.length - 1 ? <GradientText>{word}</GradientText> : word}
+                  {/* The gradient word is named by the dictionary, not assumed to be the last
+                      one: languages put the emphasis in different places, and Turkish ends on
+                      the verb, so "last" would highlight the wrong word. */}
+                  {i === hero.headlineHighlight ? <GradientText>{word}</GradientText> : word}
                 </motion.span>
               </span>
             ))}
