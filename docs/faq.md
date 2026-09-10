@@ -105,8 +105,8 @@ Yes. `README.md` is the English source, and [`README.tr.md`](https://github.com/
 and [`README.zh.md`](https://github.com/rementum/rementum/blob/main/README.zh.md) are the Turkish and
 Simplified Chinese translations. Each links to the others at the top.
 
-The English file is canonical. When a translation drifts, the English version is what the code does,
-and the translated files carry a note saying so. Shell commands, MCP URLs, and identifiers stay
+The English file is canonical. When a translation drifts, treat the English text as correct; the
+translated files carry a note saying so. Shell commands, MCP URLs, and identifiers stay
 untranslated in all three; only prose is translated.
 
 ## Licensing and privacy
