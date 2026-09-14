@@ -6,6 +6,7 @@
  * Loaded lazily by the landing-page component; nothing here runs on the server.
  */
 
+import { observePageActivity } from "../../../lib/page-activity";
 import type { PromoStrings } from "./parts";
 import { buildScenes, DURATION, type SceneCtx } from "./scenes";
 import {
@@ -29,6 +30,7 @@ export interface PromoController {
 
 const STAGE_W = 1920;
 const STAGE_H = 1080;
+const FRAME_INTERVAL = 1000 / 30;
 
 function el(tag: string, style: Partial<CSSStyleDeclaration>, parent: Element): HTMLElement {
   const node = document.createElement(tag);
@@ -291,21 +293,40 @@ export function mountPromo(host: HTMLElement, p: PromoStrings): PromoController 
   let disposed = false;
   let built = false;
   let playing = false;
-  let frame = 0;
+  let active = false;
+  let frame: number | null = null;
+  let lastPaint = Number.NEGATIVE_INFINITY;
   // Elapsed animation time in ms; frozen while paused, so play resumes where pause stopped.
   let offset = 0;
   let origin = 0;
 
   const tick = (now: number) => {
-    if (!playing || disposed) return;
+    frame = null;
+    if (!playing || disposed || !active) return;
     offset = now - origin;
-    tl.seek((offset / 1000) % DURATION);
+    // The SVG timeline is expensive; ProMotion displays must not multiply its paint rate.
+    if (now - lastPaint >= FRAME_INTERVAL - 0.1) {
+      tl.seek((offset / 1000) % DURATION);
+      lastPaint = now;
+    }
     frame = requestAnimationFrame(tick);
   };
   const start = () => {
+    if (!built || !playing || disposed || !active || frame !== null) return;
     origin = performance.now() - offset;
+    lastPaint = Number.NEGATIVE_INFINITY;
     frame = requestAnimationFrame(tick);
   };
+  const stop = () => {
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+  };
+  // Preserve playback intent while another tab or application has focus.
+  const stopObservingActivity = observePageActivity((value) => {
+    active = value;
+    if (active) start();
+    else stop();
+  });
 
   waitForFonts(stage).then(() => {
     if (disposed) return;
@@ -313,7 +334,7 @@ export function mountPromo(host: HTMLElement, p: PromoStrings): PromoController 
     tl.finalize();
     built = true;
     tl.seek(offset / 1000);
-    if (playing) start();
+    start();
   });
 
   return {
@@ -321,17 +342,18 @@ export function mountPromo(host: HTMLElement, p: PromoStrings): PromoController 
     play() {
       if (playing || disposed) return;
       playing = true;
-      if (built) start();
+      start();
     },
     pause() {
       if (!playing) return;
       playing = false;
-      cancelAnimationFrame(frame);
+      stop();
     },
     destroy() {
       disposed = true;
       playing = false;
-      cancelAnimationFrame(frame);
+      stop();
+      stopObservingActivity();
       resizer?.disconnect();
       stage.remove();
     },
