@@ -16,7 +16,7 @@ import {
 } from "../lib/prefs";
 import { AgentConnect } from "./agent-connect";
 import { PrefToggle } from "./pref-toggle";
-import { EyebrowPill } from "./pui";
+import { EyebrowPill, StatusDot } from "./pui";
 import { AURORA_SOFT, AuroraBackdrop } from "./ui/backdrop";
 import { ButtonLink } from "./ui/button-link";
 import { Card, CardHeader } from "./ui/card";
@@ -165,7 +165,7 @@ export async function Dashboard({
       <main className="relative mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
         <header className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <EyebrowPill statusColor="var(--grad-mid)">
+            <EyebrowPill icon={<StatusDot static color="var(--grad-mid)" />}>
               {activeTeam.name} · {activeWorkspace.name}
             </EyebrowPill>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">{dash.overview}</h1>
@@ -266,10 +266,7 @@ export async function Dashboard({
                 meta: count === 1 ? dash.articleOne : template(dash.articleMany, { count }),
                 badge: pending ? (
                   <Chip tone="orange">
-                    <span
-                      aria-hidden="true"
-                      className="size-1.5 animate-pulse-dot rounded-full bg-current"
-                    />
+                    <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
                     {template(dash.toReview, { count: pending })}
                   </Chip>
                 ) : null,
@@ -318,9 +315,7 @@ function StatTile({
   return (
     <div className="flex flex-col gap-1 px-6 first:pl-0 last:pr-0">
       <dt className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.12em] text-ink-3">
-        {hot ? (
-          <span aria-hidden="true" className="size-1.5 animate-pulse-dot rounded-full bg-orange" />
-        ) : null}
+        {hot ? <span aria-hidden="true" className="size-1.5 rounded-full bg-orange" /> : null}
         {label}
       </dt>
       <dd
