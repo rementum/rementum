@@ -72,6 +72,9 @@ The ASCII renderer also respects reduced motion and releases its canvas while in
 The SVG overview plays only while at least 20% visible, is capped at 30 frames per second on all
 displays, and releases its renderer when navigating away or switching to a mobile viewport.
 Shared Aurora backdrops are static by default, including on the dashboard and authentication pages.
+Dashboard workspace and review indicators are also static: waiting for a human review is not an
+ongoing process. Keep their color, counts, and labels without looping pulse effects so an idle
+dashboard does not continuously composite the surrounding blurred surfaces.
 
 ## Voice
 
