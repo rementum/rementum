@@ -47,7 +47,7 @@ claude mcp add --scope user --transport http \
 claude mcp login rementum
 ```
 
-Finish OAuth in the browser, then ask Claude to call `list_brains` and `get_brain`.
+Finish OAuth in the browser, then ask Claude to find the project with `search_brains` and read it with `get_brain`.
 
 ## Codex
 
@@ -134,18 +134,35 @@ Rementum serves the stateless MCP `2026-07-28` protocol and keeps a stateless co
 deterministic, filtered to the connection's OAuth scopes, and advertised to modern clients with a
 private five-minute cache.
 
-If your client can filter its tool catalog, import only the tools the workflow needs. OpenAI
-Responses clients can keep the `mcp_list_tools` item, set `allowed_tools`, and defer the server behind
-tool search. Claude API clients can keep the common memory tools loaded and defer the task,
-maintenance, import, and export tools. This trims prompt tokens on top of the server-side scope
-filter.
+The MCP catalog contains seven memory tools:
+
+| Tool | Purpose |
+| --- | --- |
+| `search_brains` | Find the project's brain. |
+| `create_brain` | Create a brain when no existing one matches. |
+| `get_brain` | Read brain instructions and a page of the routing index. |
+| `load_context` | Search and retrieve relevant article bodies within explicit budgets. |
+| `read_article` | Read one exact article and its current version. |
+| `stage_write` | Propose a new article, canonical update, or log append. |
+| `promote_staged_write` | Publish a staged write after checking conflicts. |
+
+Read-only connections discover four tools; `brain:write` adds the other three. Task scopes do not
+add MCP tools. Task management, maintenance, import/export, invitations, activity, and staged-write
+inspection or withdrawal use the existing web UI or REST API. They have no optional MCP tool group.
+Article-link editing and explicit freshness verification currently have no web or REST replacement
+after removal of their MCP tools.
+
+**Upgrading from the 33-tool catalog:** Refresh or reconnect the client's MCP connection and update
+its Rementum skill. Existing calls to the removed tools return tool-not-found. Replace
+`search_articles` with `load_context`, and project lookup through `list_brains` with `search_brains`.
+Existing data, REST operations, and historical usage analytics are preserved.
 
 ### Token efficiency and prompt budgeting
 
 Rementum is designed to minimize agent prompt overhead:
 
 - **Routing over dumping:** A 25-item routing index consumes roughly 200 tokens. Agents read the index and request only the exact body they need, rather than loading an entire documentation directory into context.
-- **Scope filtering:** MCP tool definitions are filtered to the connection's OAuth scopes. Agents without task or maintenance scopes never receive those tool definitions in their prompt.
+- **Scope filtering:** MCP tool definitions are filtered to the connection's OAuth scopes. Read-only agents receive only the four read tools.
 - **Private caching:** Modern MCP clients receive a 5-minute `Cache-Control` header on the tool catalog, eliminating redundant tool-discovery roundtrips.
 
 ## Usage analytics
@@ -176,8 +193,8 @@ prompt setup.
 A typical read path is:
 
 1. `search_brains` finds the brain that matches the current project by name, slug, or description.
-   `list_brains` pages through accessible brains when search is not enough. Resolve the brain once
-   per thread and reuse its id in later turns instead of searching again.
+   Resolve the brain once per thread and reuse its id in later turns. If no brain matches, call
+   `create_brain`; omit `workspaceId` when only one workspace is accessible.
 2. `get_brain` returns 25 routing entries by default. Pass its opaque `nextCursor` back unchanged
    while `hasMore` is true, when the rest of the index matters.
 3. `load_context` runs the metadata, full-text, and embedding search and returns whole relevant
@@ -190,18 +207,13 @@ A typical read path is:
 4. `read_article` fetches one exact article. Its default view drops provenance and maintenance
    fields; pass `detail: "full"` only when you need them.
 
-List tools return compact summaries and opaque cursors. `list_tasks` omits full briefs, so follow a
-chosen item with `get_task`. `recent_activity` defaults to ten compact events. `export_brain` returns
-a link to the REST ZIP export instead of dumping every body into the agent, and opening that link
-needs a separate signed-in web session.
-
 Write memory with `stage_write`. Review its conflict result before you promote the pending write.
 Staging never waits for an external LLM. In an opted-in workspace, `read_article` shows the deferred
 compaction status after promotion, while the submitted body stays usable.
 
-`propose_invite` records a proposal only. No invitation link exists until a brain owner approves the
-proposal on the brain page in the web UI, where the link is issued and sent; an agent can never hand
-out access by itself.
+Inspect or withdraw a pending write in the web UI. If promotion reports a version mismatch, read
+the current article, reconcile the changes, and stage a fresh proposal. Keep the same idempotency
+key when retrying an unchanged request after an uncertain response.
 
 A tool that cannot complete returns an `isError` result whose text block is one JSON object:
 `code`, `message`, and, when the failure carries one, `detail`. `stage_write` reports unacknowledged

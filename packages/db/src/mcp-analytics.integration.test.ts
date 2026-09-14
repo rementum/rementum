@@ -122,7 +122,7 @@ integration("MCP usage analytics", () => {
       await service.recordMcpToolCall(
         {
           workspaceId: owner.workspaceId,
-          tool: "list_brains",
+          tool: "search_brains",
           articleIds: [],
         },
         secondActor,
@@ -148,9 +148,9 @@ integration("MCP usage analytics", () => {
         { id: articleId, brainId: brain.brain.id, uses: 2 },
       ]);
       expect(analytics.topTools.map((tool) => tool.tool).sort()).toEqual([
-        "list_brains",
         "load_context",
         "read_article",
+        "search_brains",
       ]);
       expect(analytics.recentCalls).toHaveLength(3);
       // brain.created, write.staged, write.promoted, article.read, task.created,

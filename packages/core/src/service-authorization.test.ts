@@ -332,7 +332,7 @@ describe("workspace and team role boundaries", () => {
       totals: { calls: 0 },
     });
     await expect(
-      service.recordMcpToolCall({ workspaceId, tool: "list_brains", articleIds: [] }, member),
+      service.recordMcpToolCall({ workspaceId, tool: "search_brains", articleIds: [] }, member),
     ).resolves.toBeUndefined();
     expect(store.recordMcpToolCall).toHaveBeenCalledTimes(1);
 

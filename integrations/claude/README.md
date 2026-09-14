@@ -18,4 +18,4 @@ claude mcp add --scope user --transport http \
 claude mcp login rementum
 ```
 
-Complete OAuth in the browser, then ask Claude to call `list_brains` and `get_brain`.
+Complete OAuth in the browser, then ask Claude to find the project with `search_brains` and read it with `get_brain`.

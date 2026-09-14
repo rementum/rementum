@@ -28,22 +28,19 @@ async function createApp() {
     workspaceId,
   );
   const service = {
-    listBrains: vi.fn(async () => ({
-      items: [
-        {
-          id: brainId,
-          workspaceId,
-          slug: "product",
-          name: "Product",
-          description: "Product knowledge",
-          instructions: "Read the routing index.",
-          createdBy: actor.userId,
-          createdAt: new Date("2026-01-01T00:00:00.000Z"),
-          updatedAt: new Date("2026-01-02T00:00:00.000Z"),
-        },
-      ],
-      total: 1,
-    })),
+    searchBrains: vi.fn(async () => [
+      {
+        id: brainId,
+        workspaceId,
+        slug: "product",
+        name: "Product",
+        description: "Product knowledge",
+        instructions: "Read the routing index.",
+        createdBy: actor.userId,
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-02T00:00:00.000Z"),
+      },
+    ]),
   } as unknown as RementumService;
   await registerWorkspaceMcpEndpoint(app, service, async () => actor, publicUrl);
   openApps.push(app);
@@ -88,8 +85,7 @@ describe("MCP HTTP protocol eras", () => {
       cacheScope: "private",
     });
     const names = body.result.tools.map((tool: { name: string }) => tool.name);
-    expect(names).toContain("load_context");
-    expect(names).not.toContain("stage_write");
+    expect(names).toEqual(["search_brains", "get_brain", "load_context", "read_article"]);
   });
 
   it("routes modern tool calls through the authenticated actor", async () => {
@@ -102,15 +98,15 @@ describe("MCP HTTP protocol eras", () => {
         "content-type": "application/json",
         "mcp-protocol-version": "2026-07-28",
         "mcp-method": "tools/call",
-        "mcp-name": "list_brains",
+        "mcp-name": "search_brains",
       },
       payload: {
         jsonrpc: "2.0",
         id: 2,
         method: "tools/call",
         params: {
-          name: "list_brains",
-          arguments: { limit: 25 },
+          name: "search_brains",
+          arguments: { query: "product", limit: 25 },
           _meta: modernMeta(),
         },
       },
@@ -122,11 +118,9 @@ describe("MCP HTTP protocol eras", () => {
       resultType: "complete",
       structuredContent: {
         items: [{ id: brainId, slug: "product", name: "Product" }],
-        total: 1,
-        hasMore: false,
       },
     });
-    expect(service.listBrains).toHaveBeenCalledOnce();
+    expect(service.searchBrains).toHaveBeenCalledOnce();
   });
 
   it("keeps legacy initialization stateless and JSON-only", async () => {

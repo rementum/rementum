@@ -59,16 +59,16 @@ This is an intentional and calculated engineering trade-off:
 ### How does Rementum protect agent context windows and token budgets?
 
 Dumping entire documentation directories or files into an agent's prompt quickly exhausts context
-limits and inflates token costs. Rementum minimizes prompt overhead at three layers:
+limits and inflates token costs. Rementum minimizes prompt overhead in several ways:
 
 - **Compact routing index (~200 tokens):** Calling `get_brain` returns a lightweight 25-item list of
   article titles and one-sentence summaries. Agents inspect this index and retrieve only the specific
   article needed (`read_article` or `load_context`).
 - **OAuth scope-based tool filtering:** The tool catalog is filtered strictly to the scopes granted
   during authentication. Clients never receive definitions for tools they are unauthorized to call.
-- **Task and maintenance tools stay deferred:** Client plugins (Claude Code, Cursor, Codex) register
-  the single `rementum` skill, whose everyday workflow is reading and staging. Task management and
-  maintenance candidate tools are invoked on demand rather than crowding everyday prompts.
+- **Seven memory tools:** The single `rementum` skill covers brain discovery, reading, staging,
+  and promotion. Task management, maintenance, import/export, and invitations use the web UI or
+  REST API and do not add MCP tool definitions.
 - **Private catalog caching:** Modern MCP clients receive a 5-minute private `Cache-Control` header
   on the tool catalog, eliminating redundant schema discovery requests.
 

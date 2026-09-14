@@ -846,5 +846,5 @@ async function expectMcpInitialized(
   });
   expect(response.statusCode).toBe(200);
   const names = response.json().result.tools.map((tool: { name: string }) => tool.name);
-  expect(names).toContain("list_brains");
+  expect(names).toContain("search_brains");
 }
