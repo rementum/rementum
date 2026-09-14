@@ -50,7 +50,7 @@ export function HowItWorks({ dict }: { dict: Dictionary }) {
         observer = new IntersectionObserver(
           ([entry]) => {
             if (!entry) return;
-            if (entry.isIntersecting) mounted?.play();
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.2) mounted?.play();
             else mounted?.pause();
           },
           { threshold: 0.2 },

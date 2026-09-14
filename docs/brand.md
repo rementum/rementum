@@ -62,6 +62,17 @@ line — therefore clips descenders unless the mask adds bottom padding: `g` and
 below the baseline while the line box ends 0.1262em below it, so any such mask needs at least
 0.09em of bottom padding, and it must be an `em` value so it scales with the size clamp.
 
+## Animation playback
+
+The ASCII hero and illustrated SVG overview stop when the browser tab is hidden or the window
+loses focus, including when switching applications with Alt+Tab. Returning to an active page
+resumes animation only when its viewport conditions allow it; a paused SVG stays paused.
+The ASCII renderer also respects reduced motion and releases its canvas while inactive.
+
+The SVG overview plays only while at least 20% visible, is capped at 30 frames per second on all
+displays, and releases its renderer when navigating away or switching to a mobile viewport.
+Shared Aurora backdrops are static by default, including on the dashboard and authentication pages.
+
 ## Voice
 
 - Describe concrete behavior before benefits.

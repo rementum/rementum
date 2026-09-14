@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { observePageActivity } from "../../lib/page-activity";
 import { Aurora } from "../pui";
 
 /** Shared Mineral-green blob sets for Aurora backdrops. Positions/sizes are 0–100 units. */
@@ -17,7 +18,7 @@ export const AURORA_SOFT = [
 ];
 
 /**
- * Mounts canvas/animation children only while near the viewport, and not at all under
+ * Mounts canvas/animation children only while the page is active and near the viewport, and not under
  * prefers-reduced-motion. Keeps rAF loops from running for off-screen sections.
  */
 export function LazyCanvas({
@@ -33,14 +34,30 @@ export function LazyCanvas({
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const el = ref.current;
     if (!el) return;
-    const io = new IntersectionObserver(([entry]) => setShow(entry.isIntersecting), {
-      rootMargin: margin,
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let inView = false;
+    let active = false;
+    const sync = () => setShow(inView && active && !reducedMotion.matches);
+    const stopObservingActivity = observePageActivity((value) => {
+      active = value;
+      sync();
     });
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        inView = entry?.isIntersecting ?? false;
+        sync();
+      },
+      { rootMargin: margin },
+    );
     io.observe(el);
-    return () => io.disconnect();
+    reducedMotion.addEventListener("change", sync);
+    return () => {
+      io.disconnect();
+      stopObservingActivity();
+      reducedMotion.removeEventListener("change", sync);
+    };
   }, [margin]);
 
   return (
@@ -76,7 +93,8 @@ export function AuroraBackdrop({
       aria-hidden="true"
       className={`pointer-events-none absolute inset-0 overflow-hidden ${light} ${className ?? ""}`}
     >
-      <Aurora blobs={blobs} animated={animated} blur={blur} />
+      {/* `animated=false` selects CSS drift in performative-ui; only `static` disables it. */}
+      <Aurora blobs={blobs} animated={animated} static={!animated} blur={blur} />
     </div>
   );
 }
