@@ -36,18 +36,18 @@ async function connectedClient(scopes: string, service: RementumService) {
 describe("MCP OAuth scopes", () => {
   it("allows a matching read tool", async () => {
     const service = {
-      listBrains: vi.fn(async () => ({ items: [], total: 0 })),
+      searchBrains: vi.fn(async () => []),
     } as unknown as RementumService;
     const client = await connectedClient("brain:read", service);
-    const response = await client.callTool({ name: "list_brains", arguments: {} });
+    const response = await client.callTool({
+      name: "search_brains",
+      arguments: { query: "product" },
+    });
     expect(response.isError).not.toBe(true);
     expect(response.structuredContent).toEqual({
       items: [],
-      total: 0,
-      hasMore: false,
-      nextCursor: null,
     });
-    expect(service.listBrains).toHaveBeenCalledOnce();
+    expect(service.searchBrains).toHaveBeenCalledOnce();
   });
 
   it("hides and blocks a write tool before the service is called", async () => {

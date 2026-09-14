@@ -1,4 +1,5 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import { toolNames } from "@rementum/contracts";
 import { ConflictError, type RementumService } from "@rementum/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { allAccessScopes, withAccessScopes } from "./access.js";
@@ -6,7 +7,6 @@ import { createMcpServer, sanitize } from "./mcp.js";
 
 const brainId = "00000000-0000-4000-8000-000000000001";
 const articleId = "00000000-0000-4000-8000-000000000002";
-const taskId = "00000000-0000-4000-8000-000000000003";
 const writeId = "00000000-0000-4000-8000-000000000004";
 const workspaceId = "00000000-0000-4000-8000-000000000005";
 
@@ -75,7 +75,6 @@ afterEach(async () => {
 
 function stubService(overrides: Record<string, unknown> = {}): RementumService {
   return {
-    listBrains: vi.fn(async () => ({ items: [], total: 0 })),
     searchBrains: vi.fn(async () => []),
     createBrain: vi.fn(async () => ({ brain: { id: brainId }, routingIndex: [], articleTotal: 0 })),
     getBrain: vi.fn(async () => ({
@@ -109,30 +108,8 @@ function stubService(overrides: Record<string, unknown> = {}): RementumService {
     })),
     search: vi.fn(async () => []),
     readArticle: vi.fn(async () => articleResult()),
-    recentActivity: vi.fn(async () => []),
     stageWrite: vi.fn(async () => ({ id: writeId, status: "pending", body: Buffer.from("x") })),
     promoteWrite: vi.fn(async () => ({ version: { version: 3 } })),
-    withdrawWrite: vi.fn(async () => ({ id: writeId, status: "withdrawn" })),
-    getWriteStatus: vi.fn(async () => ({ id: writeId, status: "pending" })),
-    verifyArticle: vi.fn(async () => ({ id: articleId })),
-    setArticleLinks: vi.fn(async () => ({ ok: true })),
-    listTasks: vi.fn(async () => []),
-    getTask: vi.fn(async () => ({ id: taskId })),
-    createTask: vi.fn(async () => ({ id: taskId })),
-    claimTask: vi.fn(async () => ({ id: taskId })),
-    heartbeatTask: vi.fn(async () => ({ id: taskId })),
-    releaseTask: vi.fn(async () => ({ id: taskId })),
-    updateTask: vi.fn(async () => ({ id: taskId })),
-    commentTask: vi.fn(async () => ({ ok: true })),
-    attachTaskLink: vi.fn(async () => ({ ok: true })),
-    linkTaskArticle: vi.fn(async () => ({ ok: true })),
-    scanMaintenance: vi.fn(async () => []),
-    listMaintenance: vi.fn(async () => []),
-    requestInvite: vi.fn(async () => ({
-      id: "invite-id",
-      expiresAt: "2026-01-09T00:00:00.000Z",
-      awaitingApproval: true,
-    })),
     recordMcpToolCall: vi.fn(async () => undefined),
     ...overrides,
   } as unknown as RementumService;
@@ -190,7 +167,6 @@ interface ToolCase {
 }
 
 const cases: ToolCase[] = [
-  { tool: "list_brains", scope: "brain:read", args: {}, method: "listBrains" },
   {
     tool: "search_brains",
     scope: "brain:read",
@@ -212,188 +188,84 @@ const cases: ToolCase[] = [
     expect: [articleId, expect.anything()],
   },
   {
-    tool: "recent_activity",
-    scope: "brain:read",
-    args: { brainId, limit: 10 },
-    method: "recentActivity",
-    expect: [brainId, 11, expect.anything(), undefined, 0],
-  },
-  {
-    tool: "search_articles",
-    scope: "brain:read",
-    args: { brainId, query: "encryption" },
-    method: "search",
-  },
-  {
-    tool: "get_write_status",
-    scope: "brain:read",
-    args: { writeId },
-    method: "getWriteStatus",
-    expect: [writeId, expect.anything()],
-  },
-  {
-    tool: "list_maintenance_candidates",
-    scope: "brain:read",
-    args: { brainId },
-    method: "listMaintenance",
-    expect: [brainId, expect.anything(), { limit: 21, offset: 0 }],
-  },
-  {
     tool: "create_brain",
     scope: "brain:write",
     args: { name: "New brain", slug: "new-brain", workspaceId },
     method: "createBrain",
   },
   {
-    tool: "withdraw_staged_write",
+    tool: "load_context",
+    scope: "brain:read",
+    args: { brainId, query: "architecture" },
+    method: "search",
+  },
+  {
+    tool: "stage_write",
     scope: "brain:write",
-    args: { writeId },
-    method: "withdrawWrite",
-    expect: [writeId, expect.anything()],
+    method: "stageWrite",
+    args: {
+      brainId,
+      operation: "create",
+      slug: "architecture",
+      title: "Architecture",
+      body: "Body",
+      changeSummary: "Create",
+    },
   },
   {
-    tool: "verify_article",
+    tool: "promote_staged_write",
     scope: "brain:write",
-    args: { articleId, reviewAfter: "2026-06-01T00:00:00.000Z" },
-    method: "verifyArticle",
-    expect: [articleId, new Date("2026-06-01T00:00:00.000Z"), expect.anything()],
-  },
-  {
-    tool: "set_article_links",
-    scope: "brain:write",
-    args: { articleId, links: [{ toArticleId: articleId, relation: "supports" }] },
-    method: "setArticleLinks",
-  },
-  {
-    tool: "scan_brain",
-    scope: "brain:write",
-    args: { brainId },
-    method: "scanMaintenance",
-    expect: [brainId, expect.anything()],
-  },
-  {
-    tool: "propose_invite",
-    scope: "brain:write",
-    args: { brainId, email: "invited@example.test", role: "editor" },
-    method: "requestInvite",
-    expect: [brainId, "invited@example.test", "editor", expect.anything()],
-  },
-  { tool: "list_tasks", scope: "task:read", args: { brainId }, method: "listTasks" },
-  { tool: "get_task", scope: "task:read", args: { taskId }, method: "getTask" },
-  {
-    tool: "create_task",
-    scope: "task:write",
-    args: { brainId, title: "Task", brief: "Brief" },
-    method: "createTask",
-  },
-  {
-    tool: "claim_task",
-    scope: "task:write",
-    args: { brainId, taskId, leaseSeconds: 900 },
-    method: "claimTask",
-    expect: [brainId, taskId, 900, expect.anything()],
-  },
-  {
-    tool: "claim_next_task",
-    scope: "task:write",
-    args: { brainId },
-    method: "claimTask",
-    expect: [brainId, undefined, 600, expect.anything()],
-  },
-  {
-    tool: "heartbeat_claim",
-    scope: "task:write",
-    args: { taskId, leaseSeconds: 300 },
-    method: "heartbeatTask",
-    expect: [taskId, 300, expect.anything()],
-  },
-  {
-    tool: "release_claim",
-    scope: "task:write",
-    args: { taskId },
-    method: "releaseTask",
-    expect: [taskId, false, expect.anything()],
-  },
-  {
-    tool: "force_release_claim",
-    scope: "task:write",
-    args: { taskId },
-    method: "releaseTask",
-    expect: [taskId, true, expect.anything()],
-  },
-  {
-    tool: "approve_task",
-    scope: "task:write",
-    args: { taskId },
-    method: "updateTask",
-    expect: [taskId, { status: "approved" }, expect.anything()],
-  },
-  {
-    tool: "cancel_task",
-    scope: "task:write",
-    args: { taskId },
-    method: "updateTask",
-    expect: [taskId, { status: "cancelled" }, expect.anything()],
-  },
-  {
-    tool: "update_task",
-    scope: "task:write",
-    args: { taskId, status: "claimed", priority: 5 },
-    method: "updateTask",
-    expect: [taskId, { status: "claimed", priority: 5 }, expect.anything()],
-  },
-  {
-    tool: "comment_task",
-    scope: "task:write",
-    args: { taskId, body: "A note" },
-    method: "commentTask",
-    expect: [taskId, "A note", expect.anything()],
-  },
-  {
-    tool: "attach_task_link",
-    scope: "task:write",
-    args: { taskId, url: "https://example.test/issues/1", label: "Issue" },
-    method: "attachTaskLink",
-    expect: [taskId, "https://example.test/issues/1", "Issue", expect.anything()],
-  },
-  {
-    tool: "link_task_article",
-    scope: "task:write",
-    args: { taskId, articleId },
-    method: "linkTaskArticle",
-    expect: [taskId, articleId, expect.anything()],
+    method: "promoteWrite",
+    args: { writeId, decisionSummary: "Reviewed" },
   },
 ];
 
 const toolsByScope = {
-  "brain:read": [
+  "brain:read": ["search_brains", "get_brain", "load_context", "read_article"],
+  "brain:write": ["create_brain", "stage_write", "promote_staged_write"],
+  "task:read": [],
+  "task:write": [],
+} as const;
+
+const catalogBudgets = {
+  "brain:read": 4_000,
+  "brain:write": 6_000,
+  "task:read": 100,
+  "task:write": 100,
+} as const;
+
+describe("MCP tool surface", () => {
+  it("exposes exactly the seven memory tools", async () => {
+    const client = await connect(stubService());
+    const catalog = await client.listTools();
+    expect(catalog.tools.map((tool) => tool.name)).toEqual([
+      "search_brains",
+      "create_brain",
+      "get_brain",
+      "load_context",
+      "read_article",
+      "stage_write",
+      "promote_staged_write",
+    ]);
+    expect(catalog.tools.map((tool) => tool.name)).toEqual([...toolNames]);
+    expect(JSON.stringify(catalog).length).toBeLessThanOrEqual(10_000);
+  });
+
+  it.each([
     "list_brains",
-    "search_brains",
-    "get_brain",
     "search_articles",
-    "load_context",
-    "read_article",
     "recent_activity",
-    "get_write_status",
-    "export_brain",
-    "list_maintenance_candidates",
-  ],
-  "brain:write": [
-    "create_brain",
-    "stage_write",
-    "promote_staged_write",
     "withdraw_staged_write",
+    "get_write_status",
     "verify_article",
     "set_article_links",
     "import_markdown",
-    "scan_brain",
-    "propose_invite",
-  ],
-  "task:read": ["list_tasks", "get_task"],
-  "task:write": [
+    "export_brain",
+    "list_tasks",
+    "get_task",
     "create_task",
-    "claim_task",
     "claim_next_task",
+    "claim_task",
     "heartbeat_claim",
     "release_claim",
     "force_release_claim",
@@ -403,27 +275,16 @@ const toolsByScope = {
     "comment_task",
     "attach_task_link",
     "link_task_article",
-  ],
-} as const;
-
-const catalogBudgets = {
-  "brain:read": 8_000,
-  "brain:write": 11_000,
-  "task:read": 1_500,
-  "task:write": 10_000,
-} as const;
-
-describe("MCP tool surface", () => {
-  it("exposes every documented tool", async () => {
-    const client = await connect(stubService());
-    const catalog = await client.listTools();
-    const names = catalog.tools.map((tool) => tool.name).sort();
-    for (const { tool } of cases) expect(names).toContain(tool);
-    expect(names).toContain("stage_write");
-    expect(names).toContain("promote_staged_write");
-    expect(names).toContain("import_markdown");
-    expect(names).toContain("export_brain");
-    expect(JSON.stringify(catalog).length).toBeLessThanOrEqual(28_000);
+    "propose_invite",
+    "scan_brain",
+    "list_maintenance_candidates",
+  ])("refuses retired tool %s even with all scopes", async (name) => {
+    const service = stubService();
+    const client = await connect(service);
+    await expect(client.callTool({ name, arguments: {} })).rejects.toThrow(
+      `Tool ${name} not found`,
+    );
+    expect(service.recordMcpToolCall).not.toHaveBeenCalled();
   });
 
   it.each(Object.entries(toolsByScope))(
@@ -475,59 +336,6 @@ describe("MCP tool surface", () => {
 });
 
 describe("compact MCP results", () => {
-  it("paginates compact brain inventory records", async () => {
-    const brains = [
-      {
-        id: brainId,
-        workspaceId,
-        slug: "product",
-        name: "Product",
-        description: "Product knowledge",
-        instructions: "Private routing instructions",
-        createdBy: "00000000-0000-4000-8000-000000000009",
-        createdAt: new Date("2026-01-01T00:00:00.000Z"),
-        updatedAt: new Date("2026-01-02T00:00:00.000Z"),
-      },
-      {
-        id: "00000000-0000-4000-8000-000000000006",
-        workspaceId,
-        slug: "operations",
-        name: "Operations",
-        description: "Operations knowledge",
-        instructions: "More private routing instructions",
-        createdBy: "00000000-0000-4000-8000-000000000009",
-        createdAt: new Date("2026-01-01T00:00:00.000Z"),
-        updatedAt: new Date("2026-01-02T00:00:00.000Z"),
-      },
-    ];
-    const listBrains = vi.fn(async (_actor, options: { limit: number; offset: number }) => ({
-      items: brains.slice(options.offset, options.offset + options.limit),
-      total: brains.length,
-    }));
-    const client = await connect(stubService({ listBrains }));
-    const first = await client.callTool({ name: "list_brains", arguments: { limit: 1 } });
-    expect(first.structuredContent).toMatchObject({
-      items: [{ id: brainId, slug: "product", name: "Product" }],
-      total: 2,
-      hasMore: true,
-    });
-    const firstResult = structuredResult(first);
-    const items = firstResult.items;
-    expect(Array.isArray(items) ? items[0] : undefined).not.toHaveProperty("workspaceId");
-    if (typeof firstResult.nextCursor !== "string") throw new Error("Expected a brain cursor");
-
-    const second = await client.callTool({
-      name: "list_brains",
-      arguments: { limit: 1, cursor: firstResult.nextCursor },
-    });
-    expect(second.structuredContent).toMatchObject({
-      items: [{ slug: "operations" }],
-      hasMore: false,
-      nextCursor: null,
-    });
-    expect(listBrains.mock.calls.map((call) => call[1].offset)).toEqual([0, 1]);
-  });
-
   it("paginates and projects the brain routing index with an opaque cursor", async () => {
     const secondArticleId = "00000000-0000-4000-8000-000000000006";
     const summaries = [
@@ -612,106 +420,19 @@ describe("compact MCP results", () => {
     expect(getBrain.mock.calls.map((call) => call[4])).toEqual([0, 1]);
   });
 
-  it("rejects a cursor from another tool before reading the service", async () => {
-    const events = [
-      {
-        id: "00000000-0000-4000-8000-000000000006",
-        action: "article.updated",
-        resource: `article:${articleId}`,
-        actorId: "00000000-0000-4000-8000-000000000009",
-        clientId: "agent-client",
-        detail: { version: 2 },
-        createdAt: "2026-01-03T00:00:00.000Z",
-      },
-      {
-        id: "00000000-0000-4000-8000-000000000007",
-        action: "article.read",
-        resource: `article:${articleId}`,
-        actorId: "00000000-0000-4000-8000-000000000009",
-        clientId: "agent-client",
-        detail: { version: 1 },
-        createdAt: "2026-01-02T00:00:00.000Z",
-      },
-    ];
-    const recentActivity = vi.fn(async (_brainId, limit: number, _actor, _source, offset: number) =>
-      events.slice(offset, offset + limit),
-    );
-    const service = stubService({ recentActivity });
+  it.each([
+    { version: 1, kind: "routing", resourceId: workspaceId, offset: 1 },
+    { version: 1, kind: "activity", resourceId: brainId, offset: 1 },
+    { version: 1, kind: "routing", resourceId: brainId, offset: -1 },
+  ])("rejects an invalid or foreign routing cursor: %j", async (cursor) => {
+    const service = stubService();
     const client = await connect(service);
-    const activity = await client.callTool({
-      name: "recent_activity",
-      arguments: { brainId, limit: 1 },
-    });
-    expect(activity.structuredContent).toMatchObject({
-      items: [
-        {
-          action: "article.updated",
-          resource: `article:${articleId}`,
-          detail: { version: 2 },
-        },
-      ],
-      hasMore: true,
-    });
-    const activityResult = structuredResult(activity);
-    const activityItems = activityResult.items;
-    // Attribution survives compaction; the audit-event id does not.
-    expect(Array.isArray(activityItems) ? activityItems[0] : undefined).toMatchObject({
-      actorId: "00000000-0000-4000-8000-000000000009",
-      clientId: "agent-client",
-    });
-    expect(Array.isArray(activityItems) ? activityItems[0] : undefined).not.toHaveProperty("id");
-    if (typeof activityResult.nextCursor !== "string") throw new Error("Expected activity cursor");
     const response = await client.callTool({
       name: "get_brain",
-      arguments: { brainId, cursor: activityResult.nextCursor },
+      arguments: { brainId, cursor: Buffer.from(JSON.stringify(cursor)).toString("base64url") },
     });
     expect(response).toMatchObject({ isError: true });
     expect(service.getBrain).not.toHaveBeenCalled();
-  });
-
-  it("returns flat search hits without duplicate excerpts or parent ids", async () => {
-    const service = stubService({
-      search: vi.fn(async () => [
-        {
-          article: {
-            id: articleId,
-            brainId,
-            slug: "architecture",
-            title: "Architecture",
-            summary: "System design.",
-            keywords: ["architecture"],
-            kind: "canonical",
-            freshness: "current",
-            currentVersion: 2,
-            updatedAt: "2026-01-02T00:00:00.000Z",
-          },
-          score: 0.5,
-          sources: ["routing", "vector"],
-          excerpt: "System design.",
-        },
-      ]),
-    });
-    const client = await connect(service);
-    const response = await client.callTool({
-      name: "search_articles",
-      arguments: { brainId, query: "architecture" },
-    });
-    expect(response.structuredContent).toEqual({
-      items: [
-        {
-          id: articleId,
-          slug: "architecture",
-          title: "Architecture",
-          summary: "System design.",
-          keywords: ["architecture"],
-          kind: "canonical",
-          freshness: "current",
-          currentVersion: 2,
-          score: 0.5,
-          sources: ["routing", "vector"],
-        },
-      ],
-    });
   });
 
   it("defaults read_article to a body view and keeps full detail opt-in", async () => {
@@ -733,95 +454,6 @@ describe("compact MCP results", () => {
     });
     expect(full.structuredContent).toHaveProperty("links");
     expect(full.structuredContent).toHaveProperty("provenance");
-  });
-
-  it("paginates task summaries without returning full briefs", async () => {
-    const tasks = [
-      {
-        id: taskId,
-        brainId,
-        title: "First task",
-        brief: "A long private brief",
-        priority: 10,
-        status: "open" as const,
-        claimedBy: null,
-        leaseExpiresAt: null,
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-02T00:00:00.000Z",
-      },
-      {
-        id: "00000000-0000-4000-8000-000000000006",
-        brainId,
-        title: "Second task",
-        brief: "Another long private brief",
-        priority: 5,
-        status: "open" as const,
-        claimedBy: null,
-        leaseExpiresAt: null,
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-02T00:00:00.000Z",
-      },
-    ];
-    const listTasks = vi.fn(async (_brainId, _actor, page) =>
-      tasks.slice(page.offset, page.offset + page.limit),
-    );
-    const client = await connect(stubService({ listTasks }));
-    const response = await client.callTool({
-      name: "list_tasks",
-      arguments: { brainId, limit: 1 },
-    });
-    expect(response.structuredContent).toMatchObject({
-      items: [{ id: taskId, title: "First task", priority: 10 }],
-      hasMore: true,
-    });
-    const taskItems = structuredResult(response).items;
-    expect(Array.isArray(taskItems) ? taskItems[0] : undefined).not.toHaveProperty("brief");
-    expect(listTasks).toHaveBeenCalledWith(brainId, expect.anything(), { limit: 2, offset: 0 });
-  });
-
-  it("paginates compact maintenance findings", async () => {
-    const candidates = [
-      {
-        id: "00000000-0000-4000-8000-000000000006",
-        brainId,
-        kind: "stale" as const,
-        articleIds: [articleId],
-        score: null,
-        detail: { reason: "review due" },
-        status: "open" as const,
-        createdAt: "2026-01-01T00:00:00.000Z",
-      },
-      {
-        id: "00000000-0000-4000-8000-000000000007",
-        brainId,
-        kind: "oversized" as const,
-        articleIds: [articleId],
-        score: null,
-        detail: { bytes: 50_000 },
-        status: "open" as const,
-        createdAt: "2026-01-02T00:00:00.000Z",
-      },
-    ];
-    const listMaintenance = vi.fn(async (_brainId, _actor, page) =>
-      candidates.slice(page.offset, page.offset + page.limit),
-    );
-    const client = await connect(stubService({ listMaintenance }));
-    const response = await client.callTool({
-      name: "list_maintenance_candidates",
-      arguments: { brainId, limit: 1 },
-    });
-    expect(response.structuredContent).toMatchObject({
-      items: [{ kind: "stale", articleIds: [articleId] }],
-      hasMore: true,
-    });
-    const maintenanceItems = structuredResult(response).items;
-    expect(Array.isArray(maintenanceItems) ? maintenanceItems[0] : undefined).not.toHaveProperty(
-      "brainId",
-    );
-    expect(listMaintenance).toHaveBeenCalledWith(brainId, expect.anything(), {
-      limit: 2,
-      offset: 0,
-    });
   });
 
   it("returns minified text that matches structured content", async () => {
@@ -1075,86 +707,6 @@ describe("staged writes over MCP", () => {
   });
 });
 
-describe("import_markdown", () => {
-  it("updates an existing slug and creates a new one in the same batch", async () => {
-    const service = stubService();
-    const client = await connect(service);
-    const response = await client.callTool({
-      name: "import_markdown",
-      arguments: {
-        brainId,
-        documents: [
-          { path: "docs/architecture.md", title: "Architecture", body: "Updated body." },
-          { path: "docs/glossary.md", title: "Glossary", body: "New body." },
-        ],
-      },
-    });
-    expect(response.isError).not.toBe(true);
-    const calls = vi.mocked(service.stageWrite).mock.calls;
-    expect(calls).toHaveLength(2);
-    expect(calls[0]?.[0]).toMatchObject({
-      operation: "update",
-      articleId,
-      baseVersion: 2,
-      slug: "architecture",
-      changeSummary: "import: docs/architecture.md",
-      acknowledgePotentialConflicts: true,
-    });
-    expect(calls[1]?.[0]).toMatchObject({
-      operation: "create",
-      slug: "glossary",
-      changeSummary: "import: docs/glossary.md",
-    });
-    expect(calls[0]?.[0].articleId).not.toBe(calls[1]?.[0].articleId);
-  });
-
-  it("gives each document a stable idempotency key", async () => {
-    const service = stubService();
-    const client = await connect(service);
-    const document = { path: "docs/glossary.md", title: "Glossary", body: "New body." };
-    await client.callTool({
-      name: "import_markdown",
-      arguments: { brainId, documents: [document] },
-    });
-    await client.callTool({
-      name: "import_markdown",
-      arguments: { brainId, documents: [document] },
-    });
-    const [first, second] = vi.mocked(service.stageWrite).mock.calls;
-    expect(first?.[0].idempotencyKey).toBe(second?.[0].idempotencyKey);
-  });
-});
-
-describe("export_brain", () => {
-  it("returns a REST resource link without placing article bodies in context", async () => {
-    const service = stubService();
-    const client = await connect(service);
-    const response = await client.callTool({ name: "export_brain", arguments: { brainId } });
-    expect(response.structuredContent).toEqual({
-      brain: { id: brainId, slug: "product", name: "Product" },
-      downloadUrl: `https://rementum.example.test/api/v1/brains/${brainId}/export`,
-      format: "rementum-export-v1",
-    });
-    expect(response.content).toContainEqual({
-      type: "resource_link",
-      uri: `https://rementum.example.test/api/v1/brains/${brainId}/export`,
-      name: "product-export.zip",
-      description: "Open in a browser with an active Rementum session to download the ZIP export.",
-      mimeType: "application/zip",
-    });
-    expect(service.getBrain).toHaveBeenCalledWith(brainId, expect.anything(), 1);
-    expect(service.readArticle).not.toHaveBeenCalled();
-  });
-
-  it("refuses an export for anyone but the brain owner", async () => {
-    const service = stubService();
-    const client = await connect(service, allAccessScopes.join(" "), "editor");
-    const response = await client.callTool({ name: "export_brain", arguments: { brainId } });
-    expect(response).toMatchObject({ isError: true });
-    expect(service.getBrain).not.toHaveBeenCalled();
-  });
-});
-
 describe("sanitize", () => {
   it("removes ciphertext and secrets at any depth", () => {
     expect(
@@ -1270,24 +822,5 @@ describe("tool failures", () => {
     expect(text).not.toContain("ECONNREFUSED");
     expect(JSON.parse(text)).toEqual({ code: "internal", message: "Internal server error" });
     expect(onToolError).toHaveBeenCalledWith(expect.any(Error), "read_article");
-  });
-});
-
-describe("propose_invite", () => {
-  it("never hands the agent a token; the proposal waits for an owner", async () => {
-    const service = stubService();
-    const client = await connect(service);
-    const response = await client.callTool({
-      name: "propose_invite",
-      arguments: { brainId, email: "invited@example.test", role: "viewer" },
-    });
-    expect(response.isError).not.toBe(true);
-    const text = (response as { content: Array<{ text: string }> }).content[0]?.text ?? "";
-    expect(text).not.toContain("token");
-    expect(JSON.parse(text)).toEqual({
-      id: "invite-id",
-      expiresAt: "2026-01-09T00:00:00.000Z",
-      awaitingApproval: true,
-    });
   });
 });

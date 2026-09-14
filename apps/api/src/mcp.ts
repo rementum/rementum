@@ -15,31 +15,23 @@ import {
 } from "@modelcontextprotocol/server";
 import {
   type ArticleSummary,
-  claimTaskSchema,
   createBrainSchema,
-  createTaskSchema,
-  externalUrlSchema,
   type LoadContextInput,
   loadContextSchema,
-  type MaintenanceCandidate,
   promoteWriteSchema,
   searchArticlesSchema,
   searchBrainsSchema,
   stageWriteSchema,
-  type Task,
   type ToolName,
-  taskStatusSchema,
 } from "@rementum/contracts";
 import {
   type BrainRecord,
   type BrainWithIndex,
   DomainError,
-  hashContent,
   type McpToolCallInput,
   type ReadArticleResult,
   type RementumService,
   type SearchHit,
-  slugify,
 } from "@rementum/core";
 import type { FastifyInstance } from "fastify";
 import { ZodError, z } from "zod";
@@ -178,7 +170,7 @@ const serverInstructions = `Use Rementum for durable project memory. Search_brai
 export function createMcpServer(
   service: RementumService,
   actor: ScopedActor,
-  publicUrl = "http://localhost",
+  _publicUrl = "http://localhost",
   onUsageError?: UsageErrorHandler,
   onToolError?: ToolErrorHandler,
 ): McpServer {
@@ -216,37 +208,6 @@ export function createMcpServer(
     server,
     actor,
     "brain:read",
-    "list_brains",
-    {
-      title: "List accessible brains",
-      description:
-        "Lists a bounded page of visible brains. Prefer search_brains when you know the project name and continue with nextCursor when present.",
-      inputSchema: z.object({
-        limit: z.number().int().min(1).max(100).default(25),
-        cursor: z.string().max(512).optional(),
-      }),
-      annotations: read,
-    },
-    ({ limit, cursor }) =>
-      scoped(actor, "brain:read", async () => {
-        const cursorResource = actor.workspaceId ?? actor.userId;
-        const offset = decodePageCursor(cursor, "brains", cursorResource);
-        const page = await service.listBrains(actor, { limit, offset });
-        const nextOffset = offset + page.items.length;
-        const hasMore = nextOffset < page.total;
-        return publicResult({
-          items: page.items.map(compactBrain),
-          total: page.total,
-          hasMore,
-          nextCursor: hasMore ? encodePageCursor("brains", nextOffset, cursorResource) : null,
-        });
-      }),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "brain:read",
     "search_brains",
     {
       title: "Search brains",
@@ -275,8 +236,8 @@ export function createMcpServer(
       annotations: write,
     },
     (input) =>
-      scoped(actor, "brain:write", () =>
-        result(service.createBrain(createBrainSchema.parse(input), actor)),
+      scoped(actor, "brain:write", async () =>
+        publicResult(await service.createBrain(createBrainSchema.parse(input), actor)),
       ),
   );
 
@@ -301,25 +262,6 @@ export function createMcpServer(
         const offset = decodePageCursor(cursor, "routing", brainId);
         const brain = await service.getBrain(brainId, actor, limit, "updated", offset);
         return publicResult(compactBrainIndex(brain, offset));
-      }),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "brain:read",
-    "search_articles",
-    {
-      title: "Search articles",
-      description:
-        "Hybrid metadata and semantic search. Use it when the routing index does not name the needed article; read a hit before relying on it.",
-      inputSchema: searchArticlesSchema,
-      annotations: read,
-    },
-    (input) =>
-      scoped(actor, "brain:read", async () => {
-        const hits = await service.search(searchArticlesSchema.parse(input), actor);
-        return publicResult({ items: hits.map(compactSearchHit) });
       }),
   );
 
@@ -379,32 +321,6 @@ export function createMcpServer(
   registerScopedTool(
     server,
     actor,
-    "brain:read",
-    "recent_activity",
-    {
-      title: "Read recent brain activity",
-      description:
-        "Returns a bounded page of recent actions with compact routing details. Continue with nextCursor when present.",
-      inputSchema: z.object({
-        brainId: z.uuid(),
-        limit: z.number().int().min(1).max(50).default(10),
-        cursor: z.string().max(512).optional(),
-      }),
-      annotations: read,
-    },
-    ({ brainId, limit, cursor }) =>
-      scoped(actor, "brain:read", async () => {
-        const offset = decodePageCursor(cursor, "activity", brainId);
-        const events = await service.recentActivity(brainId, limit + 1, actor, undefined, offset);
-        return publicResult(
-          compactPage(events.map(compactActivity), limit, offset, "activity", brainId),
-        );
-      }),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
     "brain:write",
     "stage_write",
     {
@@ -438,478 +354,7 @@ export function createMcpServer(
       ),
   );
 
-  registerScopedTool(
-    server,
-    actor,
-    "brain:write",
-    "withdraw_staged_write",
-    {
-      title: "Withdraw a staged write",
-      description: "Withdraws a pending or conflicted proposal while keeping its audit trail.",
-      inputSchema: z.object({ writeId: z.uuid() }),
-      annotations: { ...write, idempotentHint: true },
-    },
-    async ({ writeId }) =>
-      scoped(actor, "brain:write", async () =>
-        publicResult(await service.withdrawWrite(writeId, actor)),
-      ),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "brain:read",
-    "get_write_status",
-    {
-      title: "Get staged write status",
-      description:
-        "Returns the current status, conflict candidates, and promoted version without exposing encrypted content.",
-      inputSchema: z.object({ writeId: z.uuid() }),
-      annotations: read,
-    },
-    async ({ writeId }) =>
-      scoped(actor, "brain:read", async () =>
-        publicResult(await service.getWriteStatus(writeId, actor)),
-      ),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "brain:write",
-    "verify_article",
-    {
-      title: "Verify article freshness",
-      description: "Marks an article current and optionally sets its next review date.",
-      inputSchema: z.object({
-        articleId: z.uuid(),
-        reviewAfter: z.iso.datetime().nullable().default(null),
-      }),
-      annotations: write,
-    },
-    ({ articleId, reviewAfter }) =>
-      scoped(actor, "brain:write", () =>
-        result(service.verifyArticle(articleId, reviewAfter ? new Date(reviewAfter) : null, actor)),
-      ),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "brain:write",
-    "set_article_links",
-    {
-      title: "Replace article links",
-      description: "Replaces the outgoing links of an article. Targets must be in the same brain.",
-      inputSchema: z.object({
-        articleId: z.uuid(),
-        links: z
-          .array(
-            z.object({
-              toArticleId: z.uuid(),
-              relation: z.string().min(1).max(80).default("related"),
-            }),
-          )
-          .max(200),
-      }),
-      annotations: write,
-    },
-    ({ articleId, links }) =>
-      scoped(actor, "brain:write", () => result(service.setArticleLinks(articleId, links, actor))),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "brain:write",
-    "import_markdown",
-    {
-      title: "Stage Markdown documents",
-      description:
-        "Stages a reviewed batch of Markdown documents without calling an external LLM. Promotion may queue deferred compaction for workspaces that enable it. It never promotes the imported writes.",
-      inputSchema: z.object({
-        brainId: z.uuid(),
-        documents: z
-          .array(
-            z.object({
-              path: z.string().min(1).max(1000),
-              title: z.string().min(1).max(240),
-              body: z.string().min(1).max(2_000_000),
-              kind: z.enum(["canonical", "log"]).default("canonical"),
-              keywords: z.array(z.string()).max(40).default([]),
-            }),
-          )
-          .min(1)
-          .max(50),
-      }),
-      annotations: write,
-    },
-    async ({ brainId, documents }) => {
-      requireAccessScope(actor, "brain:write");
-      const index = (await service.getBrain(brainId, actor, 10_000)).routingIndex;
-      const bySlug = new Map(index.map((article) => [article.slug, article]));
-      // Every document is validated before any is staged: a rejected one in the middle of
-      // the batch used to leave the earlier documents staged and report a plain failure.
-      const inputs = documents.map((document) => {
-        const slug = slugify(document.title);
-        const existing = bySlug.get(slug);
-        return stageWriteSchema.parse({
-          brainId,
-          operation: existing ? "update" : "create",
-          articleId: existing?.id,
-          slug,
-          title: document.title,
-          body: document.body,
-          kind: document.kind,
-          keywords: document.keywords,
-          baseVersion: existing?.currentVersion,
-          changeSummary: `import: ${document.path}`,
-          sources: [
-            {
-              kind: "import",
-              locator: document.path,
-              checksum: hashContent(document.body),
-              metadata: { role: "migrated_from" },
-            },
-          ],
-          acknowledgePotentialConflicts: true,
-          idempotencyKey: `mcp-import-${hashContent(`${brainId}:${document.path}:${document.body}`).slice(0, 32)}`,
-        });
-      });
-      const writes = [];
-      for (const input of inputs) {
-        writes.push(sanitize(await service.stageWrite(input, actor)));
-      }
-      return publicResult({ writes });
-    },
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "brain:read",
-    "export_brain",
-    {
-      title: "Get brain export link",
-      description:
-        "Owner-only. Returns a link to the portable REST ZIP export without placing article bodies in model context.",
-      inputSchema: z.object({ brainId: z.uuid() }),
-      annotations: read,
-    },
-    async ({ brainId }) => {
-      requireAccessScope(actor, "brain:read");
-      if (actor.brainRoles.get(brainId) !== "owner")
-        throw new DomainError("forbidden", "Only the brain owner can export", 403);
-      const { brain } = await service.getBrain(brainId, actor, 1);
-      const downloadUrl = `${publicUrl.replace(/\/$/, "")}/api/v1/brains/${brainId}/export`;
-      const output = {
-        brain: { id: brain.id, slug: brain.slug, name: brain.name },
-        downloadUrl,
-        format: "rementum-export-v1",
-      };
-      return publicResultWithResourceLink(output, {
-        uri: downloadUrl,
-        name: `${brain.slug}-export.zip`,
-        description:
-          "Open in a browser with an active Rementum session to download the ZIP export.",
-        mimeType: "application/zip",
-      });
-    },
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "task:read",
-    "list_tasks",
-    {
-      title: "List brain tasks",
-      description:
-        "Lists compact task summaries in priority order. Use get_task for the full brief and continue with nextCursor when present.",
-      inputSchema: z.object({
-        brainId: z.uuid(),
-        limit: z.number().int().min(1).max(100).default(20),
-        cursor: z.string().max(512).optional(),
-      }),
-      annotations: read,
-    },
-    ({ brainId, limit, cursor }) =>
-      scoped(actor, "task:read", async () => {
-        const offset = decodePageCursor(cursor, "tasks", brainId);
-        const tasks = await service.listTasks(brainId, actor, { limit: limit + 1, offset });
-        return publicResult(compactPage(tasks.map(compactTask), limit, offset, "tasks", brainId));
-      }),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "task:read",
-    "get_task",
-    {
-      title: "Get a task",
-      description: "Reads one task and its current lease state.",
-      inputSchema: z.object({ taskId: z.uuid() }),
-      annotations: read,
-    },
-    ({ taskId }) => scoped(actor, "task:read", () => result(service.getTask(taskId, actor))),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "task:write",
-    "create_task",
-    {
-      title: "Create a task",
-      description: "Creates an auditable agent task linked to brain knowledge.",
-      inputSchema: createTaskSchema,
-      annotations: write,
-    },
-    (input) =>
-      scoped(actor, "task:write", () =>
-        result(service.createTask(createTaskSchema.parse(input), actor)),
-      ),
-  );
-
-  const claimConfig = {
-    title: "Claim a task",
-    description: "Atomically claims a specific or next available task with a renewable lease.",
-    inputSchema: claimTaskSchema,
-    annotations: write,
-  };
-  registerScopedTool(server, actor, "task:write", "claim_task", claimConfig, (input) => {
-    requireAccessScope(actor, "task:write");
-    const parsed = claimTaskSchema.parse(input);
-    return result(service.claimTask(parsed.brainId, parsed.taskId, parsed.leaseSeconds, actor));
-  });
-  registerScopedTool(server, actor, "task:write", "claim_next_task", claimConfig, (input) => {
-    requireAccessScope(actor, "task:write");
-    const parsed = claimTaskSchema.parse({ ...input, taskId: undefined });
-    return result(service.claimTask(parsed.brainId, undefined, parsed.leaseSeconds, actor));
-  });
-
-  registerScopedTool(
-    server,
-    actor,
-    "task:write",
-    "heartbeat_claim",
-    {
-      title: "Renew a task lease",
-      description: "Keeps the current actor's task claim alive.",
-      inputSchema: z.object({
-        taskId: z.uuid(),
-        leaseSeconds: z.number().int().min(60).max(3600).default(600),
-      }),
-      annotations: { ...write, idempotentHint: true },
-    },
-    ({ taskId, leaseSeconds }) =>
-      scoped(actor, "task:write", () => result(service.heartbeatTask(taskId, leaseSeconds, actor))),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "task:write",
-    "release_claim",
-    {
-      title: "Release a task lease",
-      description: "Releases the current actor's claim without cancelling the task.",
-      inputSchema: z.object({ taskId: z.uuid() }),
-      annotations: write,
-    },
-    ({ taskId }) =>
-      scoped(actor, "task:write", () => result(service.releaseTask(taskId, false, actor))),
-  );
-  registerScopedTool(
-    server,
-    actor,
-    "task:write",
-    "force_release_claim",
-    {
-      title: "Force release a task lease",
-      description: "Brain-owner action that releases another actor's stale or incorrect claim.",
-      inputSchema: z.object({ taskId: z.uuid() }),
-      annotations: { ...write, destructiveHint: true },
-    },
-    ({ taskId }) =>
-      scoped(actor, "task:write", () => result(service.releaseTask(taskId, true, actor))),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "task:write",
-    "update_task",
-    {
-      title: "Update a task",
-      description: "Updates status, title, brief, or priority without changing its audit history.",
-      inputSchema: z.object({
-        taskId: z.uuid(),
-        status: taskStatusSchema.optional(),
-        title: z.string().min(1).max(240).optional(),
-        brief: z.string().min(1).max(20_000).optional(),
-        priority: z.number().int().min(-100).max(100).optional(),
-      }),
-      annotations: write,
-    },
-    ({ taskId, ...patch }) =>
-      scoped(actor, "task:write", () =>
-        result(service.updateTask(taskId, defined(patch) as any, actor)),
-      ),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "task:write",
-    "approve_task",
-    {
-      title: "Approve a task",
-      description: "Moves a task to approved review state.",
-      inputSchema: z.object({ taskId: z.uuid() }),
-      annotations: write,
-    },
-    ({ taskId }) =>
-      scoped(actor, "task:write", () =>
-        result(service.updateTask(taskId, { status: "approved" }, actor)),
-      ),
-  );
-  registerScopedTool(
-    server,
-    actor,
-    "task:write",
-    "cancel_task",
-    {
-      title: "Cancel a task",
-      description: "Cancels a task without deleting its history.",
-      inputSchema: z.object({ taskId: z.uuid() }),
-      annotations: { ...write, destructiveHint: true },
-    },
-    ({ taskId }) =>
-      scoped(actor, "task:write", () =>
-        result(service.updateTask(taskId, { status: "cancelled" }, actor)),
-      ),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "task:write",
-    "comment_task",
-    {
-      title: "Comment on a task",
-      description: "Adds an attributed task comment.",
-      inputSchema: z.object({ taskId: z.uuid(), body: z.string().min(1).max(20_000) }),
-      annotations: write,
-    },
-    ({ taskId, body }) =>
-      scoped(actor, "task:write", () => result(service.commentTask(taskId, body, actor))),
-  );
-  registerScopedTool(
-    server,
-    actor,
-    "task:write",
-    "attach_task_link",
-    {
-      title: "Attach a link to a task",
-      description: "Adds or updates an attributed external link on a task.",
-      inputSchema: z.object({
-        taskId: z.uuid(),
-        url: externalUrlSchema,
-        label: z.string().max(240).nullable().default(null),
-      }),
-      annotations: write,
-    },
-    ({ taskId, url, label }) =>
-      scoped(actor, "task:write", () => result(service.attachTaskLink(taskId, url, label, actor))),
-  );
-  registerScopedTool(
-    server,
-    actor,
-    "task:write",
-    "link_task_article",
-    {
-      title: "Link a task to an article",
-      description: "Connects a task to an article in the same brain.",
-      inputSchema: z.object({ taskId: z.uuid(), articleId: z.uuid() }),
-      annotations: write,
-    },
-    ({ taskId, articleId }) =>
-      scoped(actor, "task:write", () => result(service.linkTaskArticle(taskId, articleId, actor))),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "brain:write",
-    "scan_brain",
-    {
-      title: "Scan brain maintenance",
-      description:
-        "Runs deterministic stale, oversized, duplicate, conflict, and broken-link checks. It never edits canon.",
-      inputSchema: z.object({ brainId: z.uuid() }),
-      annotations: { ...write, idempotentHint: true },
-    },
-    ({ brainId }) =>
-      scoped(actor, "brain:write", () => result(service.scanMaintenance(brainId, actor))),
-  );
-  registerScopedTool(
-    server,
-    actor,
-    "brain:read",
-    "list_maintenance_candidates",
-    {
-      title: "List maintenance candidates",
-      description:
-        "Lists a bounded page of reviewable maintenance findings. Continue with nextCursor when present.",
-      inputSchema: z.object({
-        brainId: z.uuid(),
-        limit: z.number().int().min(1).max(100).default(20),
-        cursor: z.string().max(512).optional(),
-      }),
-      annotations: read,
-    },
-    ({ brainId, limit, cursor }) =>
-      scoped(actor, "brain:read", async () => {
-        const offset = decodePageCursor(cursor, "maintenance", brainId);
-        const candidates = await service.listMaintenance(brainId, actor, {
-          limit: limit + 1,
-          offset,
-        });
-        return publicResult(
-          compactPage(candidates.map(compactMaintenance), limit, offset, "maintenance", brainId),
-        );
-      }),
-  );
-
-  registerScopedTool(
-    server,
-    actor,
-    "brain:write",
-    "propose_invite",
-    {
-      title: "Propose a brain invitation",
-      description:
-        "Owner-only. Records a proposal to invite someone to the brain. No link exists until a brain owner approves the proposal in the Rementum web UI, which is where the invitation is sent from; tell the user to approve it there.",
-      inputSchema: z.object({
-        brainId: z.uuid(),
-        email: z.email(),
-        role: z.enum(["editor", "commenter", "viewer"]),
-      }),
-      annotations: write,
-    },
-    ({ brainId, email, role }) =>
-      scoped(actor, "brain:write", () =>
-        result(service.requestInvite(brainId, email, role, actor)),
-      ),
-  );
-
   return server;
-}
-
-async function result(value: unknown) {
-  return publicResult(await value);
 }
 
 function publicResult(value: unknown) {
@@ -922,29 +367,15 @@ function publicResult(value: unknown) {
   };
 }
 
-function publicResultWithResourceLink(
-  value: Record<string, unknown>,
-  link: { uri: string; name: string; description: string; mimeType: string },
-) {
-  const result = publicResult(value);
-  const textContent = result.content[0];
-  if (!textContent) throw new Error("Public MCP result did not contain text content");
-  return {
-    ...result,
-    content: [textContent, { type: "resource_link" as const, ...link }],
-  };
-}
-
 const pageCursorSchema = z
   .object({
     version: z.literal(1),
-    kind: z.enum(["brains", "routing", "activity", "tasks", "maintenance"]),
+    kind: z.literal("routing"),
     resourceId: z.string().min(1).max(200),
     offset: z.number().int().nonnegative().max(10_000_000),
   })
   .strict();
 type PageKind = z.infer<typeof pageCursorSchema>["kind"];
-type Activity = Awaited<ReturnType<RementumService["recentActivity"]>>[number];
 type ContextOmission = {
   id: string;
   slug: string;
@@ -970,21 +401,6 @@ function decodePageCursor(cursor: string | undefined, kind: PageKind, resourceId
   } catch {
     throw new DomainError("invalid_cursor", "The page cursor is invalid for this tool", 400);
   }
-}
-
-function compactPage<T>(
-  items: T[],
-  limit: number,
-  offset: number,
-  kind: PageKind,
-  resourceId: string,
-) {
-  const hasMore = items.length > limit;
-  return {
-    items: items.slice(0, limit),
-    hasMore,
-    nextCursor: hasMore ? encodePageCursor(kind, offset + limit, resourceId) : null,
-  };
 }
 
 function compactBrain(brain: Pick<BrainRecord, "id" | "slug" | "name" | "description">) {
@@ -1019,14 +435,6 @@ function compactBrainIndex(value: BrainWithIndex, offset: number) {
     role: value.role,
     hasMore,
     nextCursor: hasMore ? encodePageCursor("routing", nextOffset, value.brain.id) : null,
-  };
-}
-
-function compactSearchHit(hit: SearchHit) {
-  return {
-    ...compactArticleSummary(hit.article),
-    score: hit.score,
-    sources: hit.sources,
   };
 }
 
@@ -1178,43 +586,6 @@ function compactArticle(article: ReadArticleResult) {
   };
 }
 
-// Attribution is the point of an activity feed: without an actor and client an operator cannot
-// reconstruct who changed what without querying audit_events directly.
-function compactActivity(event: Activity) {
-  return {
-    action: event.action,
-    actorId: event.actorId,
-    clientId: event.clientId,
-    resource: event.resource,
-    detail: event.detail,
-    createdAt: event.createdAt,
-  };
-}
-
-function compactTask(task: Task) {
-  return {
-    id: task.id,
-    title: task.title,
-    priority: task.priority,
-    status: task.status,
-    claimedBy: task.claimedBy,
-    leaseExpiresAt: task.leaseExpiresAt,
-    updatedAt: task.updatedAt,
-  };
-}
-
-function compactMaintenance(candidate: MaintenanceCandidate) {
-  return {
-    id: candidate.id,
-    kind: candidate.kind,
-    articleIds: candidate.articleIds,
-    score: candidate.score,
-    detail: candidate.detail,
-    status: candidate.status,
-    createdAt: candidate.createdAt,
-  };
-}
-
 export function sanitize(value: any): any {
   if (Array.isArray(value)) return value.map(sanitize);
   if (!value || typeof value !== "object") return value;
@@ -1232,12 +603,6 @@ export function sanitize(value: any): any {
 function isSecretField(key: string, child: unknown): boolean {
   if (["bodyAad", "wrappedKey", "passwordHash"].includes(key)) return true;
   return key === "body" && typeof child !== "string";
-}
-
-function defined<T extends Record<string, unknown>>(value: T): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, child]) => child !== undefined),
-  ) as Partial<T>;
 }
 
 function scoped<T>(actor: ScopedActor, scope: AccessScope, operation: () => T): T {
@@ -1374,7 +739,6 @@ function mcpToolCallInput(
     uuidValue(args.brainId) ?? uuidValue(structured.brainId) ?? uuidValue(responseBrain.id);
   const articleId = uuidValue(args.articleId);
   const writeId = uuidValue(args.writeId);
-  const taskId = uuidValue(args.taskId);
   const articleIds =
     tool === "read_article" && articleId
       ? [articleId]
@@ -1392,7 +756,6 @@ function mcpToolCallInput(
     ...(brainId ? { brainId } : {}),
     ...(articleId ? { articleId } : {}),
     ...(writeId ? { writeId } : {}),
-    ...(taskId ? { taskId } : {}),
   };
 }
 
