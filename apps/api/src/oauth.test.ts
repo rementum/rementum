@@ -2,12 +2,14 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import cookie from "@fastify/cookie";
 import Fastify from "fastify";
+import { errors } from "oidc-provider";
 import { describe, expect, it, vi } from "vitest";
 import { loadConfig } from "./config.js";
 import { verifyLoginPassword } from "./credentials.js";
 import {
   buildOauthRuntime,
   type OauthRuntime,
+  oauthRefreshFailureReason,
   registerOauthRoutes,
   workspaceIdFromResource,
 } from "./oauth.js";
@@ -56,7 +58,7 @@ describe("authorization server metadata", () => {
     await registerOauthRoutes(
       app,
       {
-        provider: {} as never,
+        provider: { on: vi.fn() } as never,
         publicJwks: { keys: [] },
         issuer: "https://rementum.example.test/oauth",
         publicUrl: "https://rementum.example.test",
@@ -157,6 +159,7 @@ describe("OAuth web session bridge", () => {
         }),
         interactionFinished,
         Client: { find: vi.fn(async () => ({ clientName: "Test agent" })) },
+        on: vi.fn(),
         Grant: { find: vi.fn(async () => grant) },
       },
       publicJwks: { keys: [] },
@@ -302,7 +305,7 @@ describe("OAuth favicon", () => {
     await registerOauthRoutes(
       app,
       {
-        provider: {} as never,
+        provider: { on: vi.fn() } as never,
         publicJwks: { keys: [] },
         issuer: "https://rementum.example.test/oauth",
         publicUrl: "https://rementum.example.test",
@@ -347,5 +350,23 @@ describe("workspace MCP resource parsing", () => {
         "https://rementum.example.test",
       ),
     ).toBeNull();
+  });
+});
+
+describe("OAuth refresh diagnostics", () => {
+  it.each([
+    ["grant is expired", "grant_expired"],
+    ["grant not found", "grant_missing"],
+    ["refresh token already used", "refresh_token_reused"],
+    ["refresh token is expired", "refresh_token_expired"],
+    ["refresh token not found", "refresh_token_missing"],
+    ["caller-controlled-secret", "invalid_grant"],
+  ])("categorizes %s without exposing provider details", (detail, reason) => {
+    expect(oauthRefreshFailureReason(new errors.InvalidGrant(detail))).toBe(reason);
+  });
+
+  it("does not log arbitrary errors or client input", () => {
+    expect(oauthRefreshFailureReason(new Error("secret"))).toBe("other");
+    expect(oauthRefreshFailureReason({ error_detail: "secret" })).toBe("other");
   });
 });

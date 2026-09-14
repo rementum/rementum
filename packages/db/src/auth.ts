@@ -347,12 +347,34 @@ export class OidcPostgresAdapter {
   async upsert(id: string, payload: Record<string, unknown>, expiresIn: number): Promise<void> {
     const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
     const storedPayload = normalizeOidcAdapterPayload(this.model, payload);
-    await this.sql`
+    const persist = async (sql: postgres.Sql | postgres.TransactionSql) => {
+      await sql`
       INSERT INTO oauth_records (model, id, payload, expires_at)
       VALUES (${this.model}, ${id}, ${JSON.stringify(storedPayload)}::jsonb, ${expiresAt})
       ON CONFLICT (model, id) DO UPDATE SET
         payload = excluded.payload, expires_at = excluded.expires_at, consumed_at = NULL
     `;
+    };
+    if (this.model !== "RefreshToken" || !expiresAt || typeof payload.exp !== "number") {
+      await persist(this.sql);
+      return;
+    }
+    const expiration = payload.exp;
+    await this.sql.begin(async (tx) => {
+      // A rotating token must not outlive its grant. Update only a still-valid grant;
+      // saving a provider model here could recreate a concurrently revoked grant or scopes.
+      await tx`
+        UPDATE oauth_records
+        SET expires_at = greatest(expires_at, ${expiresAt}::timestamptz),
+            payload = jsonb_set(payload, '{exp}',
+              to_jsonb(greatest((payload->>'exp')::bigint, ${expiration}::bigint)))
+        WHERE model = 'Grant' AND id = ${payload.grantId as string}
+          AND payload->>'accountId' = ${payload.accountId as string}
+          AND payload->>'clientId' = ${payload.clientId as string}
+          AND expires_at > now() AND (payload->>'exp')::bigint > extract(epoch FROM now())
+      `;
+      await persist(tx);
+    });
   }
 
   async find(id: string): Promise<Record<string, unknown> | undefined> {
