@@ -6,6 +6,7 @@ import { createLocalJWKSet, jwtVerify } from "jose";
 import { describe, expect, it, vi } from "vitest";
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
+import { buildOauthRuntime } from "./oauth.js";
 
 const databaseUrl = process.env.REMENTUM_TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -99,7 +100,7 @@ async function startApp(suffix: string) {
     jar.absorb(response);
     return response;
   };
-  return { app, database, auth, visit, webSignIn };
+  return { app, database, auth, visit, webSignIn, config };
 }
 
 function tokenRequest(app: FastifyInstance, fields: Record<string, string>) {
@@ -487,146 +488,326 @@ integration("OAuth authorization code flow", () => {
     }
   }, 120_000);
 
-  it("accepts a client identified by its metadata document without registering it", async () => {
-    if (!databaseUrl) return;
-    const suffix = randomBytes(6).toString("hex");
-    const clientId = "https://client.example.test/oauth/client-metadata.json";
-    const impostorId = "https://client.example.test/oauth/impostor.json";
-    const loopbackRedirect = "http://localhost:3118/callback";
-    const document = {
-      client_id: clientId,
-      client_name: "Metadata client",
-      redirect_uris: ["http://localhost/callback", "http://127.0.0.1/callback"],
-      grant_types: ["authorization_code", "refresh_token"],
-      response_types: ["code"],
-      token_endpoint_auth_method: "none",
-    };
-    const fetched: string[] = [];
-    // The provider reads the document through the global fetch. The stub stands in for the
-    // client's web host, serves the same document under both ids, and refuses everything else so
-    // the test never reaches the network.
-    vi.stubGlobal("fetch", async (input: string | URL | Request) => {
-      const url = input instanceof Request ? input.url : String(input);
-      fetched.push(url);
-      if (url !== clientId && url !== impostorId) return new Response(null, { status: 404 });
-      return new Response(JSON.stringify(document), {
-        status: 200,
-        headers: { "content-type": "application/json", "cache-control": "public, max-age=300" },
-      });
-    });
-    const { app, database, auth, visit, webSignIn } = await startApp(suffix);
-
-    try {
-      const email = `cimd-${suffix}@example.test`;
-      const account = await auth.registerAccount(
-        email,
-        "CIMD owner",
-        await hash(password),
-        "CIMD team",
-        `cimd-${suffix}`,
-      );
-      if (!account) throw new Error("Registration failed");
-      const verification = randomBytes(24).toString("hex");
-      await auth.createAuthToken(
-        account.user.id,
-        "verify_email",
-        verification,
-        new Date(Date.now() + 60_000),
-      );
-      expect(await auth.verifyEmail(verification)).toBe(true);
-      expect((await webSignIn(email, password)).statusCode).toBe(204);
-
-      const resource = `${publicUrl}/mcp/workspace/${account.workspaceId}`;
-      const { verifier, challenge } = pkce();
-      const authorize = (overrides: Record<string, string>) =>
-        new URLSearchParams({
-          client_id: clientId,
-          response_type: "code",
-          redirect_uri: loopbackRedirect,
-          scope: "openid offline_access brain:read",
-          resource,
-          state: `state-${suffix}`,
-          code_challenge: challenge,
-          code_challenge_method: "S256",
-          ...overrides,
-        }).toString();
-
-      // A document is only a client for the URL it names itself by.
-      const impostor = await visit("GET", `/oauth/auth?${authorize({ client_id: impostorId })}`);
-      expect(impostor.statusCode).toBe(400);
-      expect(impostor.body).toContain("invalid_client_metadata");
-
-      // Loopback callbacks match with the port ignored; anything else must be listed exactly.
-      const foreign = await visit(
-        "GET",
-        `/oauth/auth?${authorize({ redirect_uri: "https://attacker.example.test/callback" })}`,
-      );
-      expect(foreign.statusCode).toBe(400);
-      expect(foreign.body).toContain("invalid_redirect_uri");
-
-      const started = await visit("GET", `/oauth/auth?${authorize({})}`);
-      expect(started.statusCode).toBe(303);
-      const interaction = String(started.headers.location);
-
-      const loggedIn = await visit("GET", interaction);
-      expect(loggedIn.statusCode).toBe(303);
-      const resumed = await visit("GET", String(loggedIn.headers.location));
-      expect(resumed.statusCode).toBe(303);
-
-      const consentPage = await visit("GET", String(resumed.headers.location));
-      expect(consentPage.statusCode).toBe(200);
-      expect(consentPage.body).toContain("client.example.test");
-      expect(consentPage.body).toContain("localhost");
-      expect(consentPage.body).toContain(resource);
-      const consentUid = String(resumed.headers.location).split("/").pop() as string;
-      const consented = await visit("POST", `/oauth/interaction/${consentUid}/confirm`, {
-        uid: consentUid,
-      });
-      expect(consented.statusCode).toBe(303);
-      const issued = await visit("GET", String(consented.headers.location));
-      expect(issued.statusCode).toBe(303);
-      const callback = new URL(String(issued.headers.location));
-      expect(`${callback.origin}${callback.pathname}`).toBe(loopbackRedirect);
-      const code = callback.searchParams.get("code");
-      expect(code).toBeTruthy();
-
-      const token = await tokenRequest(app, {
-        grant_type: "authorization_code",
-        code: code ?? "",
-        redirect_uri: loopbackRedirect,
+  const cimdScopes = ["openid offline_access brain:read", "brain:read"];
+  it.each(cimdScopes)(
+    "keeps CIMD refresh independent: %s",
+    async (scope) => {
+      if (!databaseUrl) return;
+      const suffix = randomBytes(6).toString("hex");
+      const clientId = "https://client.example.test/oauth/client-metadata.json";
+      const impostorId = "https://client.example.test/oauth/impostor.json";
+      const loopbackRedirect = "http://localhost:3118/callback";
+      const document = {
         client_id: clientId,
-        code_verifier: verifier,
-        resource,
+        client_name: "Metadata client",
+        redirect_uris: ["http://localhost/callback", "http://127.0.0.1/callback"],
+        grant_types: ["authorization_code", "refresh_token"],
+        response_types: ["code"],
+        token_endpoint_auth_method: "none",
+      };
+      const fetched: string[] = [];
+      // The provider reads the document through the global fetch. The stub stands in for the
+      // client's web host, serves the same document under both ids, and refuses everything else so
+      // the test never reaches the network.
+      vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+        const url = input instanceof Request ? input.url : String(input);
+        fetched.push(url);
+        if (url !== clientId && url !== impostorId) return new Response(null, { status: 404 });
+        return new Response(JSON.stringify(document), {
+          status: 200,
+          headers: { "content-type": "application/json", "cache-control": "public, max-age=300" },
+        });
       });
-      expect(token.statusCode).toBe(200);
-      const grant = token.json();
-      expect(grant.refresh_token).toBeTruthy();
+      const { app, database, auth, visit, webSignIn } = await startApp(suffix);
 
-      const jwks = await app.inject({
+      try {
+        const email = `cimd-${suffix}@example.test`;
+        const account = await auth.registerAccount(
+          email,
+          "CIMD owner",
+          await hash(password),
+          "CIMD team",
+          `cimd-${suffix}`,
+        );
+        if (!account) throw new Error("Registration failed");
+        const verification = randomBytes(24).toString("hex");
+        await auth.createAuthToken(
+          account.user.id,
+          "verify_email",
+          verification,
+          new Date(Date.now() + 60_000),
+        );
+        expect(await auth.verifyEmail(verification)).toBe(true);
+        expect((await webSignIn(email, password)).statusCode).toBe(204);
+
+        const resource = `${publicUrl}/mcp/workspace/${account.workspaceId}`;
+        const { verifier, challenge } = pkce();
+        const authorize = (overrides: Record<string, string>) =>
+          new URLSearchParams({
+            client_id: clientId,
+            response_type: "code",
+            redirect_uri: loopbackRedirect,
+            scope,
+            resource,
+            state: `state-${suffix}`,
+            code_challenge: challenge,
+            code_challenge_method: "S256",
+            ...overrides,
+          }).toString();
+
+        // A document is only a client for the URL it names itself by.
+        const impostor = await visit("GET", `/oauth/auth?${authorize({ client_id: impostorId })}`);
+        expect(impostor.statusCode).toBe(400);
+        expect(impostor.body).toContain("invalid_client_metadata");
+
+        // Loopback callbacks match with the port ignored; anything else must be listed exactly.
+        const foreign = await visit(
+          "GET",
+          `/oauth/auth?${authorize({ redirect_uri: "https://attacker.example.test/callback" })}`,
+        );
+        expect(foreign.statusCode).toBe(400);
+        expect(foreign.body).toContain("invalid_redirect_uri");
+
+        const started = await visit("GET", `/oauth/auth?${authorize({})}`);
+        expect(started.statusCode).toBe(303);
+        const interaction = String(started.headers.location);
+
+        const loggedIn = await visit("GET", interaction);
+        expect(loggedIn.statusCode).toBe(303);
+        const resumed = await visit("GET", String(loggedIn.headers.location));
+        expect(resumed.statusCode).toBe(303);
+
+        const consentPage = await visit("GET", String(resumed.headers.location));
+        expect(consentPage.statusCode).toBe(200);
+        expect(consentPage.body).toContain("client.example.test");
+        expect(consentPage.body).toContain("localhost");
+        expect(consentPage.body).toContain(resource);
+        const consentUid = String(resumed.headers.location).split("/").pop() as string;
+        const consented = await visit("POST", `/oauth/interaction/${consentUid}/confirm`, {
+          uid: consentUid,
+        });
+        expect(consented.statusCode).toBe(303);
+        const issued = await visit("GET", String(consented.headers.location));
+        expect(issued.statusCode).toBe(303);
+        const callback = new URL(String(issued.headers.location));
+        expect(`${callback.origin}${callback.pathname}`).toBe(loopbackRedirect);
+        const code = callback.searchParams.get("code");
+        expect(code).toBeTruthy();
+
+        const token = await tokenRequest(app, {
+          grant_type: "authorization_code",
+          code: code ?? "",
+          redirect_uri: loopbackRedirect,
+          client_id: clientId,
+          code_verifier: verifier,
+          resource,
+        });
+        expect(token.statusCode).toBe(200);
+        const grant = token.json();
+        expect(grant.refresh_token).toBeTruthy();
+
+        const jwks = await app.inject({
+          method: "GET",
+          url: "/.well-known/jwks.json",
+          headers: { host },
+        });
+        const { payload } = await jwtVerify(grant.access_token, createLocalJWKSet(jwks.json()), {
+          issuer: `${publicUrl}/oauth`,
+          audience: resource,
+        });
+        expect(payload.sub).toBe(account.user.id);
+        expect(payload.client_id).toBe(clientId);
+        await expectMcpInitialized(app, account.workspaceId, grant.access_token);
+
+        // MCP clients need not request the OIDC offline_access scope. Their explicit connection
+        // consent must still survive expiry of the browser's OAuth session.
+        const sessions = await database.sql`
+        DELETE FROM oauth_records WHERE model = 'Session'
+          AND payload->>'accountId' = ${account.user.id} RETURNING id
+      `;
+        expect(sessions.length).toBeGreaterThan(0);
+        const refreshed = await tokenRequest(app, {
+          grant_type: "refresh_token",
+          client_id: clientId,
+          refresh_token: grant.refresh_token,
+          resource,
+        });
+        expect(refreshed.statusCode).toBe(200);
+        await expectMcpInitialized(app, account.workspaceId, refreshed.json().access_token);
+
+        // The document was fetched once and then served from cache; nothing was registered.
+        expect(fetched.filter((url) => url === clientId)).toHaveLength(1);
+        const [stored] = await database.sql<Array<{ count: number }>>`
+        SELECT count(*)::int AS count FROM oauth_records WHERE model = 'Client' AND id = ${clientId}
+      `;
+        expect(stored?.count).toBe(0);
+      } finally {
+        vi.unstubAllGlobals();
+        await database.close();
+        await app.close();
+      }
+    },
+    120_000,
+  );
+});
+
+integration("OAuth refresh lifetime", () => {
+  async function fixture() {
+    const suffix = randomBytes(6).toString("hex");
+    const context = await startApp(suffix);
+    const { app, database, auth, config } = context;
+    const runtime = await buildOauthRuntime(config, database);
+    const account = await auth.registerAccount(
+      `refresh-${suffix}@example.test`,
+      "Refresh owner",
+      await hash(password),
+      "Refresh team",
+      `refresh-${suffix}`,
+    );
+    if (!account) throw new Error("Registration failed");
+    const registration = await app.inject({
+      method: "POST",
+      url: "/oauth/reg",
+      headers: { host, "x-forwarded-proto": "http" },
+      payload: {
+        redirect_uris: [redirectUri],
+        grant_types: ["authorization_code", "refresh_token"],
+        response_types: ["code"],
+        token_endpoint_auth_method: "none",
+      },
+    });
+    expect(registration.statusCode).toBe(201);
+    const clientId = registration.json().client_id;
+    const client = await runtime.provider.Client.find(clientId);
+    if (!client) throw new Error("Client missing");
+    const resource = `${publicUrl}/mcp/workspace/${account.workspaceId}`;
+    const grant = new runtime.provider.Grant({ accountId: account.user.id, clientId });
+    grant.addOIDCScope("openid offline_access");
+    grant.addResourceScope(resource, "brain:read");
+    const grantId = await grant.save();
+    const token = new runtime.provider.RefreshToken({
+      accountId: account.user.id,
+      client,
+      grantId,
+      resource,
+      scope: "openid offline_access brain:read",
+      rotations: 0,
+      gty: "authorization_code",
+    });
+    const refreshToken = await token.save();
+    const refresh = (value = refreshToken, extra: Record<string, string> = {}) =>
+      tokenRequest(app, {
+        grant_type: "refresh_token",
+        client_id: clientId,
+        refresh_token: value,
+        resource,
+        ...extra,
+      });
+    const readGrant = async () => {
+      const [row] = await database.sql<Array<{ payload: Record<string, any>; expires_at: string }>>`
+        SELECT payload, expires_at FROM oauth_records WHERE model = 'Grant' AND id = ${grantId}
+      `;
+      return row;
+    };
+    const ageGrant = async (seconds: number) => {
+      const exp = Math.floor(Date.now() / 1000) + seconds;
+      await database.sql`
+        UPDATE oauth_records SET expires_at = to_timestamp(${exp}),
+          payload = jsonb_set(payload, '{exp}', to_jsonb(${exp}::bigint))
+        WHERE model = 'Grant' AND id = ${grantId}
+      `;
+    };
+    return {
+      ...context,
+      grantId,
+      refreshToken,
+      refresh,
+      readGrant,
+      ageGrant,
+      close: async () => {
+        await app.close();
+        await database.close();
+      },
+    };
+  }
+
+  it("keeps grants alive with rotating tokens beyond the former 14-day cutoff", async () => {
+    const f = await fixture();
+    try {
+      const initial = await f.readGrant();
+      expect(initial?.payload.exp - initial?.payload.iat).toBe(60 * 86400);
+      // An existing grant near its old deadline also gets the new idle lifetime on refresh.
+      await f.ageGrant(3600);
+      const before = await f.readGrant();
+      const response = await f.refresh();
+      expect(response.statusCode).toBe(200);
+      const next = response.json();
+      expect(next.refresh_token).not.toBe(f.refreshToken);
+      expect(next.expires_in).toBe(900);
+      const after = await f.readGrant();
+      expect(after?.payload.exp).toBeGreaterThan(Math.floor(Date.now() / 1000) + 59 * 86400);
+      expect(Date.parse(after?.expires_at ?? "")).toBeGreaterThan(Date.now() + 59 * 86400_000);
+      expect(after?.payload.resources).toEqual(before?.payload.resources);
+      expect(after?.payload.openid).toEqual(before?.payload.openid);
+      const jwks = await f.app.inject({
         method: "GET",
         url: "/.well-known/jwks.json",
         headers: { host },
       });
-      const { payload } = await jwtVerify(grant.access_token, createLocalJWKSet(jwks.json()), {
+      const claims = await jwtVerify(next.access_token, createLocalJWKSet(jwks.json()), {
         issuer: `${publicUrl}/oauth`,
-        audience: resource,
       });
-      expect(payload.sub).toBe(account.user.id);
-      expect(payload.client_id).toBe(clientId);
-      await expectMcpInitialized(app, account.workspaceId, grant.access_token);
-
-      // The document was fetched once and then served from cache; nothing was registered.
-      expect(fetched.filter((url) => url === clientId)).toHaveLength(1);
-      const [stored] = await database.sql<Array<{ count: number }>>`
-        SELECT count(*)::int AS count FROM oauth_records WHERE model = 'Client' AND id = ${clientId}
-      `;
-      expect(stored?.count).toBe(0);
+      expect(claims.payload.scope).toBe("brain:read");
+      // A later refresh must advance the deadline again, not impose a fixed authorization age.
+      await f.ageGrant(3600);
+      expect((await f.refresh(next.refresh_token)).statusCode).toBe(200);
+      expect((await f.readGrant())?.payload.exp).toBeGreaterThan(
+        Math.floor(Date.now() / 1000) + 59 * 86400,
+      );
     } finally {
-      vi.unstubAllGlobals();
-      await database.close();
-      await app.close();
+      await f.close();
     }
-  }, 120_000);
+  });
+
+  it("rejects replay of a consumed token and invalidates its replacement", async () => {
+    const f = await fixture();
+    try {
+      const first = await f.refresh();
+      expect(first.statusCode).toBe(200);
+      const replay = await f.refresh();
+      expect(replay.statusCode).toBe(400);
+      expect(replay.json().error).toBe("invalid_grant");
+      expect((await f.refresh(first.json().refresh_token)).statusCode).toBe(400);
+    } finally {
+      await f.close();
+    }
+  });
+
+  it.each(["expired", "revoked", "invalid scope", "wrong client"])(
+    "does not revive or extend a grant after %s refresh",
+    async (failure) => {
+      const f = await fixture();
+      try {
+        await f.ageGrant(failure === "expired" ? -1 : 3600);
+        if (failure === "revoked") {
+          await f.database
+            .sql`DELETE FROM oauth_records WHERE model = 'Grant' AND id = ${f.grantId}`;
+        }
+        const before = await f.readGrant();
+        const extra =
+          failure === "invalid scope"
+            ? { scope: "brain:write" }
+            : failure === "wrong client"
+              ? { client_id: "unknown-client" }
+              : {};
+        const response = await f.refresh(f.refreshToken, extra);
+        expect(response.statusCode).toBeGreaterThanOrEqual(400);
+        expect(await f.readGrant()).toEqual(before);
+      } finally {
+        await f.close();
+      }
+    },
+  );
 });
 
 /**

@@ -82,6 +82,21 @@ the current session; a password reset revokes every web session and MCP OAuth gr
 OAuth bearer tokens are accepted only at the exact workspace MCP URL, never by the REST API, so an
 MCP client cannot reuse the browser cookie as an API credential.
 
+MCP access tokens last 15 minutes. Refresh tokens and their authorization grants have a 60-day
+idle lifetime: issuing a replacement refresh token extends the still-valid grant to cover it.
+Clients allowed to refresh tokens are independent of the browser OAuth session, including clients
+that omit `offline_access`. Active clients can stay connected beyond the original authorization date. Expired or revoked
+grants are never revived, and reusing a consumed refresh token still invalidates its token family.
+Existing valid grants adopt the longer lifetime when refreshed; an already expired grant requires
+new authorization. Connections issued by older releases may still carry a browser-session binding;
+re-authorize those once to obtain an independent connection.
+
+Clients must persist each replacement refresh token before exiting and coordinate refreshes across
+processes sharing credentials. A client that loses the replacement cannot recover by replaying the
+old token and must authorize again. This includes background processes that share a CLI's credential
+store. The API logs `oauth_refresh_failed` with a fixed reason category to distinguish missing or
+expired grants from refresh-token reuse; it does not log token values or raw provider error details.
+
 The browser portion of MCP OAuth uses the current web session as its identity. A browser without one
 is redirected through the normal sign-in page. Before Rementum grants the scopes requested by the
 client, it verifies that the signed-in account belongs to the team that owns the workspace. There is
