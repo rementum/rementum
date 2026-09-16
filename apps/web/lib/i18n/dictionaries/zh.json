@@ -16,7 +16,8 @@
     "signOut": "退出登录",
     "createAccount": "创建账号",
     "dashboard": "仪表盘",
-    "language": "语言"
+    "language": "语言",
+    "toggleTheme": "切换主题"
   },
   "meta": {
     "title": "Rementum — 自托管、版本化的 AI Agent 记忆层",
@@ -44,14 +45,14 @@
     "banner": "免费且可自托管 · 在 GitHub 上为 Rementum 点星"
   },
   "hero": {
-    "kicker": "开源记忆基础设施",
+    "kicker": "开源的 AI Agent 记忆层",
     "headline": ["你的 Agent", "应该", "记得", "一切。"],
     "headlineHighlight": 3,
-    "subtitle": "为每个 MCP 客户端提供统一的版本化知识层。Rementum 会把每次写入先暂存待审，再替换共享记忆。",
+    "subtitle": "适用于每个 MCP 客户端的共享、版本化知识。留住那些超越单次对话的重要决策、上下文与修正。",
     "getStarted": "开始使用",
     "starOnGithub": "在 GitHub 上 Star",
     "worksWith": "支持",
-    "clients": ["Claude Code", "Codex", "OpenCode"],
+    "clients": "支持 Claude Code、Codex、Cursor、OpenCode 及其他 MCP 客户端。",
     "terminalLabel": "rementum / mcp",
     "terminalSteps": [
       {
@@ -82,7 +83,28 @@
       {
         "text": "已采纳 → 正式 v3 · 审计已记录"
       }
-    ]
+    ],
+    "titleA": "你的 Agent",
+    "titleB": "需要更好的记忆",
+    "insideBrain": "Brain 内部",
+    "exampleArticle": "示例文章",
+    "examplePath": "engineering / decisions",
+    "exampleTitle": "为什么写入要分阶段",
+    "exampleVersion": "第 3 版 · 正式文章",
+    "latestChange": "最近更新",
+    "latestChangeNote": "澄清了冲突检查逻辑。",
+    "versionHistory": "版本历史",
+    "caption": "决策保持可读，变更原因随附其后。",
+    "exampleBodyA": "Agent 针对自己读到的版本提出修改。提案在被采纳之前，与当前文章保持分离。",
+    "exampleBodyB": "如果文章在此期间发生变化，采纳流程会停止。冲突的写入保留待审，当前版本保持不变。",
+    "readDocs": "阅读文档",
+    "workspaceName": "工程",
+    "sampleWorkspace": "示例工作区 · 示例内容",
+    "indexLabel": "知识库索引",
+    "sampleTopics": ["API 约定", "发布清单"],
+    "currentLabel": "当前版本",
+    "promotedLabel": "已提升为正式内容",
+    "versionNotes": ["澄清冲突检查", "补充决策依据", "初始决策"]
   },
   "howItWorks": {
     "kicker": "工作原理",
@@ -94,26 +116,28 @@
     "animationLabel": "图示概览：Agent 读取精简索引、暂存写入，并共享同一个版本化 Brain",
     "steps": [
       {
-        "num": "01",
-        "title": "精简路由索引",
-        "desc": "你查询由标题、摘要、关键词和新鲜度组成的精简索引，然后只打开需要的那一篇文章，其余内容不必加载。"
+        "title": "读取",
+        "note": "从索引开始",
+        "description": "通过标题、摘要、关键词和新鲜度找到文章。只读取需要的上下文，无需加载整个 Brain。"
       },
       {
-        "num": "02",
-        "title": "暂存写入隔离",
-        "desc": "每份提案都会连同其基准版本一并暂存到独立缓冲区，与正式内容分离。"
+        "title": "暂存",
+        "note": "让提案保持独立",
+        "description": "针对你读到的版本提交写入。提议的内容与当前文章保持分离。"
       },
       {
-        "num": "03",
-        "title": "冲突解决护盾",
-        "desc": "Rementum 会检查文章自你暂存后是否发生变化。每个冲突都由你复核并决定最终内容。"
+        "title": "检查",
+        "note": "发现基线变化",
+        "description": "Rementum 会检查冲突。如果基准版本已经变化，采纳流程会停止，以便先复核差异。"
       },
       {
-        "num": "04",
-        "title": "不可变版本化正文",
-        "desc": "你执行采纳后，Rementum 用 AES-256-GCM 加密变更，并提交一个可审计、不可变的版本。其他 Agent 下次调用时即可读到新版本。"
+        "title": "采纳",
+        "note": "保留完整历史",
+        "description": "无冲突的采纳会成为下一版加密的版本化文章，其他 Agent 下次调用时即可读到。"
       }
-    ]
+    ],
+    "title": "共享记忆，留有变更记录。",
+    "subtitle": "每篇文章都有一个当前版本，每次提议的修改都有一个起点。知识就是这样流转的。"
   },
   "promo": {
     "coreSubtitle": "一个共享大脑",
@@ -205,17 +229,26 @@
     "outro": {
       "tagline": "为每个 AI Agent 提供同一个带版本、可审计的大脑。",
       "pills": ["开源", "自托管", "MCP 原生", "AGPL-3.0"]
-    }
+    },
+    "watch": "观看概览",
+    "closeOverview": "关闭概览",
+    "duration": "45 秒",
+    "title": "你的 Agent 如何共享一个 Brain",
+    "play": "播放",
+    "pause": "暂停",
+    "loading": "正在加载概览…",
+    "failed": "概览加载失败。请关闭后重试，或按上面的步骤操作。",
+    "ariaLabel": "Agent 读取、暂存和采纳版本化知识的动态概览"
   },
   "pricing": {
     "kicker": "定价",
-    "titleA": "永久免费。",
-    "titleB": "自托管",
+    "titleA": "自由软件。",
+    "titleB": "你的基础设施。",
     "titleC": "而生。",
     "subtitle": "Rementum 是开源项目，没有付费档，也不按席位收费。你运行在自己的硬件上，拥有每一个字节。",
     "planLabel": "自托管",
     "price": "$0",
-    "priceNote": "/ 永久",
+    "priceNote": "永久免费 · AGPL-3.0",
     "priceBody": "克隆代码，执行一条安装脚本，然后通过 MCP 连接 Agent。",
     "getStarted": "开始使用",
     "installGuide": "阅读安装指南",
@@ -233,15 +266,25 @@
       "更新、加密备份和偶尔的迁移由你执行",
       "扩容与可用性由你自行规划和监控",
       "目前没有托管 SaaS 版本，自托管是唯一方式"
-    ]
+    ],
+    "intro": "在你自己的服务器上运行 Rementum。完整源码可供查阅、修改和自托管，没有付费档，也没有按席位收费。",
+    "included": "包含",
+    "includedA": "无限的 Brain、工作区、Agent 和版本。没有用量上限，也没有付费功能。",
+    "includedB": "默认使用本地模型，可选接入 AI 服务商进行压缩。",
+    "inYourHands": "由你掌控",
+    "handsNote": "一台 Linux 主机、一个域名，以及 80 和 443 端口。更新、加密备份、迁移和容量都由你管理。"
   },
   "connectTeaser": {
     "kicker": "插件 + MCP",
-    "title": "让你的 Agent 拥有记忆。",
-    "subtitle": "你在自己的服务器上托管 Rementum 并通过 MCP 连接。插件会把技能和工具加入你的编码 Agent，每次授权都由你在浏览器中批准。",
+    "title": "让下一次对话从最新知识开始。",
+    "subtitle": "安装插件，通过 MCP 连接你的工作区，并在浏览器中批准授权。你的 Agent 就可以查找和贡献知识了。",
     "getStarted": "开始使用",
     "starTitle": "在 GitHub 上为我们 Star",
-    "starSubtitle": "免费 · 自托管"
+    "starSubtitle": "免费 · 自托管",
+    "setupLabel": "Claude Code · 设置",
+    "commandsLabel": "Claude Code 设置命令",
+    "aside": "请使用你的工作区中显示的 MCP URL。上面的主机和工作区 ID 只是占位符。",
+    "otherClients": "其他客户端与设置细节"
   },
   "footer": {
     "product": "产品",
@@ -255,7 +298,9 @@
     "license": "AGPL-3.0 许可证",
     "releases": "版本发布",
     "resetPassword": "重置密码",
-    "copyright": "开源 · 自托管"
+    "copyright": "开源 · 自托管",
+    "tagline": "值得留存的知识。",
+    "bottom": "开源 · 自托管"
   },
   "appNav": {
     "brains": "Brain",
@@ -274,15 +319,15 @@
   "dashboard": {
     "title": "仪表盘",
     "overview": "概览",
-    "subtitle": "各 Brain 的最近变动，以及需要你审核的写入。",
+    "subtitle": "Agent 共享知识的地方。",
     "statBrains": "Brain",
     "statArticles": "文章",
     "statReview": "待审核",
     "needsReview": "待审核",
-    "emptyReview": "暂无需要审核的暂存写入。",
+    "emptyReview": "暂无需要审核的暂存写入。你的 Agent 可以继续为这个工作区做贡献。",
     "brains": "Brain",
     "sortBrains": "Brain 排序",
-    "sortUpdated": "更新时间",
+    "sortUpdated": "最近更新",
     "sortArticles": "文章数",
     "sortName": "名称",
     "sortNoteUpdated": "按最近更新排序",
@@ -305,7 +350,20 @@
     "setupTeam": "设置你的团队",
     "noBrainsTitle": "还没有 Brain。",
     "noBrainsBody": "通过 MCP 连接 Agent 来创建第一个 Brain。它的文章、暂存写入和动态都会显示在这里。",
-    "viewConnections": "查看连接"
+    "viewConnections": "查看连接",
+    "brainsCount": "{count} 个 Brain",
+    "articlesCount": "{count} 篇文章",
+    "reviewSummary": "{total} 条待审核 · {conflicts} 条冲突",
+    "noWrites": "没有待审核的写入",
+    "yourWorkspace": "你的工作区",
+    "reviewNote": "提议的修改，与正式版本分离。",
+    "showMore": "展开其余 {count} 条",
+    "showingOf": "共 {total} 条写入，当前显示 {shown} 条。打开 Brain 的完整队列：",
+    "connectAgent": "连接 Agent",
+    "connectNote": "{workspace} 的插件与 MCP 设置",
+    "loading": "正在加载知识库",
+    "pendingLabel": "待处理",
+    "conflictedLabel": "存在冲突"
   },
   "agentConnect": {
     "eyebrow": "工作区 MCP",

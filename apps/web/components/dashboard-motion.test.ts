@@ -70,8 +70,6 @@ describe("idle dashboard indicators", () => {
       expect(html).toContain("3 to review");
       expect(html).toContain("Review the convention");
       expect(html).toContain("conflicted");
-      expect(html).toContain('class="pui-dot"');
-      expect(html).toContain("bg-orange");
       expect(html).not.toContain("animate-pulse-dot");
       expect(html).not.toContain("pui-dot--pulse");
       expect(html).not.toContain("pui-aurora--drift");

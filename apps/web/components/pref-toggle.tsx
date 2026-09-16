@@ -21,6 +21,7 @@ export function PrefToggle({
 }) {
   const router = useRouter();
   const select = (next: string) => {
+    if (next === value) return;
     document.cookie = `${cookieName}=${next}; path=/; max-age=31536000; samesite=lax`;
     // The server component re-reads the cookie, so the refreshed render is the
     // single source of ordering — no client-side re-sorting to drift from it.
@@ -28,7 +29,7 @@ export function PrefToggle({
   };
 
   return (
-    <fieldset className="flex items-center gap-0.5 rounded-control border border-line bg-inset p-0.5">
+    <fieldset className="flex items-center gap-0.5 rounded-control bg-inset/60 p-0.5">
       <legend className="sr-only">{label}</legend>
       {options.map((option) => (
         <button
@@ -37,7 +38,7 @@ export function PrefToggle({
           aria-pressed={value === option.value}
           aria-label={option.icon ? option.label : undefined}
           onClick={() => select(option.value)}
-          className={`inline-flex h-7 items-center gap-1.5 rounded-[7px] px-3 font-mono text-2xs font-semibold uppercase tracking-[0.08em] transition-colors ${
+          className={`inline-flex min-h-9 items-center gap-1.5 rounded-chip px-2.5 font-medium text-xs  ${
             value === option.value ? "bg-surface text-ink shadow-btn" : "text-ink-3 hover:text-ink"
           }`}
         >

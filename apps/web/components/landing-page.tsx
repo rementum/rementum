@@ -1,14 +1,12 @@
 import { hasSession, publicAuthConfig } from "../lib/api";
 import { getDictionary } from "../lib/i18n/get-dictionary";
-import type { Locale } from "../lib/i18n/locales";
+import { HTML_LANG, type Locale, SITE_URL_HREF } from "../lib/i18n/locales";
 import { GITHUB_URL, SITE_NAME, SITE_URL } from "../lib/site";
 import { ConnectTeaser } from "./landing/connect-teaser";
 import { LandingFooter } from "./landing/footer";
 import { Hero } from "./landing/hero";
 import { HowItWorks } from "./landing/how-it-works";
-import { MotionProvider } from "./landing/motion-provider";
 import { Pricing } from "./landing/pricing";
-import { ScrollProgress } from "./landing/scroll-progress";
 
 // Structured data describes a free, self-hosted developer app and ties the site to its GitHub
 // organization. The description is translated; identifiers stay stable across locales.
@@ -32,7 +30,7 @@ function structuredData(locale: Locale) {
         name: SITE_NAME,
         description: meta.description,
         publisher: { "@id": `${SITE_URL}/#organization` },
-        inLanguage: locale,
+        inLanguage: HTML_LANG[locale],
       },
       {
         "@type": "SoftwareApplication",
@@ -58,25 +56,23 @@ export async function LandingPage({ locale }: { locale: Locale }) {
   const signedIn = await hasSession();
   const authConfig = signedIn ? null : await publicAuthConfig();
   return (
-    <main className="relative">
+    <main className="mx-auto w-full max-w-[1248px] px-5 sm:px-8">
       <script
         type="application/ld+json"
         // biome-ignore lint/security/noDangerouslySetInnerHtml: static, first-party JSON-LD string
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData(locale)) }}
       />
-      <MotionProvider>
-        <ScrollProgress />
-        <Hero githubUrl={GITHUB_URL} dict={dict} />
-        <HowItWorks dict={dict} />
-        <Pricing dict={dict} />
-        <ConnectTeaser githubUrl={GITHUB_URL} dict={dict} />
-        <LandingFooter
-          githubUrl={GITHUB_URL}
-          signupEnabled={authConfig?.signupEnabled ?? false}
-          signedIn={signedIn}
-          dict={dict}
-        />
-      </MotionProvider>
+      <Hero githubUrl={GITHUB_URL} dict={dict} signedIn={signedIn} />
+      <HowItWorks dict={dict} />
+      <Pricing dict={dict} signedIn={signedIn} />
+      <ConnectTeaser dict={dict} />
+      <LandingFooter
+        githubUrl={GITHUB_URL}
+        signupEnabled={authConfig?.signupEnabled ?? false}
+        signedIn={signedIn}
+        homeHref={SITE_URL_HREF[locale] || "/"}
+        dict={dict}
+      />
     </main>
   );
 }

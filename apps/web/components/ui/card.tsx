@@ -11,8 +11,8 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-card bg-surface shadow-card ${
-        interactive ? "transition-shadow duration-150 hover:shadow-raised" : ""
+      className={`rounded-card border border-line bg-surface ${
+        interactive ? "transition-colors duration-150 hover:border-line-strong" : ""
       } ${className ?? ""}`}
     >
       {children}
@@ -32,14 +32,10 @@ export function CardHeader({
   className?: string;
 }) {
   return (
-    <div
-      className={`flex items-center gap-2 border-b border-dashed border-line px-4 py-2.5 ${className ?? ""}`}
-    >
-      <h2 className="font-mono text-2xs font-semibold uppercase tracking-[0.08em] text-ink-3">
-        {title}
-      </h2>
+    <div className={`flex items-center gap-2 border-line border-b px-4 py-3 ${className ?? ""}`}>
+      <h2 className="font-medium text-ink text-sm">{title}</h2>
       {count != null ? (
-        <span className="font-mono text-2xs tabular-nums text-ink-3">{count}</span>
+        <span className="font-mono text-2xs text-ink-3 tabular-nums">{count}</span>
       ) : null}
       {action ? <div className="ml-auto flex items-center gap-2">{action}</div> : null}
     </div>

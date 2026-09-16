@@ -1,7 +1,8 @@
 # Rementum brand
 
 Rementum pairs reliable memory with forward motion. The identity stays quiet, technical, and
-direct. It should read as credible infrastructure without looking clinical or generic.
+direct. The homepage and dashboard use a restrained product interface: readable knowledge, clear surface
+hierarchy, and a visible record of change.
 
 ## Logo
 
@@ -13,31 +14,36 @@ wordmark when space allows and the mark alone for favicons, avatars, and compact
 
 Keep clear space around the logo equal to the height of the icon. Do not recolor the `R`, redraw
 the layers, or add outlines, glows, or shadows to the mark. Keep it upright at its original
-proportions. The Memory Teal gradient ramp (`#2F7C68 → #4AA48F → #9EC9C1`) and soft teal glows are
-part of the wider design language; reserve them for backdrops, emphasized words, and primary
-actions.
+proportions. The Memory Teal gradient ramp (`#2F7C68 → #4AA48F → #9EC9C1`) belongs to the mark
+and existing illustrated media. Use solid teal for interface actions and annotations.
 
 Ready files live in [`assets/brand/`](https://github.com/rementum/rementum/tree/main/docs/assets/brand):
 the mark, wordmark, and lockup as SVG, plus PNG exports for dark and light backgrounds.
 
-## Color
+## Color and surfaces
 
 | Token | Value | Use |
 | --- | --- | --- |
-| Deep Graphite | `#091514` | Primary background and dark text |
-| Memory Teal | `#4AA48F` | Brand accent and interactive emphasis |
-| Mist Teal | `#9EC9C1` | Soft accent and secondary structure |
-| Ivory | `#F3F5F1` | Primary text on dark surfaces and light canvas |
-| Slate Line | `#2B3A37` | Dividers and borders on dark surfaces |
+| Deep Graphite | `#091514` | Dark canvas |
+| Memory Teal | `#4AA48F` | Brand accent and dark-theme actions |
+| Mineral | `#2F6F5E` | Accessible teal actions on light surfaces |
+| Mist Teal | `#9EC9C1` | Supporting structure in the mark and media |
+| Ivory | `#F3F5F1` | Default light canvas and dark-theme text |
+| Slate Line | `#2B3A37` | Dark dividers and borders |
 
-Memory Teal is the accent hue, and Mist Teal supports it. Status colors may signal errors or
-warnings, but they do not replace teal in branded actions.
+New visitors see the light theme. A saved light or dark preference takes precedence, including
+before the first paint. Both themes use fine structural borders. Light surfaces use subtle layered shadows; dark surfaces
+use a low-opacity neutral ring. Reserve deeper shadows for menus and overlays. Status colors
+distinguish warnings and errors.
+
+Corner radii follow a 4/6/8/12px scale. Closely nested controls use concentric radii: the outer
+radius includes the inner radius and inset. Interactive targets grow to at least 44px for touch.
 
 ## Typography
 
-Rementum uses Inter for product and documentation copy and JetBrains Mono for commands, metadata,
-and identifiers. Headlines use tight spacing and sentence case. Body copy stays compact and
-functional.
+Rementum uses locally hosted Inter for product copy and JetBrains Mono for commands, metadata,
+and identifiers. Headlines use sentence case and deliberate line breaks. Functional labels start
+at 12px; body text and article titles carry the hierarchy rather than uppercase labels or effects.
 
 Both are vendored as variable WOFF2 subsets (Inter 4.1 with `opsz` pinned to 14, JetBrains Mono
 2.304, both OFL) so the production image builds without reaching Google Fonts. **A subset must
@@ -56,25 +62,58 @@ uvx --from fonttools --with brotli pyftsubset InterVariable.ttf \
 CJK is deliberately not bundled; `--font-sans` falls through to the system CJK fonts instead of
 shipping a multi-megabyte webfont for `zh`.
 
-Display type runs at line-height 0.98, which is tighter than Inter's own 1.21em content box. Text
-that is masked with `overflow-hidden` — the hero headline reveals each word from behind its own
-line — therefore clips descenders unless the mask adds bottom padding: `g` and `ğ` reach 0.2158em
-below the baseline while the line box ends 0.1262em below it, so any such mask needs at least
-0.09em of bottom padding, and it must be an `em` value so it scales with the size clamp.
+## Homepage
 
-## Animation playback
+The slogan is **Your agents need a better memory**. Translate its meaning in localized interfaces.
 
-The ASCII hero and illustrated SVG overview stop when the browser tab is hidden or the window
-loses focus, including when switching applications with Alt+Tab. Returning to an active page
-resumes animation only when its viewport conditions allow it; a paused SVG stays paused.
-The ASCII renderer also respects reduced motion and releases its canvas while inactive.
+The five sections are the introduction, how it works, pricing, connection instructions, and footer.
+A centered introduction leads into a wide sample workspace: brain index, Markdown article, and
+version history. The example stacks on phones and uses the product's Markdown and status rendering
+with clearly labelled sample content. Never use private workspace data in marketing.
 
-The SVG overview plays only while at least 20% visible, is capped at 30 frames per second on all
-displays, and releases its renderer when navigating away or switching to a mobile viewport.
-Shared Aurora backdrops are static by default, including on the dashboard and authentication pages.
-Dashboard workspace and review indicators are also static: waiting for a human review is not an
-ongoing process. Keep their color, counts, and labels without looping pulse effects so an idle
-dashboard does not continuously composite the surrounding blurred surfaces.
+The homepage always uses public navigation. Signed-in visitors get Dashboard links in the header,
+hero, pricing, and footer. Marketing locales retain their canonical routes (`/`, `/tr`, `/zh`);
+the page, metadata, and navigation follow the route locale. App pages retain cookie and browser
+language preferences.
+
+Explain the lifecycle as Read, Stage, Check, and Promote. The existing illustrated overview is an
+optional desktop walkthrough: it loads after **Watch overview** is activated, offers pause and
+close controls, pauses when less than 20% visible, the browser tab is hidden, or the window loses
+focus (including Alt+Tab), and releases its
+renderer when closed, leaving the page, or resized to mobile. SVG playback is capped at 30 frames
+per second, including on high refresh rate displays.
+It never autoplays on page load, including for visitors who prefer reduced motion. Phones receive
+the same written explanation without the undersized animation.
+
+Keep page content visible without JavaScript. Avoid ASCII backgrounds, auroras, sparkle effects,
+gradient headlines, typewriter loops, and blur reveals on the homepage and dashboard.
+The shared Aurora backdrop is static by default, including on authentication pages.
+
+## Dashboard
+
+Brains occupy the main surface; the 320px review panel sits beside them on wide screens and follows them on smaller
+screens. The header always exposes the review count. List view is the default, while saved card/list
+and sorting preferences remain respected. Names and descriptions lead; slugs, counts, and update
+times support them.
+
+Show conflicts first in the review queue. Counts come from the full per-brain totals, even when
+the returned queue is limited. Further returned writes are available through a disclosure, and
+a capped queue links to the full per-brain write lists.
+
+Agent setup is expandable in populated workspaces and immediately visible in empty ones.
+Other product pages inherit shared typography, surface, and control styling without layout changes.
+
+## Interaction
+
+Navigation and list selection respond immediately. Pointer-pressed action buttons use a 0.96 scale
+over 150ms; keyboard and reduced-motion interactions do not move. Clipboard feedback reserves its
+label width, announces success or failure, and uses a brief contextual icon transition. Theme changes
+snap immediately without animating every surface. No idle dashboard decorations animate.
+
+Language and workspace menus stay within the viewport, support arrow keys, and return focus on
+Escape. The language trigger uses EN, TR, or ZH with full language names inside. Mobile app navigation
+uses a modal drawer that contains focus, locks background scrolling, closes with Escape, and returns
+focus to the menu trigger.
 
 ## Voice
 
@@ -98,8 +137,6 @@ article title at 17px must fit 225px) and the index rows (500px each). English a
 the slab budget, so anything appreciably longer than the English wording will not fit; shorten the
 translation instead of widening the box.
 
-`hero.headline` is the one array whose length is a property of the language rather than the
-layout, so it may be re-split freely. `hero.headlineHighlight` names the word that gets the
-gradient — do not assume it is the last one. Turkish ends its sentence on the verb, so the
-highlighted word sits mid-sentence there. Every other array maps to fixed geometry and must keep
-its length; `get-dictionary.test.ts` enforces both rules.
+The homepage slogan uses `hero.titleA` and `hero.titleB`; translate the meaning and let the
+responsive headline wrap naturally. Animation arrays map to fixed geometry and must keep their
+lengths; `get-dictionary.test.ts` checks dictionary parity.

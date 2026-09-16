@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Reveal } from "./reveal";
 
 export function SectionHead({
   kicker,
@@ -11,22 +10,14 @@ export function SectionHead({
   children?: ReactNode;
 }) {
   return (
-    <div className="mb-12 max-w-2xl">
-      <Reveal>
-        {kicker ? (
-          <p className="mb-2 flex items-center gap-2 font-mono text-2xs uppercase tracking-[0.16em] text-ink-3">
-            <span
-              aria-hidden="true"
-              className="size-1.5 rounded-full bg-gradient-to-r from-grad-from to-grad-to"
-            />
-            {kicker}
-          </p>
-        ) : null}
-        <h2 className="text-[clamp(28px,3.2vw,40px)] font-semibold leading-tight tracking-tight text-ink text-balance">
-          {title}
-        </h2>
-        {children ? <p className="mt-3 text-base text-ink-2 text-pretty">{children}</p> : null}
-      </Reveal>
+    <div className="mb-10 max-w-2xl">
+      {kicker ? <p className="mb-3 text-ink-3 text-xs">{kicker}</p> : null}
+      <h2 className="text-balance font-medium text-[clamp(28px,3vw,38px)] text-ink leading-tight tracking-tight">
+        {title}
+      </h2>
+      {children ? (
+        <p className="mt-4 max-w-[55ch] text-base text-ink-2 leading-relaxed">{children}</p>
+      ) : null}
     </div>
   );
 }

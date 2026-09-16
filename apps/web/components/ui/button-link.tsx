@@ -2,16 +2,15 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Button } from "../pui";
 
-/** PUI Button rendered as a next/link — usable from server components (serializable props only). */
+/** App navigation uses Next links; public-to-app transitions must use full-page anchors. */
 export function ButtonLink({
   href,
   variant = "solid",
   size = "md",
-  sparkle,
   block,
   className,
+  static: isStatic = false,
   children,
 }: {
   href: string;
@@ -20,19 +19,15 @@ export function ButtonLink({
   sparkle?: boolean;
   block?: boolean;
   className?: string;
+  static?: boolean;
   children: ReactNode;
 }) {
   return (
-    <Button
-      as={Link}
+    <Link
       href={href}
-      variant={variant}
-      size={size}
-      sparkle={sparkle}
-      block={block}
-      className={className}
+      className={`action-link ${isStatic ? "" : "pressable"} ${variant === "ghost" ? "action-link-quiet" : variant === "wave" ? "" : "action-link-primary"} ${size === "sm" ? "min-h-8 px-3 py-1 text-xs" : size === "lg" ? "min-h-11 px-5" : ""} ${block ? "w-full" : ""} ${className ?? ""}`}
     >
       {children}
-    </Button>
+    </Link>
   );
 }

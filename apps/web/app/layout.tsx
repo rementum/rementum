@@ -3,11 +3,10 @@ import localFont from "next/font/local";
 import { cookies, headers } from "next/headers";
 import { AppNavigation } from "../components/app-navigation";
 import { PublicNav } from "../components/public-nav";
-import { StickyBanner } from "../components/pui";
 import { publicAuthConfig, sessionInfo, workspaceContext } from "../lib/api";
 import { getDictionary } from "../lib/i18n/get-dictionary";
-import { HTML_LANG, LOCALE_HEADER, resolveLayoutLocale } from "../lib/i18n/locales";
-import { GITHUB_URL, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
+import { HTML_LANG, LOCALE_HEADER, parseLocale, resolveLayoutLocale } from "../lib/i18n/locales";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "../lib/site";
 import { parseSurface, SURFACE_HEADER } from "../lib/surface";
 import "./globals.css";
 
@@ -90,9 +89,8 @@ export const viewport: Viewport = {
   ],
 };
 
-// The static landing page cannot read cookies, so it ships the default theme. This runs while
-// the HTML is still parsing so a light-theme visitor never sees a dark first paint; next/script's
-// beforeInteractive would only run it from the client bootstrap, after the page is visible.
+// Apply the saved theme while HTML is parsing, before the client bootstrap can paint
+// a stale preference restored from the browser cache.
 const themeInitializer = `
 try {
   const entry = document.cookie.split("; ").find((value) => value.startsWith("rementum_theme="));
@@ -107,23 +105,27 @@ try {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies();
   const headerStore = await headers();
-  const theme = cookieStore.get("rementum_theme")?.value === "light" ? "light" : "dark";
+  const theme = cookieStore.get("rementum_theme")?.value === "dark" ? "dark" : "light";
   const sidebarCollapsed = cookieStore.get("rementum_sidebar")?.value === "collapsed";
   const session = await sessionInfo();
   const signedIn = session.authenticated;
   // middleware publishes the route locale (/zh, /tr) as a request header, because a
   // server component cannot read the pathname itself. Off those routes it is the
   // cookie, then Accept-Language. See resolveLayoutLocale for the precedence.
-  const locale = resolveLayoutLocale(
-    headerStore.get(LOCALE_HEADER),
-    cookieStore.get("rementum_locale")?.value,
-    headerStore.get("accept-language"),
-  );
+  const surface = parseSurface(headerStore.get(SURFACE_HEADER));
+  const locale =
+    surface === "landing"
+      ? parseLocale(headerStore.get(LOCALE_HEADER))
+      : resolveLayoutLocale(
+          headerStore.get(LOCALE_HEADER),
+          cookieStore.get("rementum_locale")?.value,
+          headerStore.get("accept-language"),
+        );
   const dict = getDictionary(locale);
   // A signed-in visitor on a marketing route keeps the public shell: the sidebar is the
   // app's frame, and the landing page is not laid out inside it. Signing in no longer
   // changes what rementum.dev/ looks like.
-  const appShell = signedIn && parseSurface(headerStore.get(SURFACE_HEADER)) === "app";
+  const appShell = signedIn && surface === "app";
   const context = appShell ? await workspaceContext() : null;
   const authConfig = signedIn ? null : await publicAuthConfig();
 
@@ -154,15 +156,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           </div>
         ) : (
           <div className="flex min-h-dvh flex-col">
-            <StickyBanner
-              trailing={
-                <span aria-hidden="true" className="ml-1">
-                  →
-                </span>
-              }
-            >
-              <a href={GITHUB_URL}>{dict.publicNav.banner}</a>
-            </StickyBanner>
             <PublicNav
               signupEnabled={authConfig?.signupEnabled ?? false}
               signedIn={signedIn}

@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -10,12 +9,12 @@ import type { Locale } from "../lib/i18n/locales";
 import { DOCS_URL } from "../lib/site";
 import { BrandMark } from "./brand";
 import { LocaleSwitcher } from "./locale-switcher";
+import { DropdownMenu } from "./ui/dropdown-menu";
 import { GlideNav } from "./ui/glide";
 import {
   IconActivity,
   IconBook,
   IconBrains,
-  IconCheck,
   IconChevronDown,
   IconClose,
   IconConnections,
@@ -54,8 +53,7 @@ export function activeIndexFor(pathname: string) {
   return -1;
 }
 
-const iconButtonClass =
-  "inline-flex size-8 items-center justify-center rounded-control text-ink-2 transition-colors hover:bg-hover hover:text-ink";
+const iconButtonClass = "control-button size-9 shrink-0";
 
 function WorkspacePicker({
   teams,
@@ -68,98 +66,54 @@ function WorkspacePicker({
   activeWorkspaceId: string | null;
   dict: Dictionary;
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  if (!workspaces.length) return null;
   const active =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0];
+  if (!active) return null;
   const activeTeam = teams.find((team) => team.id === active.teamId);
-
-  const pick = (workspaceId: string) => {
-    setOpen(false);
-    if (workspaceId === active.id) return;
-    if (inputRef.current) inputRef.current.value = workspaceId;
-    formRef.current?.requestSubmit();
-  };
-
   return (
-    <div className="relative" ref={rootRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label={dict.appNav.switchWorkspace}
-        className="flex w-full items-center gap-2.5 rounded-control border border-line bg-surface px-2 py-1.5 text-left shadow-btn transition-colors hover:bg-hover"
-      >
-        <span
-          aria-hidden="true"
-          className="grid size-7 shrink-0 place-items-center rounded-chip bg-gradient-to-br from-grad-from to-grad-to font-mono text-[10px] font-bold uppercase text-white"
-        >
-          {active.name.slice(0, 2)}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-ink">{active.name}</span>
-          {activeTeam ? (
-            <span className="block truncate font-mono text-[10.5px] text-ink-3">
-              {activeTeam.name}
+    <>
+      <DropdownMenu
+        label={dict.appNav.switchWorkspace}
+        triggerClassName="flex min-h-12 w-full items-center gap-2.5 rounded-card bg-surface p-2.5 text-left shadow-btn hover:bg-hover"
+        trigger={
+          <>
+            <span
+              aria-hidden="true"
+              className="grid size-8 shrink-0 place-items-center rounded-control bg-accent-tint font-medium text-accent text-xs uppercase"
+            >
+              {active.name.slice(0, 2)}
             </span>
-          ) : null}
-        </span>
-        <IconChevronDown
-          className={`shrink-0 text-ink-3 transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open ? (
-        <div className="absolute inset-x-0 top-full z-50 mt-2 max-h-80 overflow-y-auto rounded-card border border-line bg-surface p-1.5 shadow-overlay">
-          {teams.map((team) => {
-            const teamWorkspaces = workspaces.filter((workspace) => workspace.teamId === team.id);
-            if (!teamWorkspaces.length) return null;
-            return (
-              <div key={team.id} className="mb-1 last:mb-0">
-                <p className="px-2 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
-                  {team.name}
-                </p>
-                {teamWorkspaces.map((workspace) => (
-                  <button
-                    key={workspace.id}
-                    type="button"
-                    onClick={() => pick(workspace.id)}
-                    className="flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-left text-sm text-ink-2 transition-colors hover:bg-hover hover:text-ink"
-                  >
-                    <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
-                    {workspace.id === active.id ? (
-                      <IconCheck className="shrink-0 text-accent" />
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium text-ink text-sm">{active.name}</span>
+              {activeTeam ? (
+                <span className="mt-0.5 block truncate text-ink-3 text-xs">{activeTeam.name}</span>
+              ) : null}
+            </span>
+            <IconChevronDown className="shrink-0 text-ink-3" />
+          </>
+        }
+        items={teams.flatMap((team) =>
+          workspaces
+            .filter((workspace) => workspace.teamId === team.id)
+            .map((workspace) => ({
+              id: workspace.id,
+              label: workspace.name,
+              group: team.name,
+              selected: workspace.id === active.id,
+            })),
+        )}
+        onSelect={(id) => {
+          if (id === active.id) return;
+          if (inputRef.current) inputRef.current.value = id;
+          formRef.current?.requestSubmit();
+        }}
+      />
       <form ref={formRef} action="/workspaces/select" method="post" className="hidden">
         <input ref={inputRef} type="hidden" name="workspaceId" defaultValue={active.id} />
       </form>
-    </div>
+    </>
   );
 }
 
@@ -215,6 +169,27 @@ export function AppNavigation({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const mobileDialog = useRef<HTMLDialogElement>(null);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const dialog = mobileDialog.current;
+    if (!mobileOpen || !dialog) return;
+    dialog.showModal();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onResize = () => {
+      if (window.innerWidth >= 768) setMobileOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("resize", onResize);
+      dialog.close();
+      menuTrigger.current?.focus();
+    };
+  }, [mobileOpen]);
   const navItems = navItemsFor(systemOwner, dict);
   const activeIndex = activeIndexFor(pathname);
 
@@ -230,14 +205,15 @@ export function AppNavigation({
   return (
     <>
       <aside
-        className={`sticky top-0 z-40 hidden h-dvh shrink-0 flex-col border-r border-line bg-canvas transition-[width] duration-[280ms] ease-out-expo md:flex ${
+        className={`sticky top-0 z-40 hidden h-dvh shrink-0 flex-col border-line border-r bg-canvas md:flex ${
           collapsed ? "w-[52px]" : "w-[224px]"
         }`}
       >
-        <div className={`flex items-center pb-4 pt-5 ${collapsed ? "justify-center" : "px-4"}`}>
+        <div className={`flex items-center pt-5 pb-4 ${collapsed ? "justify-center" : "px-4"}`}>
           <Link
             href="/dashboard"
-            className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-ink"
+            aria-label="Rementum"
+            className="brand-link flex items-center gap-2.5 font-semibold text-ink text-sm tracking-tight"
           >
             <BrandMark className="size-7 shrink-0" />
             {collapsed ? null : <span>Rementum</span>}
@@ -250,7 +226,7 @@ export function AppNavigation({
               onClick={toggleCollapsed}
               title={dict.appNav.expandToSwitch}
               aria-label={dict.appNav.expandToSwitch}
-              className="mx-auto mb-4 grid size-7 place-items-center rounded-chip bg-gradient-to-br from-grad-from to-grad-to font-mono text-[10px] font-bold uppercase text-white transition-transform active:scale-[0.94]"
+              className="control-button mx-auto mb-4 size-9 bg-accent-tint font-medium font-mono text-accent text-xs uppercase"
             >
               {(
                 workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0]
@@ -275,12 +251,12 @@ export function AppNavigation({
           ariaLabel={dict.appNav.workspace}
         />
         <div
-          className={`mt-auto flex items-center gap-1 border-t border-line py-2.5 ${
+          className={`mt-auto flex flex-wrap items-center gap-0 border-line border-t py-2.5 ${
             collapsed ? "flex-col px-1.5" : "px-2"
           }`}
         >
-          <LocaleSwitcher locale={locale} label={dict.common.language} />
-          <ThemeToggle />
+          <LocaleSwitcher locale={locale} label={dict.common.language} compact={collapsed} />
+          <ThemeToggle label={dict.common.toggleTheme} />
           <DocsLink dict={dict} />
           <button
             type="button"
@@ -297,17 +273,24 @@ export function AppNavigation({
         </div>
       </aside>
 
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-line bg-canvas/85 px-4 backdrop-blur md:hidden">
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-line border-b bg-canvas px-4 md:hidden">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-ink"
+          aria-label="Rementum"
+          className="brand-link flex items-center gap-2.5 font-semibold text-ink text-sm tracking-tight"
         >
           <BrandMark className="size-7" />
           <span>Rementum</span>
         </Link>
         <button
           type="button"
-          onClick={() => setMobileOpen(true)}
+          ref={menuTrigger}
+          aria-haspopup="dialog"
+          aria-expanded={mobileOpen}
+          onClick={(event) => {
+            setKeyboardOpen(event.detail === 0);
+            setMobileOpen(true);
+          }}
           className={iconButtonClass}
           aria-label={dict.appNav.openMenu}
         >
@@ -315,61 +298,56 @@ export function AppNavigation({
         </button>
       </header>
 
-      <AnimatePresence>
-        {mobileOpen ? (
-          <div className="fixed inset-0 z-50 md:hidden">
-            <motion.button
+      <dialog
+        ref={mobileDialog}
+        aria-label={dict.appNav.workspace}
+        data-keyboard={keyboardOpen}
+        className="mobile-drawer"
+        onCancel={() => setMobileOpen(false)}
+        onClose={() => setMobileOpen(false)}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX < rect.left ||
+            event.clientX > rect.right ||
+            event.clientY < rect.top ||
+            event.clientY > rect.bottom
+          )
+            setMobileOpen(false);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setMobileOpen(false);
+        }}
+      >
+        <div className="flex min-h-dvh flex-col gap-6 p-5">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-ink text-sm">{dict.appNav.workspace}</span>
+            <button
               type="button"
-              aria-label={dict.appNav.closeMenu}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
               onClick={() => setMobileOpen(false)}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              className="absolute inset-y-0 right-0 flex w-[300px] flex-col gap-5 border-l border-line bg-canvas p-4"
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+              className={iconButtonClass}
+              aria-label={dict.appNav.closeMenu}
             >
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-2xs uppercase tracking-[0.1em] text-ink-3">
-                  Workspace
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setMobileOpen(false)}
-                  className={iconButtonClass}
-                  aria-label={dict.appNav.closeMenu}
-                >
-                  <IconClose />
-                </button>
-              </div>
-              <WorkspacePicker
-                teams={teams}
-                workspaces={workspaces}
-                activeWorkspaceId={activeWorkspaceId}
-                dict={dict}
-              />
-              <GlideNav
-                items={navItems}
-                activeIndex={activeIndex}
-                ariaLabel={dict.appNav.workspace}
-              />
-              <div className="mt-auto flex items-center justify-between border-t border-line pt-3">
-                <div className="flex items-center gap-1">
-                  <LocaleSwitcher locale={locale} label={dict.common.language} />
-                  <ThemeToggle />
-                  <DocsLink dict={dict} />
-                </div>
-                <SignOutButton dict={dict} />
-              </div>
-            </motion.div>
+              <IconClose />
+            </button>
           </div>
-        ) : null}
-      </AnimatePresence>
+          <WorkspacePicker
+            teams={teams}
+            workspaces={workspaces}
+            activeWorkspaceId={activeWorkspaceId}
+            dict={dict}
+          />
+          <GlideNav items={navItems} activeIndex={activeIndex} ariaLabel={dict.appNav.workspace} />
+          <div className="mt-auto flex items-center justify-between border-line border-t pt-4">
+            <div className="flex items-center gap-1">
+              <LocaleSwitcher locale={locale} label={dict.common.language} />
+              <ThemeToggle label={dict.common.toggleTheme} />
+              <DocsLink dict={dict} />
+            </div>
+            <SignOutButton dict={dict} />
+          </div>
+        </div>
+      </dialog>
     </>
   );
 }
