@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import type { Dictionary } from "../../lib/i18n/get-dictionary";
 import { IconCheck, IconCopy } from "./icons";
 
 export function CopyButton({
   text,
-  label = "Copy",
+  label,
   className,
-  // Optional so out-of-scope callers stay English untouched.
   dict,
 }: {
   text: string;
@@ -17,38 +17,72 @@ export function CopyButton({
   dict?: Dictionary;
 }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
-  const common = dict?.common;
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setState("copied");
-    } catch {
-      // Clipboard unavailable (permissions, insecure context) — tell the user instead of lying.
-      setState("failed");
-    }
-    setTimeout(() => setState("idle"), 2500);
+  const [keyboard, setKeyboard] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attempt = useRef(0);
+  useEffect(
+    () => () => {
+      attempt.current++;
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  const labels = {
+    idle: label ?? dict?.common.copy ?? "Copy",
+    copied: dict?.common.copied ?? "Copied",
+    failed: dict?.common.copyFailed ?? "Copy failed",
   };
-
+  const moving = !reduceMotion && !keyboard;
   return (
     <button
       type="button"
-      onClick={copy}
+      onClick={async (event) => {
+        setKeyboard(event.detail === 0);
+        const current = ++attempt.current;
+        if (timer.current) clearTimeout(timer.current);
+        try {
+          await navigator.clipboard.writeText(text);
+          if (current !== attempt.current) return;
+          setState("copied");
+        } catch {
+          if (current !== attempt.current) return;
+          setState("failed");
+        }
+        timer.current = setTimeout(() => setState("idle"), 2500);
+      }}
       title={
         state === "failed"
-          ? (common?.copyFailedNote ?? "Copy failed. Select the text manually.")
+          ? (dict?.common.copyFailedNote ?? "Copy failed. Select the text manually.")
           : undefined
       }
-      className={`inline-flex items-center gap-1.5 rounded-control border border-line bg-surface px-2.5 py-1.5 text-xs font-medium shadow-btn transition-all hover:bg-hover active:scale-[0.96] ${
-        state === "failed" ? "text-red" : "text-ink-2 hover:text-ink"
-      } ${className ?? ""}`}
+      className={`action-link pressable min-h-9 gap-2 bg-surface px-3 py-1.5 text-xs ${state === "failed" ? "text-red" : "text-ink-2"} ${className ?? ""}`}
     >
-      {state === "copied" ? <IconCheck className="text-green" /> : <IconCopy />}
-      {state === "copied"
-        ? (common?.copied ?? "Copied")
-        : state === "failed"
-          ? (common?.copyFailed ?? "Copy failed")
-          : (label ?? common?.copy ?? "Copy")}
+      <span aria-hidden="true" className="relative grid size-4 shrink-0 place-items-center">
+        <AnimatePresence initial={false} mode="popLayout">
+          <motion.span
+            key={state === "copied" ? "check" : "copy"}
+            className="inline-flex"
+            initial={moving ? { opacity: 0, scale: 0.25, filter: "blur(4px)" } : false}
+            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            exit={moving ? { opacity: 0, scale: 0.25, filter: "blur(4px)" } : { opacity: 0 }}
+            transition={{ type: "spring", duration: moving ? 0.3 : 0, bounce: 0 }}
+          >
+            {state === "copied" ? <IconCheck className="text-green" /> : <IconCopy />}
+          </motion.span>
+        </AnimatePresence>
+      </span>
+      <span className="grid" aria-live="polite">
+        {Object.entries(labels).map(([key, value]) => (
+          <span
+            key={key}
+            aria-hidden={key !== state}
+            className={`[grid-area:1/1] ${key === state ? "visible" : "invisible"}`}
+          >
+            {value}
+          </span>
+        ))}
+      </span>
     </button>
   );
 }

@@ -54,7 +54,7 @@ export function StatusPill({
   const dot = pulse ?? tone === "progress";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-chip border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.06em] ${TONE_CLASSES[tone]} ${className ?? ""}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-chip border px-2 py-0.5 font-medium font-mono text-xs ${TONE_CLASSES[tone]} ${className ?? ""}`}
     >
       {dot ? (
         <span aria-hidden="true" className="size-1.5 animate-pulse-dot rounded-full bg-current" />

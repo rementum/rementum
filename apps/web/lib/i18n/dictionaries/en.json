@@ -16,7 +16,8 @@
     "signOut": "Sign out",
     "createAccount": "Create account",
     "dashboard": "Dashboard",
-    "language": "Language"
+    "language": "Language",
+    "toggleTheme": "Toggle theme"
   },
   "meta": {
     "title": "Rementum — Self-hosted, versioned memory for AI agents",
@@ -44,14 +45,14 @@
     "banner": "Free and self-hosted · star Rementum on GitHub"
   },
   "hero": {
-    "kicker": "Open source memory infrastructure",
+    "kicker": "Open source memory for AI agents",
     "headline": ["Your", "agents", "should", "remember."],
     "headlineHighlight": 3,
-    "subtitle": "One versioned knowledge layer for every MCP client. Rementum stages each write for review before it replaces shared memory.",
+    "subtitle": "Shared, versioned knowledge for every MCP client. Keep the decisions, context, and corrections that matter beyond a single conversation.",
     "getStarted": "Get started",
     "starOnGithub": "Star on GitHub",
     "worksWith": "Works with",
-    "clients": ["Claude Code", "Codex", "OpenCode"],
+    "clients": "Works with Claude Code, Codex, Cursor, OpenCode, and other MCP clients.",
     "terminalLabel": "rementum / mcp",
     "terminalSteps": [
       {
@@ -82,7 +83,28 @@
       {
         "text": "promoted → canon v3 · audit recorded"
       }
-    ]
+    ],
+    "titleA": "Your agents",
+    "titleB": "need a better memory",
+    "insideBrain": "Inside a brain",
+    "exampleArticle": "Example article",
+    "examplePath": "engineering / decisions",
+    "exampleTitle": "Why writes are staged",
+    "exampleVersion": "Version 3 · Canonical article",
+    "latestChange": "Latest change",
+    "latestChangeNote": "Clarified the conflict check.",
+    "versionHistory": "Version history",
+    "caption": "The decision stays readable. The reason it changed stays with it.",
+    "exampleBodyA": "An agent proposes a change against the version it read. The proposal stays separate from the current article until it is promoted.",
+    "exampleBodyB": "If the article has changed in the meantime, promotion stops. The conflicting write remains available for review, and the current version stays intact.",
+    "readDocs": "Read the documentation",
+    "workspaceName": "Engineering",
+    "sampleWorkspace": "Example workspace · Sample content",
+    "indexLabel": "Brain index",
+    "sampleTopics": ["API conventions", "Release checklist"],
+    "currentLabel": "Current",
+    "promotedLabel": "Promoted to canon",
+    "versionNotes": ["Conflict check clarified", "Rationale added", "Initial decision"]
   },
   "howItWorks": {
     "kicker": "How it works",
@@ -94,26 +116,28 @@
     "animationLabel": "Illustrated overview: agents read a compact index, stage writes, and share one versioned brain",
     "steps": [
       {
-        "num": "01",
-        "title": "Compact Routing Index",
-        "desc": "You query a compact index of titles, summaries, keywords, and freshness, then open the one article you need. You leave the rest of the brain alone."
+        "title": "Read",
+        "note": "Start with the index",
+        "description": "Find an article by its title, summary, keywords, and freshness. Read the context you need without loading the whole brain."
       },
       {
-        "num": "02",
-        "title": "Staged Write Isolation",
-        "desc": "You stage each proposal as written in a buffer tied to its base version, apart from live canon."
+        "title": "Stage",
+        "note": "Keep a proposal separate",
+        "description": "Submit a write against the version you read. The proposed body stays separate from the current article."
       },
       {
-        "num": "03",
-        "title": "Conflict Resolution Shield",
-        "desc": "Rementum checks the article for changes since you staged your write. You review each conflict and decide what lands."
+        "title": "Check",
+        "note": "Catch a changed base",
+        "description": "Rementum checks for conflicts. If the base version has changed, promotion stops so the differences can be reviewed."
       },
       {
-        "num": "04",
-        "title": "Immutable Versioned Canon",
-        "desc": "You promote. Rementum encrypts the change with AES-256-GCM and commits an audited, immutable version. Your agents read the new version on their next call."
+        "title": "Promote",
+        "note": "Keep the history",
+        "description": "A conflict-free promotion becomes the next encrypted, versioned article. Other agents read it on their next call."
       }
-    ]
+    ],
+    "title": "A shared memory, with a record of change.",
+    "subtitle": "Every article has a current version. Every proposed change has a starting point. Here is how knowledge moves between them."
   },
   "promo": {
     "coreSubtitle": "one shared brain",
@@ -205,17 +229,26 @@
     "outro": {
       "tagline": "One versioned, auditable brain behind every AI agent.",
       "pills": ["Open source", "Self-hosted", "MCP-native", "AGPL-3.0"]
-    }
+    },
+    "watch": "Watch overview",
+    "closeOverview": "Close overview",
+    "duration": "45 sec",
+    "title": "How your agents share a brain",
+    "play": "Play",
+    "pause": "Pause",
+    "loading": "Loading overview…",
+    "failed": "The overview could not load. Close it and try again, or follow the steps above.",
+    "ariaLabel": "Animated overview of agents reading, staging, and promoting versioned knowledge"
   },
   "pricing": {
     "kicker": "Pricing",
-    "titleA": "Free forever.",
-    "titleB": "Self-hosted",
+    "titleA": "Free software.",
+    "titleB": "Your infrastructure.",
     "titleC": "by design.",
     "subtitle": "Rementum is open source, with no paid tier and no per-seat billing. You run it on your own hardware and own every byte.",
     "planLabel": "Self-hosted",
     "price": "$0",
-    "priceNote": "/ forever",
+    "priceNote": "forever · AGPL-3.0",
     "priceBody": "Clone it, run one install script, and connect an agent over MCP.",
     "getStarted": "Get started",
     "installGuide": "Read the install guide",
@@ -233,15 +266,25 @@
       "You run updates, encrypted backups, and the occasional migration",
       "Scaling and uptime are yours to size and monitor",
       "No hosted SaaS tier; self-hosting is the only path today"
-    ]
+    ],
+    "intro": "Run Rementum on your own server. The full source is yours to inspect, modify, and self-host, with no paid tier or per-seat billing.",
+    "included": "Included",
+    "includedA": "Unlimited brains, workspaces, agents, and versions. No usage caps or paywalled features.",
+    "includedB": "Local models by default, with an optional AI provider for compaction.",
+    "inYourHands": "In your hands",
+    "handsNote": "A Linux host, a domain, and ports 80 and 443. You manage updates, encrypted backups, migrations, and capacity."
   },
   "connectTeaser": {
     "kicker": "Plugin + MCP",
-    "title": "Give your agents a memory.",
-    "subtitle": "You host Rementum on your own server and connect over MCP. The plugin adds its skills and tools to your coding agent, and you approve each grant in your browser.",
+    "title": "Bring your next conversation up to date.",
+    "subtitle": "Install the plugin, connect your workspace over MCP, and approve the grant in your browser. Your agent can then find and contribute knowledge.",
     "getStarted": "Get started",
     "starTitle": "Star us on GitHub",
-    "starSubtitle": "Free · self-hosted"
+    "starSubtitle": "Free · self-hosted",
+    "setupLabel": "Claude Code · Setup",
+    "commandsLabel": "Claude Code setup commands",
+    "aside": "Use the MCP URL shown in your workspace. The host and workspace ID above are placeholders.",
+    "otherClients": "Other clients and setup details"
   },
   "footer": {
     "product": "Product",
@@ -255,7 +298,9 @@
     "license": "AGPL-3.0 license",
     "releases": "Releases",
     "resetPassword": "Reset password",
-    "copyright": "Open source · self-hosted"
+    "copyright": "Open source · self-hosted",
+    "tagline": "Knowledge worth keeping.",
+    "bottom": "Open source · self-hosted"
   },
   "appNav": {
     "brains": "Brains",
@@ -274,12 +319,12 @@
   "dashboard": {
     "title": "Dashboard",
     "overview": "Overview",
-    "subtitle": "Recent changes across your brains and the writes that need your review.",
+    "subtitle": "A place for the knowledge your agents share.",
     "statBrains": "Brains",
     "statArticles": "Articles",
     "statReview": "Awaiting review",
     "needsReview": "Needs review",
-    "emptyReview": "No staged writes need review.",
+    "emptyReview": "No staged writes need review. Your agents can keep contributing to this workspace.",
     "brains": "Brains",
     "sortBrains": "Sort brains",
     "sortUpdated": "Updated",
@@ -305,7 +350,20 @@
     "setupTeam": "Set up your team",
     "noBrainsTitle": "No brains yet.",
     "noBrainsBody": "Connect an agent over MCP to create your first brain. It will appear here with its articles, staged writes, and activity.",
-    "viewConnections": "View connections"
+    "viewConnections": "View connections",
+    "brainsCount": "{count} brains",
+    "articlesCount": "{count} articles",
+    "reviewSummary": "{total} to review · {conflicts} conflicted",
+    "noWrites": "No writes to review",
+    "yourWorkspace": "Your workspace",
+    "reviewNote": "Proposed changes, separate from current canon.",
+    "showMore": "Show {count} more",
+    "showingOf": "Showing {shown} of {total} writes. Open a brain's full queue:",
+    "connectAgent": "Connect an agent",
+    "connectNote": "Plugin and MCP setup for {workspace}",
+    "loading": "Loading brains",
+    "pendingLabel": "Pending",
+    "conflictedLabel": "Conflicted"
   },
   "agentConnect": {
     "eyebrow": "Workspace MCP",

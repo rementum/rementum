@@ -1,57 +1,47 @@
-"use client";
-
 import type { Dictionary } from "../../lib/i18n/get-dictionary";
-import { Button, CommunityBadge, MockIDE } from "../pui";
-import { IconGitHub } from "../ui/icons";
-import { Reveal } from "./reveal";
+import { DOCS_URL } from "../../lib/site";
+import { CopyButton } from "../ui/copy-button";
+import { IconArrowUpRight } from "../ui/icons";
 import { SectionHead } from "./section-head";
 
-const TOKENS = [
-  { c: "❯ ", cls: "str" as const },
-  { c: "/plugin ", cls: "key" as const },
-  { c: "marketplace add rementum/rementum\n" },
-  { c: "❯ ", cls: "str" as const },
-  { c: "/plugin ", cls: "key" as const },
-  { c: "install rementum@rementum\n" },
-  { c: "# skills + MCP tools installed", cls: "com" as const },
-  { c: "\n" },
-  { c: "❯ ", cls: "str" as const },
-  { c: "claude ", cls: "fn" as const },
-  { c: "mcp add --transport http rementum " },
-  { c: "https://your-host/mcp", cls: "str" as const },
-  { c: "\n" },
-  { c: "❯ ", cls: "str" as const },
-  { c: "claude ", cls: "fn" as const },
-  { c: "mcp login rementum\n" },
-  { c: "# approved · brain attached", cls: "com" as const },
-];
+const COMMANDS = [
+  "/plugin marketplace add rementum/rementum",
+  "/plugin install rementum@rementum",
+  "claude mcp add --scope user --transport http rementum https://your-host/mcp/workspace/WORKSPACE_ID",
+  "claude mcp login rementum",
+].join("\n");
 
-export function ConnectTeaser({ githubUrl, dict }: { githubUrl: string; dict: Dictionary }) {
+export function ConnectTeaser({ dict }: { dict: Dictionary }) {
   const section = dict.connectTeaser;
   return (
-    <section className="mx-auto w-full max-w-6xl scroll-mt-20 px-6 py-20" id="connect">
-      <div className="grid items-center gap-12 lg:grid-cols-2">
-        <div>
-          <SectionHead kicker={section.kicker} title={section.title}>
-            {section.subtitle}
-          </SectionHead>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            {/* Full-page link: the force-static landing caches the signed-out root layout, so a
-                soft nav would strand a signed-in visitor on the public header. */}
-            <Button as="a" href="/auth/login" variant="solid" size="lg" sparkle>
-              {section.getStarted}
-            </Button>
-            <CommunityBadge
-              href={githubUrl}
-              iconNode={<IconGitHub className="size-[18px]" />}
-              title={section.starTitle}
-              subtitle={section.starSubtitle}
-            />
+    <section className="landing-section" id="connect">
+      <SectionHead title={section.title}>{section.subtitle}</SectionHead>
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_260px] lg:gap-12">
+        <div className="surface-panel min-w-0 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-line border-b px-5 py-3">
+            <p className="font-mono text-ink-2 text-xs">{section.setupLabel}</p>
+            <CopyButton text={COMMANDS} label={dict.common.copyAll} dict={dict} />
           </div>
+          <section
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard access to scrolling commands
+            tabIndex={0}
+            className="overflow-x-auto p-5 font-mono text-ink-2 text-xs leading-[2]"
+            aria-label={section.commandsLabel}
+          >
+            <pre>
+              <code>{COMMANDS}</code>
+            </pre>
+          </section>
         </div>
-        <Reveal>
-          <MockIDE className="[&_pre]:text-xs/[1.65]" tokens={TOKENS} loop thinkingLabel={false} />
-        </Reveal>
+        <aside className="rounded-card bg-accent-tint p-5 text-sm text-ink-2 leading-relaxed">
+          <p>{section.aside}</p>
+          <a
+            href={`${DOCS_URL}integrations/`}
+            className="mt-4 inline-flex items-center gap-1.5 font-medium text-accent hover:underline"
+          >
+            {section.otherClients} <IconArrowUpRight />
+          </a>
+        </aside>
       </div>
     </section>
   );

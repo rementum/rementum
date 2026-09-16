@@ -10,6 +10,7 @@ describe("resolveRequestLocale", () => {
 
   it("prefers the route over the cookie", () => {
     expect(resolveRequestLocale("/zh", "tr")).toBe("zh");
+    expect(resolveRequestLocale("/", "tr")).toBe("en");
   });
 
   it("falls back to the cookie off the localized routes", () => {

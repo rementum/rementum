@@ -243,3 +243,13 @@ export function IconMenu(props: IconProps) {
     </Icon>
   );
 }
+
+export function IconGlobe(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="8" r="6" />
+      <ellipse cx="8" cy="8" rx="2.5" ry="6" />
+      <path d="M2 8h12" />
+    </Icon>
+  );
+}

@@ -13,6 +13,8 @@ import { SURFACE_HEADER, surfaceForPath } from "./lib/surface";
 
 // Extracted from `middleware` so the routing rule is unit-testable on its own.
 export function resolveRequestLocale(pathname: string, cookieValue?: string): Locale {
+  // The English marketing route has its own canonical metadata and body.
+  if (pathname === "/") return "en";
   // Only the first path segment counts: /brains/… must not resolve as a locale.
   const segment = pathname.split("/")[1] ?? "";
   if (segment && segment !== "en" && (LOCALES as readonly string[]).includes(segment)) {

@@ -1,79 +1,138 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import type { Dictionary } from "../lib/i18n/get-dictionary";
-import type { Locale } from "../lib/i18n/locales";
+import { type Locale, SITE_URL_HREF } from "../lib/i18n/locales";
 import { DOCS_URL } from "../lib/site";
 import { BrandMark } from "./brand";
 import { LocaleSwitcher } from "./locale-switcher";
-import { Button } from "./pui";
+import { IconClose, IconMenu } from "./ui/icons";
 import { ThemeToggle } from "./ui/theme-toggle";
 
 export function PublicNav({
   signupEnabled,
-  signedIn,
+  signedIn = false,
   locale,
   dict,
 }: {
   signupEnabled: boolean;
-  signedIn: boolean;
+  signedIn?: boolean;
   locale: Locale;
   dict: Dictionary;
 }) {
+  const [open, setOpen] = useState(false);
+  const menu = useRef<HTMLButtonElement>(null);
+  const header = useRef<HTMLElement>(null);
+  const homeHref = SITE_URL_HREF[locale] || "/";
   const LINKS = [
-    { href: "/#how-it-works", label: dict.publicNav.howItWorks },
-    { href: "/#pricing", label: dict.publicNav.pricing },
-    { href: "/#connect", label: dict.publicNav.connect },
+    { href: `${homeHref}#how-it-works`, label: dict.publicNav.howItWorks },
+    { href: `${homeHref}#pricing`, label: dict.publicNav.pricing },
+    { href: `${homeHref}#connect`, label: dict.publicNav.connect },
     { href: DOCS_URL, label: dict.common.docs },
   ];
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        menu.current?.focus();
+      }
+    };
+    const onOutside = (event: MouseEvent) => {
+      if (header.current && !header.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onOutside);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onOutside);
+    };
+  }, [open]);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-line/60 bg-surface/70 backdrop-blur-xl">
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-6 px-6 py-3">
+    <header ref={header} className="sticky top-0 z-50 border-line border-b bg-page">
+      <div className="mx-auto flex min-h-[72px] w-full max-w-[1248px] items-center gap-3 px-5 sm:px-8">
         <Link
-          className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-ink"
-          href="/"
+          className="brand-link inline-flex shrink-0 items-center gap-2.5 font-semibold text-base text-ink tracking-tight"
+          aria-label="Rementum"
+          href={homeHref}
         >
-          <BrandMark className="h-6 w-6" />
-          <span>Rementum</span>
+          <BrandMark className="size-7" />
+          <span className="hidden min-[420px]:inline">Rementum</span>
         </Link>
-        <nav className="ml-auto hidden items-center gap-5 md:flex">
+        <nav
+          aria-label={dict.publicNav.mainNavigation}
+          className="ml-auto hidden items-center gap-6 lg:flex"
+        >
           {LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="font-mono text-2xs uppercase tracking-[0.08em] text-ink-3 transition-colors hover:text-ink"
+              className="text-ink-2 text-sm transition-colors hover:text-accent"
             >
               {link.label}
             </a>
           ))}
         </nav>
-        {/* Full-page links, not next/link, either way. The landing routes are cached, and a
-            soft navigation would keep the fetched shell in place; a document load asks the
-            server again, so a visitor who signed in in another tab lands on the sidebar
-            rather than this header. */}
-        <div className="flex items-center gap-2 md:ml-4 max-md:ml-auto">
+        {/* A document load restores the session-aware shell after the cached public page. */}
+        <div className="ml-auto flex items-center gap-1.5 lg:ml-4">
           <LocaleSwitcher locale={locale} label={dict.common.language} />
-          <ThemeToggle />
-          {/* This shell is what a signed-in visitor sees on the marketing routes, so the
-              account buttons become a way back into the app instead of a sign-in pitch. */}
-          {signedIn ? (
-            <Button as="a" href="/dashboard" variant="solid" size="sm">
-              {dict.common.dashboard}
-            </Button>
-          ) : (
-            <>
-              <Button as="a" href="/auth/login" variant="ghost" size="sm">
-                {dict.common.signIn}
-              </Button>
-              {signupEnabled ? (
-                <Button as="a" href="/register" variant="solid" size="sm">
-                  {dict.common.createAccount}
-                </Button>
-              ) : null}
-            </>
-          )}
+          <ThemeToggle label={dict.common.toggleTheme} />
+          <a
+            href={signedIn ? "/dashboard" : "/auth/login"}
+            className="action-link action-link-quiet min-h-9 px-3 py-1.5"
+          >
+            {signedIn ? dict.common.dashboard : dict.common.signIn}
+          </a>
+          {!signedIn && signupEnabled ? (
+            <a
+              href="/register"
+              className="action-link action-link-primary hidden min-h-9 px-3 py-1.5 sm:inline-flex"
+            >
+              {dict.common.createAccount}
+            </a>
+          ) : null}
+          <button
+            ref={menu}
+            type="button"
+            className="control-button size-10 lg:hidden"
+            aria-label={open ? dict.publicNav.closeNavigation : dict.publicNav.openNavigation}
+            aria-expanded={open}
+            aria-controls="public-mobile-nav"
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? <IconClose /> : <IconMenu />}
+          </button>
         </div>
       </div>
+      <nav
+        id="public-mobile-nav"
+        aria-label={dict.publicNav.mobileNavigation}
+        hidden={!open}
+        className="border-line border-t px-5 py-4 sm:px-8 lg:hidden"
+      >
+        <ul className="flex flex-col gap-1">
+          {LINKS.map((link) => (
+            <li key={link.href}>
+              <a
+                href={link.href}
+                onClick={() => setOpen(false)}
+                className="flex min-h-11 items-center rounded-control px-3 py-2.5 text-ink-2 text-sm hover:bg-hover"
+              >
+                {link.label}
+              </a>
+            </li>
+          ))}
+          {!signedIn && signupEnabled ? (
+            <li className="mt-2 sm:hidden">
+              <a href="/register" className="action-link action-link-primary w-full">
+                {dict.common.createAccount}
+              </a>
+            </li>
+          ) : null}
+        </ul>
+      </nav>
     </header>
   );
 }
