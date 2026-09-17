@@ -16,17 +16,31 @@ import {
 } from "./index.js";
 
 describe("stageWriteSchema", () => {
-  it("does not publish or retain a caller-authored summary", () => {
-    const parsed = stageWriteSchema.parse({
-      brainId: "00000000-0000-4000-8000-000000000001",
-      operation: "create",
-      slug: "architecture",
-      title: "Architecture",
-      summary: "Caller-authored summary",
-      body: "Canonical body",
-      changeSummary: "Create architecture memory",
-    });
-    expect(parsed).not.toHaveProperty("summary");
+  const write = {
+    brainId: "00000000-0000-4000-8000-000000000001",
+    operation: "create",
+    slug: "architecture",
+    title: "Architecture",
+    body: "Canonical body",
+    changeSummary: "Create architecture memory",
+  };
+
+  it("keeps a caller-authored summary trimmed and leaves an omitted one absent", () => {
+    expect(stageWriteSchema.parse({ ...write, summary: "  Keeps core portable.  " }).summary).toBe(
+      "Keeps core portable.",
+    );
+    expect(stageWriteSchema.parse(write)).not.toHaveProperty("summary");
+  });
+
+  it("caps the summary and the change summary so models cannot pad them", () => {
+    expect(stageWriteSchema.safeParse({ ...write, summary: "s".repeat(160) }).success).toBe(true);
+    expect(stageWriteSchema.safeParse({ ...write, summary: "s".repeat(161) }).success).toBe(false);
+    expect(stageWriteSchema.safeParse({ ...write, changeSummary: "c".repeat(200) }).success).toBe(
+      true,
+    );
+    expect(stageWriteSchema.safeParse({ ...write, changeSummary: "c".repeat(201) }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -48,14 +62,12 @@ describe("updateTeamSchema", () => {
 });
 
 describe("updateWorkspaceSchema", () => {
-  it("accepts a compaction-only workspace update", () => {
-    expect(updateWorkspaceSchema.parse({ llmCompactionEnabled: true })).toEqual({
-      llmCompactionEnabled: true,
-    });
+  it("trims the new name", () => {
+    expect(updateWorkspaceSchema.parse({ name: "  Renamed  " })).toEqual({ name: "Renamed" });
   });
 
   it("rejects an empty workspace update", () => {
-    expect(() => updateWorkspaceSchema.parse({})).toThrow(/workspace field/i);
+    expect(() => updateWorkspaceSchema.parse({})).toThrow();
   });
 });
 
@@ -256,7 +268,6 @@ describe("instance administration schemas", () => {
         webSessions: 2,
         mcpConnections: 3,
       },
-      compaction: { queued: 0, processing: 0, failed: 0 },
       storage: { databaseBytes: 52_428_800 },
       daily: [{ date: "2026-09-02", signups: 1, calls: 5 }],
     };

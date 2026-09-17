@@ -24,13 +24,8 @@ Open [http://localhost](http://localhost) in your browser. You can sign in immed
 - A domain with an A or AAAA record pointing at the host.
 - Open inbound TCP ports 80 and 443.
 
-Two things are optional:
-
-- **An OpenAI-compatible AI provider.** It only makes deferred compaction *available*; every
-  workspace still starts with compaction off. The provider and model must support strict JSON Schema
-  through Chat Completions.
-- **Email (a Resend API key and a verified sender).** You need it for public registration. An
-  invitation-only instance does not need email to create the first owner.
+Email (a Resend API key and a verified sender) is optional. You need it for public registration;
+an invitation-only instance does not need email to create the first owner.
 
 ### Run the installer
 
@@ -60,10 +55,6 @@ REMENTUM_INSTALL_DOMAIN='memory.example.com' \
 REMENTUM_INSTALL_OWNER_EMAIL='owner@example.com' \
 REMENTUM_INSTALL_OWNER_NAME='Owner' \
 REMENTUM_INSTALL_OWNER_PASSWORD_FILE='/run/secrets/rementum-owner-password' \
-REMENTUM_INSTALL_LLM_ENABLED='true' \
-REMENTUM_INSTALL_LLM_BASE_URL='https://api.openai.com/v1' \
-REMENTUM_INSTALL_LLM_MODEL='your-model' \
-REMENTUM_INSTALL_LLM_API_KEY_FILE='/run/secrets/rementum-llm-api-key' \
 REMENTUM_INSTALL_ALLOW_SIGNUP='false' \
 ./scripts/install.sh --non-interactive
 ```
@@ -71,11 +62,7 @@ REMENTUM_INSTALL_ALLOW_SIGNUP='false' \
 A few rules for this mode:
 
 - The owner password must be at least 12 characters, read from `REMENTUM_INSTALL_OWNER_PASSWORD_FILE`.
-- External AI and public signup both default to `false`.
-- Omit every AI input to keep submitted titles and bodies and use local summaries. To make
-  compaction available, set `REMENTUM_INSTALL_LLM_ENABLED=true` with a base URL and a
-  JSON-Schema-capable model; omit the API key file for a keyless endpoint. Turn compaction on later
-  per workspace, from its team page.
+- Public signup defaults to `false`.
 - To allow signup, also set `REMENTUM_INSTALL_RESEND_API_KEY_FILE` and `REMENTUM_INSTALL_MAIL_FROM`.
 - To add Cloudflare Turnstile bot protection, set `REMENTUM_INSTALL_TURNSTILE_SITE_KEY` and store the
   secret in `REMENTUM_INSTALL_TURNSTILE_SECRET_KEY_FILE`. The installer refuses one without the other.

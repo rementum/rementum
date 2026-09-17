@@ -116,15 +116,9 @@ export function parseMarkdownDocument(value: string, fallbackTitle: string) {
   const parsed = splitFrontMatter(value);
   const firstHeading = parsed.content.match(/^#\s+(.+)$/m)?.[1]?.trim();
   const title = stringValue(parsed.data.title) ?? firstHeading ?? fallbackTitle;
-  const summary =
-    stringValue(parsed.data.summary) ??
-    parsed.content
-      .replace(/^#{1,6}\s+.+$/gm, "")
-      .split(/\n{2,}/)
-      .map((part) => part.trim())
-      .find(Boolean)
-      ?.slice(0, 500) ??
-    title;
+  // Only a summary the author stated is kept. Nothing is derived from the body: an
+  // imported article without one has no summary, like any other write.
+  const summary = stringValue(parsed.data.summary);
   const tags = Array.isArray(parsed.data.tags)
     ? parsed.data.tags.filter((tag): tag is string => typeof tag === "string")
     : typeof parsed.data.tags === "string"

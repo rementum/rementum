@@ -7,64 +7,6 @@ const baseEnv = {
   REMENTUM_COOKIE_KEYS: "cookie-key-at-least-sixteen-characters",
 };
 
-const llmEnv = {
-  ...baseEnv,
-  REMENTUM_LLM_ENABLED: "true",
-  REMENTUM_LLM_BASE_URL: "https://llm.example.test/v1",
-  REMENTUM_LLM_MODEL: "summary-model",
-};
-
-describe("LLM configuration", () => {
-  it("uses local summaries when no provider is configured", () => {
-    const config = loadConfig({
-      ...baseEnv,
-      REMENTUM_LLM_ENABLED: "false",
-      REMENTUM_LLM_BASE_URL: "",
-      REMENTUM_LLM_MODEL: "",
-    });
-    expect(config.REMENTUM_LLM_ENABLED).toBe(false);
-    expect(config.REMENTUM_LLM_BASE_URL).toBeUndefined();
-    expect(config.REMENTUM_LLM_MODEL).toBeUndefined();
-  });
-
-  it("requires an API base URL and model only when enabled", () => {
-    const { REMENTUM_LLM_MODEL: _model, ...withoutModel } = llmEnv;
-    expect(() => loadConfig(withoutModel)).toThrow(/REMENTUM_LLM_MODEL/);
-    expect(() =>
-      loadConfig({
-        ...baseEnv,
-        REMENTUM_LLM_ENABLED: "true",
-        REMENTUM_LLM_MODEL: "summary-model",
-      }),
-    ).toThrow(/REMENTUM_LLM_BASE_URL/);
-    expect(() => loadConfig({ ...llmEnv, REMENTUM_LLM_BASE_URL: "not-a-url" })).toThrow(
-      /REMENTUM_LLM_BASE_URL/,
-    );
-  });
-
-  it("allows an unauthenticated compatible endpoint and applies safe defaults", () => {
-    const config = loadConfig({
-      ...llmEnv,
-      REMENTUM_LLM_API_KEY: "",
-      REMENTUM_LLM_REASONING_EFFORT: "",
-    });
-    expect(config.REMENTUM_LLM_ENABLED).toBe(true);
-    expect(config.REMENTUM_LLM_API_KEY).toBeUndefined();
-    expect(config.REMENTUM_LLM_REASONING_EFFORT).toBeUndefined();
-    expect(config.REMENTUM_LLM_TIMEOUT_MS).toBe(45_000);
-    expect(config.REMENTUM_LLM_MAX_INPUT_CHARS).toBe(24_000);
-    expect(config.REMENTUM_LLM_CONCURRENCY).toBe(4);
-  });
-
-  it("accepts a known reasoning effort and rejects unknown values", () => {
-    const config = loadConfig({ ...llmEnv, REMENTUM_LLM_REASONING_EFFORT: "high" });
-    expect(config.REMENTUM_LLM_REASONING_EFFORT).toBe("high");
-    expect(() => loadConfig({ ...llmEnv, REMENTUM_LLM_REASONING_EFFORT: "maximum" })).toThrow(
-      /REMENTUM_LLM_REASONING_EFFORT/,
-    );
-  });
-});
-
 describe("account email configuration", () => {
   it("requires Resend when public signup is enabled", () => {
     expect(() => loadConfig({ ...baseEnv, REMENTUM_ALLOW_SIGNUP: "true" })).toThrow(/Resend/);

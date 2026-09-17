@@ -49,22 +49,9 @@ Rementum implements **application-layer envelope encryption with searchable meta
 
 ## Article generation mode
 
-The default local mode keeps submitted titles and bodies, derives routing summaries inside the API
-process, and sends no staged candidate to an external LLM. Configuring an external provider does not
-send data by itself. Compaction must also be enabled on a workspace. The derived summary is
-searchable metadata and is not covered by article-body encryption.
-
-When both settings are on, promotion keeps the submitted version encrypted while a background job is
-queued. The worker sends its title and body to the configured OpenAI-compatible provider. You can point
-`REMENTUM_LLM_BASE_URL` at a local or on-premises engine (such as Ollama, vLLM, or LocalAI) or a cloud
-provider; any endpoint supporting Chat Completions with strict JSON Schema is supported. If using a cloud
-provider, review their retention, training, regional processing, and access policies before enabling it.
-A success becomes the article's next encrypted version; the submitted version remains in history and the
-provider's output never replaces the only copy. After three failures the submitted body stays
-canonical and the article shows a failed status; the worker's maintenance pass keeps requeueing
-failed articles, so failed content is sent to the provider again until compaction succeeds or the
-workspace turns it off. Turning workspace compaction off cancels queued jobs but cannot recall a
-request already in flight.
+Rementum stores submitted titles, one-sentence summaries, and bodies as they are. Nothing is
+generated, no article text is sent to an external model, and there is no AI provider to configure.
+The summary is searchable metadata and is not covered by article-body encryption.
 
 An agent connected over MCP can propose a brain invitation but never receives a link: the proposal
 waits on the brain page until an owner approves it in the browser, which is also where the link is

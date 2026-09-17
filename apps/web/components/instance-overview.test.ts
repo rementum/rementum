@@ -69,7 +69,6 @@ function overview(): InstanceOverview {
       webSessions: 9,
       mcpConnections: 11,
     },
-    compaction: { queued: 0, processing: 0, failed: 0 },
     storage: { databaseBytes: 52_428_800 },
     daily,
   };

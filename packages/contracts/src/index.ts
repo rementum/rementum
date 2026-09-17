@@ -41,16 +41,6 @@ export type WriteOperation = z.infer<typeof writeOperationSchema>;
 export const writeStatusSchema = z.enum(["pending", "promoted", "conflicted", "withdrawn"]);
 export type WriteStatus = z.infer<typeof writeStatusSchema>;
 
-export const compactionStateSchema = z.enum([
-  "disabled",
-  "not_compacted",
-  "queued",
-  "processing",
-  "compacted",
-  "failed",
-]);
-export type CompactionState = z.infer<typeof compactionStateSchema>;
-
 export const reviewQueueItemSchema = z.object({
   id: idSchema,
   brainId: idSchema,
@@ -117,15 +107,6 @@ export const articleSchema = articleSummarySchema.extend({
   sources: z.array(sourceSchema.extend({ id: idSchema })),
   verifiedAt: z.iso.datetime().nullable(),
   reviewAfter: z.iso.datetime().nullable(),
-  compaction: z.object({
-    enabled: z.boolean(),
-    available: z.boolean(),
-    status: compactionStateSchema,
-    attempts: z.number().int().nonnegative(),
-    error: z.string().nullable(),
-    compactedAt: z.iso.datetime().nullable(),
-    canRetry: z.boolean(),
-  }),
   provenance: z.object({
     actorId: idSchema,
     clientId: z.string().nullable(),
@@ -174,7 +155,6 @@ export const workspaceSchema = z.object({
   slug: slugSchema,
   name: z.string(),
   role: teamRoleSchema,
-  llmCompactionEnabled: z.boolean(),
   createdAt: z.iso.datetime(),
 });
 export type Workspace = z.infer<typeof workspaceSchema>;
@@ -194,14 +174,9 @@ export const createWorkspaceSchema = z.object({
 });
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
 
-export const updateWorkspaceSchema = z
-  .object({
-    name: z.string().trim().min(1).max(160).optional(),
-    llmCompactionEnabled: z.boolean().optional(),
-  })
-  .refine((value) => value.name !== undefined || value.llmCompactionEnabled !== undefined, {
-    message: "At least one workspace field is required",
-  });
+export const updateWorkspaceSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+});
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
 
 export const brainInvitationSchema = z.object({
@@ -223,18 +198,48 @@ export const createTeamInvitationSchema = z.object({
 });
 export type CreateTeamInvitationInput = z.infer<typeof createTeamInvitationSchema>;
 
+// The routing index other agents scan is a title and a summary per article and nothing
+// else, and nothing is generated on the server. These caps are deliberately tight: a model
+// writes to whatever limit it is given, and a schema rejection is obeyed where prose is not.
+export const ROUTING_SUMMARY_MAX_CHARS = 160;
+export const CHANGE_SUMMARY_MAX_CHARS = 200;
+
 export const stageWriteSchema = z
   .object({
     brainId: idSchema,
     operation: writeOperationSchema,
     articleId: idSchema.optional(),
     slug: slugSchema,
-    title: z.string().trim().min(1).max(240),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(240)
+      .describe(
+        "The specific subject, ideally under 60 characters. Agents pick articles from the title and summary alone.",
+      ),
+    summary: z
+      .string()
+      .trim()
+      .max(ROUTING_SUMMARY_MAX_CHARS)
+      .optional()
+      .describe(
+        `One sentence of at most ${ROUTING_SUMMARY_MAX_CHARS} characters stating what the article concludes, shown next to the title in the routing index. Nothing is generated: omit it and the article has no summary.`,
+      ),
     keywords: z.array(z.string().min(1).max(80)).max(40).default([]),
     kind: articleKindSchema.default("canonical"),
-    body: z.string().min(1).max(2_000_000),
+    body: z
+      .string()
+      .min(1)
+      .max(2_000_000)
+      .describe("Full Markdown body, stored exactly as written. Open with the conclusion."),
     baseVersion: z.number().int().positive().optional(),
-    changeSummary: z.string().min(1).max(500),
+    changeSummary: z
+      .string()
+      .trim()
+      .min(1)
+      .max(CHANGE_SUMMARY_MAX_CHARS)
+      .describe(`One line of at most ${CHANGE_SUMMARY_MAX_CHARS} characters saying what changed.`),
     sources: z.array(sourceSchema).max(100).default([]),
     acknowledgePotentialConflicts: z.boolean().default(false),
     idempotencyKey: z.string().min(8).max(200).optional(),
@@ -509,11 +514,6 @@ export const instanceOverviewSchema = z.object({
     activeClientsLast30Days: countSchema,
     webSessions: countSchema,
     mcpConnections: countSchema,
-  }),
-  compaction: z.object({
-    queued: countSchema,
-    processing: countSchema,
-    failed: countSchema,
   }),
   storage: z.object({
     databaseBytes: countSchema,

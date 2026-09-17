@@ -58,7 +58,7 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
       role: "owner",
       createdAt: "2026-08-27T10:00:00.000Z",
     })),
-    listWorkspaces: vi.fn(async () => [{ id: workspaceId, llmCompactionEnabled: false }]),
+    listWorkspaces: vi.fn(async () => [{ id: workspaceId }]),
     listBrains: vi.fn(async () => ({ items: [{ id: brainId }], total: 1 })),
     countArticlesByBrain: vi.fn(async () => [
       { brainId, articleCount: 2, latestArticleUpdatedAt: "2026-08-27T10:00:00.000Z" },
@@ -152,7 +152,6 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
     {
       REMENTUM_PUBLIC_URL: publicUrl,
       REMENTUM_ALLOW_SIGNUP: true,
-      REMENTUM_LLM_ENABLED: false,
       ...config,
     } as AppConfig,
     withMailer ? mailer : null,
@@ -701,24 +700,11 @@ describe("list pagination", () => {
 });
 
 describe("workspaces and connections", () => {
-  it("advertises the workspace MCP endpoint and whether compaction is available", async () => {
-    const off = await context.app.inject({ method: "GET", url: "/api/v1/workspaces" });
-    expect(off.json()).toEqual([
-      {
-        id: workspaceId,
-        llmCompactionEnabled: false,
-        llmCompactionAvailable: false,
-        mcpUrl: `${publicUrl}/mcp/workspace/${workspaceId}`,
-      },
+  it("advertises the workspace MCP endpoint", async () => {
+    const response = await context.app.inject({ method: "GET", url: "/api/v1/workspaces" });
+    expect(response.json()).toEqual([
+      { id: workspaceId, mcpUrl: `${publicUrl}/mcp/workspace/${workspaceId}` },
     ]);
-
-    const configured = await harness({
-      REMENTUM_LLM_ENABLED: true,
-      REMENTUM_LLM_BASE_URL: "https://provider.example.test/v1",
-      REMENTUM_LLM_MODEL: "a-model",
-    });
-    const on = await configured.app.inject({ method: "GET", url: "/api/v1/workspaces" });
-    expect(on.json()[0].llmCompactionAvailable).toBe(true);
   });
 
   it("approves a proposed invitation, mints the link, and revokes on request", async () => {

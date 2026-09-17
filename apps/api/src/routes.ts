@@ -48,9 +48,6 @@ export async function registerApiRoutes(
   mailer: TransactionalMailer | null,
 ): Promise<void> {
   const publicUrl = config.REMENTUM_PUBLIC_URL.replace(/\/$/, "");
-  const llmCompactionAvailable = Boolean(
-    config.REMENTUM_LLM_ENABLED && config.REMENTUM_LLM_BASE_URL && config.REMENTUM_LLM_MODEL,
-  );
   const authRateLimit = { config: { rateLimit: { max: 8, timeWindow: "1 minute" } } };
   // An archive is expanded in memory and an export decrypts a whole brain; neither is
   // something one client needs more than a few times a minute.
@@ -317,7 +314,6 @@ export async function registerApiRoutes(
     return workspaces.map((workspace) => ({
       ...workspace,
       mcpUrl: `${publicUrl}/mcp/workspace/${workspace.id}`,
-      llmCompactionAvailable,
     }));
   });
   app.get("/api/v1/workspaces/:workspaceId/analytics", async (request) => {
@@ -343,7 +339,6 @@ export async function registerApiRoutes(
     return workspaces.map((workspace) => ({
       ...workspace,
       mcpUrl: `${publicUrl}/mcp/workspace/${workspace.id}`,
-      llmCompactionAvailable,
     }));
   });
   app.post("/api/v1/teams/:teamId/workspaces", async (request, reply) => {
@@ -377,10 +372,6 @@ export async function registerApiRoutes(
       await authorize(request, "team:write"),
     );
     return reply.code(204).send();
-  });
-  app.post("/api/v1/workspaces/:workspaceId/compactions", async (request) => {
-    const { workspaceId } = z.object({ workspaceId: z.uuid() }).parse(request.params);
-    return service.queueWorkspaceCompactions(workspaceId, await authorize(request, "team:write"));
   });
   app.get("/api/v1/teams/:teamId/members", async (request) => {
     const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
@@ -509,14 +500,6 @@ export async function registerApiRoutes(
   app.get("/api/v1/articles/:articleId", async (request) => {
     const { articleId } = z.object({ articleId: z.uuid() }).parse(request.params);
     return service.readArticle(articleId, await authorize(request, "brain:read"));
-  });
-  app.get("/api/v1/articles/:articleId/compaction", async (request) => {
-    const { articleId } = z.object({ articleId: z.uuid() }).parse(request.params);
-    return service.getArticleCompaction(articleId, await authorize(request, "brain:read"));
-  });
-  app.post("/api/v1/articles/:articleId/compaction", async (request) => {
-    const { articleId } = z.object({ articleId: z.uuid() }).parse(request.params);
-    return service.queueArticleCompaction(articleId, await authorize(request, "brain:write"));
   });
   app.get("/api/v1/articles/:articleId/history", async (request) => {
     const { articleId } = z.object({ articleId: z.uuid() }).parse(request.params);
@@ -786,6 +769,7 @@ export async function registerApiRoutes(
         articleId: existing?.id,
         slug: document.slug,
         title: document.title,
+        ...(document.summary ? { summary: document.summary } : {}),
         keywords: document.keywords,
         kind: document.kind,
         body: document.body,

@@ -27,15 +27,3 @@ export class ConflictError extends DomainError {
     super("conflict", message, 409, detail);
   }
 }
-
-export class ArticleGenerationError extends DomainError {
-  constructor(message = "The configured LLM could not generate this article") {
-    super("llm_summary_failed", message, 502);
-  }
-}
-
-export class LlmUnavailableError extends DomainError {
-  constructor() {
-    super("llm_unavailable", "The external LLM provider is not configured", 409);
-  }
-}

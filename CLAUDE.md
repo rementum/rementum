@@ -10,7 +10,7 @@ protocol. pnpm workspace monorepo, TypeScript ESM everywhere, PostgreSQL + pgvec
 
 Application code is uniformly `@rementum/*` and `REMENTUM_*`, but the **schema layer predates that
 name**: the default database, the unprivileged app role, and every SQL function keep an `owl` prefix
-(`owl_app`, `owl_can_read_brain`, `owl_worker_claim_compaction`). Do not "fix" those names —
+(`owl_app`, `owl_can_read_brain`, `owl_worker_brains`). Do not "fix" those names —
 migrations are forward-only and a released one is never edited.
 
 ## Commands
@@ -57,7 +57,7 @@ higher with one — because the integration suites are half the code under measu
 ```
 apps/api         Fastify: REST /api/v1, OAuth provider (oidc-provider), MCP endpoint
 apps/web         Next.js 16 (App Router, RSC), Tailwind 4
-apps/worker      loop: maintenance scans, reindexing, LLM compaction jobs
+apps/worker      loop: maintenance scans, reindexing, OAuth record pruning
 apps/embeddings  local granite-embedding-97m-multilingual-r2 over @huggingface/transformers
 packages/contracts  Zod schemas — the single source of truth for REST, MCP tools, and web types
 packages/core       RementumService (all domain logic), crypto, imports, search ranking
@@ -111,23 +111,21 @@ The master key is never in the database or in backups.
 ### Staged write protocol
 
 `stage_write` → optional conflict acknowledgement → `promote_staged_write`. `stageWrite` verifies the
-target article actually belongs to the claimed brain, generates title/summary locally
-(`local-summary.ts`), encrypts under the write-scoped AAD, and returns potential conflicts that must
+target article actually belongs to the claimed brain, keeps the caller's title and optional one-sentence summary as given (nothing is
+derived from the body), encrypts under the write-scoped AAD, and returns potential conflicts that must
 be acknowledged before staging succeeds. `promoteStagedWrite` compares `base_version` against the
 article's `current_version` and flips the write to `conflicted` on a mismatch; only `decision:
 "override"` bypasses that, and the staging actor cannot approve their own override. Idempotency keys
 make re-staging safe.
 
-### Deferred compaction
+### No external model
 
-Off by default, and needs two switches: instance-level (`REMENTUM_LLM_*`) and per-workspace
-(`llmCompactionEnabled`). When on, promotion stores the submitted body encrypted and queues the
-version; the worker claims jobs through `owl_worker_claim_compaction`, sends title + body to the
-OpenAI-compatible provider **in plaintext**, and stores the compact result as the article's next
-version so the submitted version stays in history.
-After three failures the submitted body stays canonical and the article is marked failed. Changing
-anything here changes the documented security boundary in `README.md` and `docs/security.md` — update
-those in the same change.
+Rementum sends no article text to any AI provider and generates nothing: the routing summary is
+whatever `stage_write` received (optional, 160 characters at most) and bodies are stored as
+submitted. LLM compaction existed until migration 0024 and was removed
+because a model without the writing agent's context rewrote bodies lossily and every rewrite bumped
+`current_version`. Reintroducing any outbound model call changes the documented security boundary in
+`README.md`, `SECURITY.md`, and `docs/security.md` — update those in the same change.
 
 ### Search
 

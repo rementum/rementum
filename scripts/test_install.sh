@@ -73,15 +73,11 @@ chmod +x \
 "$fixture/scripts/install.sh" --help > "$fixture/help.txt"
 grep -Fq -- '--non-interactive' "$fixture/help.txt" \
   || fail "help does not document non-interactive mode"
-grep -Fq 'REMENTUM_INSTALL_LLM_ENABLED' "$fixture/help.txt" \
-  || fail "help does not document optional LLM mode"
 
 if PATH="$fixture/fake-bin:$PATH" \
   REMENTUM_INSTALL_TEST_LOG="$fixture/log" \
   REMENTUM_INSTALL_DOMAIN='memory.example.com' \
   REMENTUM_INSTALL_OWNER_EMAIL='owner@example.com' \
-  REMENTUM_INSTALL_LLM_BASE_URL='https://llm.example.com/v1' \
-  REMENTUM_INSTALL_LLM_MODEL='summary-model' \
   "$fixture/scripts/install.sh" --non-interactive \
   > "$fixture/missing.out" 2> "$fixture/missing.err"; then
   fail "missing owner password file was accepted"
@@ -91,17 +87,14 @@ grep -Fq 'Owner password file is required' "$fixture/missing.err" \
 [ ! -e "$fixture/.env" ] || fail "failed validation created .env"
 
 printf '%s\n' 'agent-owner-password' > "$fixture/owner-password"
-printf '%s\n' 'agent-llm-key' > "$fixture/llm-api-key"
 printf '%s\n' '0x4AAAAAAA-secret' > "$fixture/turnstile-secret"
-chmod 600 "$fixture/owner-password" "$fixture/llm-api-key" "$fixture/turnstile-secret"
+chmod 600 "$fixture/owner-password" "$fixture/turnstile-secret"
 
 if PATH="$fixture/fake-bin:$PATH" \
   REMENTUM_INSTALL_TEST_LOG="$fixture/log" \
   REMENTUM_INSTALL_DOMAIN='memory.example.com' \
   REMENTUM_INSTALL_OWNER_EMAIL='owner@example.com' \
   REMENTUM_INSTALL_OWNER_PASSWORD_FILE="$fixture/owner-password" \
-  REMENTUM_INSTALL_LLM_BASE_URL='https://llm.example.com/v1' \
-  REMENTUM_INSTALL_LLM_MODEL='summary-model' \
   REMENTUM_INSTALL_ALLOW_SIGNUP='true' \
   REMENTUM_INSTALL_MAIL_FROM='Rementum <rementum@example.com>' \
   "$fixture/scripts/install.sh" --non-interactive \
@@ -132,10 +125,6 @@ REMENTUM_INSTALL_DOMAIN='memory.example.com' \
 REMENTUM_INSTALL_OWNER_EMAIL='owner@example.com' \
 REMENTUM_INSTALL_OWNER_NAME='Agent Owner' \
 REMENTUM_INSTALL_OWNER_PASSWORD_FILE="$fixture/owner-password" \
-REMENTUM_INSTALL_LLM_ENABLED='true' \
-REMENTUM_INSTALL_LLM_BASE_URL='https://llm.example.com/v1' \
-REMENTUM_INSTALL_LLM_MODEL='summary-model' \
-REMENTUM_INSTALL_LLM_API_KEY_FILE="$fixture/llm-api-key" \
 REMENTUM_INSTALL_ALLOW_SIGNUP='false' \
 REMENTUM_INSTALL_TURNSTILE_SITE_KEY='0x4AAAAAAA-site' \
 REMENTUM_INSTALL_TURNSTILE_SECRET_KEY_FILE="$fixture/turnstile-secret" \
@@ -144,12 +133,6 @@ REMENTUM_INSTALL_TURNSTILE_SECRET_KEY_FILE="$fixture/turnstile-secret" \
 
 grep -Fq "REMENTUM_PUBLIC_URL='https://memory.example.com'" "$fixture/.env" \
   || fail "domain was not written"
-grep -Fq "REMENTUM_LLM_MODEL='summary-model'" "$fixture/.env" \
-  || fail "model was not written"
-grep -Fq "REMENTUM_LLM_ENABLED='true'" "$fixture/.env" \
-  || fail "external LLM mode was not enabled"
-grep -Fq "REMENTUM_LLM_API_KEY='agent-llm-key'" "$fixture/.env" \
-  || fail "API key file was not read"
 grep -Fq "REMENTUM_ALLOW_SIGNUP='false'" "$fixture/.env" \
   || fail "safe signup default was not written"
 grep -Fq "REMENTUM_TURNSTILE_SITE_KEY='0x4AAAAAAA-site'" "$fixture/.env" \
@@ -162,9 +145,6 @@ grep -Fxq 'agent-owner-password' "$fixture/log/owner-password" \
 
 if grep -Fq 'agent-owner-password' "$fixture/install.out" "$fixture/install.err"; then
   fail "owner password leaked to installer output"
-fi
-if grep -Fq 'agent-llm-key' "$fixture/install.out" "$fixture/install.err"; then
-  fail "LLM API key leaked to installer output"
 fi
 if grep -Fq '0x4AAAAAAA-secret' "$fixture/install.out" "$fixture/install.err"; then
   fail "Turnstile secret key leaked to installer output"
@@ -184,14 +164,6 @@ REMENTUM_INSTALL_OWNER_PASSWORD_FILE="$fixture/owner-password" \
 "$fixture/scripts/install.sh" --non-interactive \
   > "$fixture/local.out" 2> "$fixture/local.err"
 
-grep -Fq "REMENTUM_LLM_ENABLED='false'" "$fixture/.env" \
-  || fail "local summary mode was not enabled by default"
-grep -Fq "REMENTUM_LLM_BASE_URL=''" "$fixture/.env" \
-  || fail "local summary mode retained an LLM base URL"
-grep -Fq "REMENTUM_LLM_MODEL=''" "$fixture/.env" \
-  || fail "local summary mode retained an LLM model"
-grep -Fq "REMENTUM_LLM_API_KEY=''" "$fixture/.env" \
-  || fail "local summary mode retained an LLM API key"
 grep -Fq "REMENTUM_TURNSTILE_SITE_KEY=''" "$fixture/.env" \
   || fail "turnstile protection was not off by default"
 grep -Fq "REMENTUM_TURNSTILE_SECRET_KEY=''" "$fixture/.env" \

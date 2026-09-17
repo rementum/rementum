@@ -18,29 +18,6 @@ const configSchema = z
     REMENTUM_BLOB_DIR: z.string().default("./data/blobs"),
     REMENTUM_EXPORT_DIR: z.string().default("./data/exports"),
     REMENTUM_EMBEDDINGS_URL: z.url().default("http://localhost:8790"),
-    REMENTUM_LLM_ENABLED: z
-      .enum(["true", "false"])
-      .default("false")
-      .transform((value) => value === "true"),
-    REMENTUM_LLM_BASE_URL: z.preprocess(
-      (value) => (value === "" ? undefined : value),
-      z.url().optional(),
-    ),
-    REMENTUM_LLM_MODEL: z.preprocess(
-      (value) => (value === "" ? undefined : value),
-      z.string().min(1).optional(),
-    ),
-    REMENTUM_LLM_API_KEY: z.preprocess(
-      (value) => (value === "" ? undefined : value),
-      z.string().min(1).optional(),
-    ),
-    REMENTUM_LLM_REASONING_EFFORT: z.preprocess(
-      (value) => (value === "" ? undefined : value),
-      z.enum(["none", "minimal", "low", "medium", "high"]).optional(),
-    ),
-    REMENTUM_LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(45_000),
-    REMENTUM_LLM_MAX_INPUT_CHARS: z.coerce.number().int().min(8000).max(200_000).default(24_000),
-    REMENTUM_LLM_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
     REMENTUM_RESEND_API_KEY: z.preprocess(
       (value) => (value === "" ? undefined : value),
       z.string().min(1).optional(),
@@ -77,20 +54,6 @@ const configSchema = z
     REMENTUM_TRUSTED_PROXIES: z.string().default("loopback,uniquelocal"),
   })
   .superRefine((value, ctx) => {
-    if (value.REMENTUM_LLM_ENABLED && !value.REMENTUM_LLM_BASE_URL) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["REMENTUM_LLM_BASE_URL"],
-        message: "An OpenAI-compatible API base URL is required when LLM generation is enabled",
-      });
-    }
-    if (value.REMENTUM_LLM_ENABLED && !value.REMENTUM_LLM_MODEL) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["REMENTUM_LLM_MODEL"],
-        message: "A model name is required when LLM generation is enabled",
-      });
-    }
     if (value.NODE_ENV === "production" && value.REMENTUM_DEV_AUTH) {
       ctx.addIssue({
         code: "custom",

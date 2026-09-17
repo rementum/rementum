@@ -299,8 +299,6 @@ export function WorkspaceManagement({
   name,
   slug,
   mcpUrl,
-  llmCompactionEnabled,
-  llmCompactionAvailable,
   canRename,
   canDelete,
 }: {
@@ -308,8 +306,6 @@ export function WorkspaceManagement({
   name: string;
   slug: string;
   mcpUrl: string;
-  llmCompactionEnabled: boolean;
-  llmCompactionAvailable: boolean;
   canRename: boolean;
   canDelete: boolean;
 }) {
@@ -317,9 +313,7 @@ export function WorkspaceManagement({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const [compacting, setCompacting] = useState(false);
 
   async function rename(formData: FormData) {
     setBusy(true);
@@ -343,39 +337,6 @@ export function WorkspaceManagement({
       // Close eagerly: router.refresh() re-enables the confirm button before the
       // deleted row unmounts, which would invite a doomed second delete.
       setDeleting(false);
-      router.refresh();
-    } catch (value) {
-      setError((value as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function toggleCompaction() {
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      await bridge(`/workspaces/${workspaceId}`, "PATCH", {
-        llmCompactionEnabled: !llmCompactionEnabled,
-      });
-      router.refresh();
-    } catch (value) {
-      setError((value as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmCompact() {
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await bridge(`/workspaces/${workspaceId}/compactions`, "POST");
-      // Close before showing the notice, which renders behind the dialog overlay.
-      setCompacting(false);
-      setNotice(`${result.queued} article${result.queued === 1 ? "" : "s"} queued.`);
       router.refresh();
     } catch (value) {
       setError((value as Error).message);
@@ -437,52 +398,7 @@ export function WorkspaceManagement({
           </Button>
         </form>
       ) : null}
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-control border border-line p-3">
-        <div className="min-w-0 flex-1 basis-64">
-          <p className="font-mono text-2xs font-semibold uppercase tracking-[0.08em] text-ink-3">
-            LLM compaction
-          </p>
-          <p className="mt-1 text-xs text-ink-2">
-            {llmCompactionEnabled
-              ? "New article versions are compacted in the background. Turning this off cancels queued work; a provider request already in flight cannot be recalled."
-              : "Off. Titles and bodies stay as submitted and never go to the external LLM."}
-          </p>
-          {!llmCompactionAvailable ? (
-            <small className="mt-1 block text-2xs text-ink-3">
-              Configure the instance LLM provider before enabling compaction.
-            </small>
-          ) : null}
-        </div>
-        {canRename ? (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              disabled={busy || (!llmCompactionAvailable && !llmCompactionEnabled)}
-              onClick={toggleCompaction}
-            >
-              {llmCompactionEnabled ? "Turn off" : "Turn on"}
-            </Button>
-            {llmCompactionEnabled ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setError("");
-                  setCompacting(true);
-                }}
-              >
-                Compact existing
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
       <WorkspaceMcpLink url={mcpUrl} />
-      {notice ? <p className="text-xs text-green">{notice}</p> : null}
       {error ? <p className="text-xs text-red">{error}</p> : null}
       <ConfirmDialog
         open={deleting}
@@ -494,16 +410,6 @@ export function WorkspaceManagement({
         expectedName={name}
         onConfirm={confirmDelete}
         onCancel={() => setDeleting(false)}
-      />
-      <ConfirmDialog
-        open={compacting}
-        title="Compact existing articles"
-        description="Queue the current version of every uncompacted article in this workspace? Each body will be sent to the configured LLM provider."
-        confirmLabel="Queue compaction"
-        busy={busy}
-        error={error}
-        onConfirm={() => confirmCompact()}
-        onCancel={() => setCompacting(false)}
       />
     </article>
   );

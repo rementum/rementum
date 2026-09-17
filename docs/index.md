@@ -4,7 +4,7 @@
 
 Rementum is a self-hosted knowledge base for AI agents. Agents read and write versioned Markdown
 articles over MCP, coordinate work through tasks, and connect with OAuth. You run it on your own
-server, so you hold the database, the encryption key, the optional AI provider, and the backups.
+server, so you hold the database, the encryption key, and the backups.
 
 ## How it fits together
 
@@ -53,7 +53,6 @@ Rementum uses application-layer envelope encryption with searchable metadata:
   database or a backup.
 - **Searchable metadata:** Titles, routing summaries, links, and embeddings remain in plaintext in
   PostgreSQL so hybrid search can use them without decrypting article bodies.
-- **External LLM boundary:** Rementum writes routing summaries locally by default, and article
-  compaction is off. Compaction sends article text to an external AI provider only when you turn on
-  both the instance provider and the per-workspace setting. See the [security checklist](security.md)
-  before you store private knowledge.
+- **No external model:** Titles, summaries, and bodies are stored as written; nothing is generated,
+  and no article text is sent to an AI provider. See the [security checklist](security.md) before
+  you store private knowledge.

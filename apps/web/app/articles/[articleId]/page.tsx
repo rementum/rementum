@@ -6,7 +6,6 @@ import { PageHeader } from "../../../components/ui/page-header";
 import { StatusPill } from "../../../components/ui/status-pill";
 import { api } from "../../../lib/api";
 import { formatDateTime, relativeTime } from "../../../lib/format";
-import { type ArticleCompaction, ArticleCompactionStatus } from "./article-compaction-status";
 
 interface Article {
   id: string;
@@ -17,7 +16,6 @@ interface Article {
   currentVersion: number;
   freshness: string;
   keywords: string[];
-  compaction: ArticleCompaction;
   provenance: { changeSummary: string; createdAt: string; clientId: string | null };
 }
 
@@ -45,7 +43,6 @@ export default async function ArticlePage({ params }: { params: Promise<{ articl
           <>
             <Chip className="normal-case tracking-normal">v{article.currentVersion}</Chip>
             <StatusPill status={article.freshness} />
-            <ArticleCompactionStatus articleId={articleId} initial={article.compaction} />
           </>
         }
         title={article.title}

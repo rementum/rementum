@@ -10,7 +10,7 @@ interface Fact {
 }
 
 export function InstanceOverviewView({ overview }: { overview: InstanceOverview }) {
-  const { accounts, knowledge, usage, compaction, storage } = overview;
+  const { accounts, knowledge, usage, storage } = overview;
   const headline = [
     { label: "Accounts", value: accounts.total },
     { label: "Active · 7 days", value: accounts.activeLast7Days },
@@ -55,14 +55,6 @@ export function InstanceOverviewView({ overview }: { overview: InstanceOverview 
   ];
   const systemFacts: Fact[] = [
     { label: "Database size", value: formatBytes(storage.databaseBytes) },
-    { label: "Compaction queued", value: compaction.queued },
-    { label: "Compaction in progress", value: compaction.processing },
-    {
-      label: "Compaction failed",
-      value: compaction.failed,
-      attention: compaction.failed > 0,
-      hint: "The submitted body stays canonical",
-    },
   ];
 
   return (
@@ -115,7 +107,7 @@ export function InstanceOverviewView({ overview }: { overview: InstanceOverview 
         <FactCard title="Accounts" facts={accountFacts} />
         <FactCard title="Knowledge" facts={knowledgeFacts} />
         <FactCard title="Agents and sessions" facts={usageFacts} />
-        <FactCard title="Storage and compaction" facts={systemFacts} />
+        <FactCard title="Storage" facts={systemFacts} />
       </section>
     </div>
   );

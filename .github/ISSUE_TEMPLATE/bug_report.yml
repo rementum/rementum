@@ -31,7 +31,7 @@ body:
         - API
         - Web app
         - MCP endpoint
-        - Worker or compaction
+        - Worker
         - Search or embeddings
         - Database or migrations
         - Deployment, Compose, or installer

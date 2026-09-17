@@ -43,7 +43,7 @@ describe("agent plugin distribution", () => {
       $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       name: "rementum",
     });
-    expect(new Set([codex.version, claude.version, portable.version])).toEqual(new Set(["0.3.0"]));
+    expect(new Set([codex.version, claude.version, portable.version])).toEqual(new Set(["0.4.0"]));
   });
 
   it("publishes host marketplaces that resolve the shared plugin", () => {
@@ -72,7 +72,7 @@ describe("agent plugin distribution", () => {
           name: "rementum",
           displayName: pluginDisplayName,
           source: "plugins/rementum",
-          version: "0.3.0",
+          version: "0.4.0",
         },
       ],
     });

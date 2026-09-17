@@ -53,7 +53,7 @@ pnpm dev
 | --- | --- |
 | `apps/api` | Fastify REST API, OAuth provider, and the MCP endpoint |
 | `apps/web` | Next.js app |
-| `apps/worker` | Background compaction worker |
+| `apps/worker` | Background maintenance worker: reindexing and pruning |
 | `apps/embeddings` | Local embedding service |
 | `packages/contracts` | Zod schemas shared by the API, MCP tools, and the web app |
 | `packages/core` | Domain service, encryption, imports, and search ranking |

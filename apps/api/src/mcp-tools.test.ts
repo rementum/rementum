@@ -27,15 +27,6 @@ function articleResult(id = articleId, slug = "architecture", body = "# Architec
     sources: [],
     verifiedAt: null,
     reviewAfter: null,
-    compaction: {
-      enabled: false,
-      available: false,
-      status: "not_requested" as const,
-      attempts: 0,
-      error: null,
-      compactedAt: null,
-      canRetry: false,
-    },
     provenance: {
       actorId: "00000000-0000-4000-8000-000000000009",
       clientId: "test-client",

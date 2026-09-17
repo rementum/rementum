@@ -70,13 +70,10 @@ describe("parseMarkdownDocument", () => {
     expect(parseMarkdownDocument("Body only.", "Fallback").title).toBe("Fallback");
   });
 
-  it("summarises from the first paragraph that is not a heading", () => {
+  it("derives no summary from the body", () => {
     const parsed = parseMarkdownDocument("# Title\n\n## Sub\n\nThe first real paragraph.", "F");
-    expect(parsed.summary).toBe("The first real paragraph.");
-  });
-
-  it("uses the title as the summary when there is no prose", () => {
-    expect(parseMarkdownDocument("# Only a heading", "F").summary).toBe("Only a heading");
+    expect(parsed.summary).toBeUndefined();
+    expect(parseMarkdownDocument("# Only a heading", "F").summary).toBeUndefined();
   });
 
   it("accepts tags as a list or as a separated string", () => {

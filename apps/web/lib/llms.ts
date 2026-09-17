@@ -7,7 +7,7 @@ const DOCS_BASE_URL = `${SITE_URL}/docs`;
 const SUMMARY =
   "Rementum is a self-hosted, open-source memory layer for AI agents. Agents read and write " +
   "versioned Markdown articles over MCP, coordinate through tasks, and connect with OAuth. You run " +
-  "it on your own server and hold the database, encryption key, optional AI provider, and backups.";
+  "it on your own server and hold the database, encryption key, and backups.";
 
 // Ordered to match the MkDocs nav. `path` is the page URL under /docs; `blurb` is the one-line
 // index entry (kept here so every entry reads well, since some pages open straight into a heading).
@@ -31,7 +31,7 @@ export const PAGES = [
     title: "Configure",
     path: "/configuration/",
     blurb:
-      "Every .env setting: public endpoint and auth, bot protection, article generation and compaction, email, and storage and search.",
+      "Every .env setting: public endpoint and auth, bot protection, article generation, email, and storage and search.",
   },
   {
     file: "operations.md",
@@ -59,7 +59,7 @@ export const PAGES = [
     title: "Architecture and FAQ",
     path: "/faq/",
     blurb:
-      "Design decisions and trade-offs: Git vs Rementum, Postgres vs SQLite, token efficiency, AGPL-3.0 licensing, and local LLM compaction.",
+      "Design decisions and trade-offs: Git vs Rementum, Postgres vs SQLite, token efficiency, AGPL-3.0 licensing, and privacy.",
   },
   {
     file: "brand.md",

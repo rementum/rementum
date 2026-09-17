@@ -34,7 +34,6 @@ export interface InstanceOverview {
     webSessions: number;
     mcpConnections: number;
   };
-  compaction: { queued: number; processing: number; failed: number };
   storage: { databaseBytes: number };
   daily: Array<{ date: string; signups: number; calls: number }>;
 }
