@@ -49,10 +49,9 @@ Rementum implements **application-layer envelope encryption with searchable meta
 
 ## Article generation mode
 
-Rementum keeps submitted titles and bodies as they are and derives the one-sentence routing summary
-inside the API process. No article text is sent to an external model, and there is no AI provider
-to configure. The derived summary is searchable metadata and is not covered by article-body
-encryption.
+Rementum stores submitted titles, one-sentence summaries, and bodies as they are. Nothing is
+generated, no article text is sent to an external model, and there is no AI provider to configure.
+The summary is searchable metadata and is not covered by article-body encryption.
 
 An agent connected over MCP can propose a brain invitation but never receives a link: the proposal
 waits on the brain page until an owner approves it in the browser, which is also where the link is

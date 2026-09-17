@@ -769,6 +769,7 @@ export async function registerApiRoutes(
         articleId: existing?.id,
         slug: document.slug,
         title: document.title,
+        ...(document.summary ? { summary: document.summary } : {}),
         keywords: document.keywords,
         kind: document.kind,
         body: document.body,

@@ -28,7 +28,6 @@ import {
   wrapDataKey,
 } from "./crypto.js";
 import { ConflictError, DomainError, ForbiddenError, NotFoundError } from "./errors.js";
-import { createLocalSummary } from "./local-summary.js";
 import { slugify, splitMarkdownByHeading } from "./markdown.js";
 import { rankBrains } from "./search.js";
 import type {
@@ -453,7 +452,9 @@ export class RementumService {
       input.operation === "append"
         ? `${(await this.readArticle(articleId, actor)).body.trimEnd()}\n\n${input.body.trimStart()}`
         : input.body;
-    const summary = createLocalSummary({ title: input.title, body: bodyText });
+    // Nothing is derived from the body. The summary is whatever the caller wrote, and an
+    // article without one simply has none; a first sentence made a poor routing entry.
+    const summary = input.summary ?? "";
     const resolvedInput: ResolvedStageWriteInput = { ...input, summary, body: bodyText };
     const body = encrypt(bodyText, key, bodyAad);
     const potentialConflicts = await this.store.findPotentialConflicts(

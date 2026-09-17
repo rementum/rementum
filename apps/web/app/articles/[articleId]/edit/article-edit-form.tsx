@@ -10,6 +10,7 @@ interface Article {
   brainId: string;
   slug: string;
   title: string;
+  summary: string;
   body: string;
   kind: "canonical" | "log";
   keywords: string[];
@@ -32,6 +33,7 @@ export function ArticleEditForm({ article }: { article: Article }) {
         operation: "update",
         slug: article.slug,
         title: formData.get("title"),
+        summary: String(formData.get("summary") ?? "").trim() || undefined,
         keywords: String(formData.get("keywords") ?? "")
           .split(",")
           .map((value) => value.trim())
@@ -75,9 +77,19 @@ export function ArticleEditForm({ article }: { article: Article }) {
           maxLength={240}
         />
       </Field>
+      <Field label="Routing summary" htmlFor="article-edit-summary">
+        <input
+          id="article-edit-summary"
+          className={fieldControlClass}
+          name="summary"
+          defaultValue={article.summary}
+          maxLength={160}
+          placeholder="One sentence saying what this article concludes"
+        />
+      </Field>
       <p className="rounded-control border border-dashed border-line bg-inset/50 p-3 text-xs text-ink-2">
-        Staging preserves this title and body exactly as written and derives a local routing
-        summary. No external model is involved.
+        Staging stores the title, summary, and body exactly as written. Nothing is generated: an
+        empty summary stays empty, and agents choose articles from the title and summary alone.
       </p>
       <Field label="Keywords" htmlFor="article-edit-keywords">
         <input
@@ -103,7 +115,7 @@ export function ArticleEditForm({ article }: { article: Article }) {
           className={fieldControlClass}
           name="changeSummary"
           required
-          maxLength={500}
+          maxLength={200}
         />
       </Field>
       {error ? (

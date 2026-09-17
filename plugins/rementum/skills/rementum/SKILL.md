@@ -23,8 +23,14 @@ durable knowledge; exclude progress, drafts, raw logs, and secrets.
 
 - Use the routing index to find the canonical article. Before editing, read its current body and
   retain its article id and version. Integrate the new information; use append only for log articles.
-- Call `stage_write` with the body, change summary, sources, and `baseVersion` for edits. Rementum
-  creates the routing summary. Reuse the same idempotency key when retrying an unchanged write.
+- Write for the index. Other agents choose articles from the title and summary alone, so both must
+  be specific. Title: the subject in under 60 characters, no dates unless the date is the subject.
+  `summary`: one sentence under 160 characters stating what the article concludes, never what it
+  is about; do not open with "This article documents" or restate the title. `changeSummary`: one
+  line about what changed. Start the body with the conclusion and put context after it. Nothing is
+  generated for you: an omitted summary stays empty.
+- Call `stage_write` with the title, summary, body, change summary, sources, and `baseVersion` for
+  edits. Reuse the same idempotency key when retrying an unchanged write.
 - Call `promote_staged_write` for a normal pending write with no potential conflicts. If promotion
   reports a version mismatch, re-read the article, reconcile the changes, and stage a fresh write.
   Ask before acknowledging potential conflicts or approving exceptions or overrides; an override

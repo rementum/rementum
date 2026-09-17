@@ -249,7 +249,7 @@ export function createMcpServer(
     {
       title: "Read a brain routing index",
       description:
-        "Reads one bounded page of brain instructions and routing metadata. Continue with nextCursor when hasMore is true.",
+        "Reads one bounded page of brain instructions and routing metadata. Every entry is a title and a one-sentence summary and nothing else, so choose the article to open from those. Continue with nextCursor when hasMore is true.",
       inputSchema: z.object({
         brainId: z.uuid(),
         limit: z.number().int().min(1).max(100).default(25),
@@ -326,7 +326,7 @@ export function createMcpServer(
     {
       title: "Stage an article write",
       description:
-        "Use when work produced a durable decision, correction, convention, or gotcha worth keeping across sessions. Stages a create, full canonical update, or log append. Rementum preserves the submitted title and body and derives a local routing summary; no external model is involved. Read the current article first and pass its version for edits.",
+        "Use when work produced a durable decision, correction, convention, or gotcha worth keeping across sessions. Stages a create, full canonical update, or log append. The body is stored exactly as written and nothing is generated for you: give a specific title and a one-sentence summary, because the routing index other agents scan is made of those two fields alone. Read the current article first and pass its version for edits.",
       inputSchema: stageWriteSchema,
       annotations: write,
     },

@@ -1,6 +1,10 @@
 import path from "node:path";
 import { crc32 } from "node:zlib";
-import type { ArticleKind, ImportPreview } from "@rementum/contracts";
+import {
+  type ArticleKind,
+  type ImportPreview,
+  ROUTING_SUMMARY_MAX_CHARS,
+} from "@rementum/contracts";
 import JSZip from "jszip";
 import { DomainError } from "./errors.js";
 import { parseMarkdownDocument, slugify } from "./markdown.js";
@@ -15,6 +19,8 @@ export interface ImportLimits {
 export interface ImportDocument {
   path: string;
   title: string;
+  /** Only when the front matter stated one; nothing is derived from the body. */
+  summary?: string;
   slug: string;
   kind: ArticleKind;
   keywords: string[];
@@ -119,6 +125,11 @@ export async function inspectMarkdownArchive(
     documents.push({
       path: safePath,
       title: parsed.title,
+      // A stated summary longer than the write contract allows is clipped rather than
+      // failing the whole archive over one front-matter field.
+      ...(parsed.summary
+        ? { summary: parsed.summary.slice(0, ROUTING_SUMMARY_MAX_CHARS).trim() }
+        : {}),
       slug: slugify(parsed.title),
       kind,
       keywords: parsed.tags,

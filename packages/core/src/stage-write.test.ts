@@ -75,23 +75,23 @@ function createInput() {
 }
 
 describe("staging", () => {
-  it("stages the submitted title and body with a locally derived routing summary", async () => {
+  it("stages the submitted title and body and derives nothing for an omitted summary", async () => {
     const { brainRecord, service, store } = setup();
     await expect(service.stageWrite(createInput(), actor)).resolves.toMatchObject({
       title: "Architecture",
-      summary: "Canonical body",
+      summary: "",
     });
     expect(store.findPotentialConflicts).toHaveBeenCalledWith(
       brainId,
       undefined,
       "Architecture",
-      "Canonical body",
+      "",
       actor,
     );
     expect(store.createStagedWrite).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Architecture",
-        summary: "Canonical body",
+        summary: "",
         body: "Canonical body",
       }),
       actor,
@@ -107,6 +107,20 @@ describe("staging", () => {
     const key = unwrapDataKey(brainRecord.wrappedKey, masterKey, brainRecord.id);
     expect(decrypt(call[4], key, call[5]).toString("utf8")).toBe("Canonical body");
     expect(call[6]).toBe(hashContent("Canonical body"));
+  });
+
+  it("keeps the caller's summary exactly as given", async () => {
+    const { service, store } = setup();
+    await expect(
+      service.stageWrite({ ...createInput(), summary: "Keeps the core package portable." }, actor),
+    ).resolves.toMatchObject({ summary: "Keeps the core package portable." });
+    expect(store.findPotentialConflicts).toHaveBeenCalledWith(
+      brainId,
+      undefined,
+      "Architecture",
+      "Keeps the core package portable.",
+      actor,
+    );
   });
 
   it("stages the complete resulting body for appends", async () => {

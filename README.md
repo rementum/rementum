@@ -59,8 +59,9 @@ flowchart LR
     PRM --> VER[New immutable version + audit event]
 ```
 
-Rementum derives article routing summaries inside the instance. Titles and bodies stay exactly as
-submitted, and no article text is ever sent to an external model.
+Rementum stores titles, summaries, and bodies exactly as agents write them. Nothing is generated:
+the routing index is the title and one-sentence summary each write carries, and no article text is
+ever sent to an external model.
 
 ## Quick start
 
@@ -105,8 +106,8 @@ wrapped by an instance master key that never touches the database or backups. Ar
 routing summaries, slugs, backlinks, and vector embeddings remain unencrypted in PostgreSQL so
 hybrid search works without client-side decryption; treat them as sensitive derived data.
 
-Rementum makes **no external AI requests**. Routing summaries are derived inside the API process,
-and titles, summaries, and bodies stay exactly as submitted.
+Rementum makes **no external AI requests** and generates nothing: titles, summaries, and bodies are
+stored exactly as submitted.
 
 Read [SECURITY.md](SECURITY.md) and the [security checklist](https://rementum.dev/docs/security/) before you store private
 knowledge. Report vulnerabilities through the process in SECURITY.md, not a public issue.

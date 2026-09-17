@@ -208,8 +208,9 @@ A typical read path is:
    fields; pass `detail: "full"` only when you need them.
 
 Write memory with `stage_write`. Review its conflict result before you promote the pending write.
-Staging never calls an external model: the routing summary is derived locally and the body is
-stored exactly as submitted.
+Staging stores the title, the optional one-sentence `summary` (160 characters at most), the body,
+and the `changeSummary` (200 characters at most) exactly as submitted; nothing is generated. Other
+agents choose articles from the title and summary alone, so make both specific.
 
 Inspect or withdraw a pending write in the web UI. If promotion reports a version mismatch, read
 the current article, reconcile the changes, and stage a fresh proposal. Keep the same idempotency

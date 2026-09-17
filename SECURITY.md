@@ -16,8 +16,8 @@ Until 1.0, only the most recent release receives security fixes.
 - The root wrapping key is supplied as `REMENTUM_MASTER_KEY` and never persisted or backed up.
 - OAuth access tokens are audience restricted and short lived; refresh tokens rotate.
 - Agent writes never bypass the staged-write and promotion protocol.
-- No article content is sent to any external AI provider. Routing summaries are derived inside
-  the API process, and titles and bodies stay exactly as submitted.
+- No article content is sent to any external AI provider, and nothing is generated: titles,
+  summaries, and bodies are stored exactly as submitted.
 - The API and worker containers of the reference stack never receive the PostgreSQL superuser
   credentials; only the migration, backup, and restore services do.
 

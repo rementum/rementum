@@ -53,5 +53,6 @@ Rementum uses application-layer envelope encryption with searchable metadata:
   database or a backup.
 - **Searchable metadata:** Titles, routing summaries, links, and embeddings remain in plaintext in
   PostgreSQL so hybrid search can use them without decrypting article bodies.
-- **No external model:** Rementum derives routing summaries locally and never sends article text
-  to an AI provider. See the [security checklist](security.md) before you store private knowledge.
+- **No external model:** Titles, summaries, and bodies are stored as written; nothing is generated,
+  and no article text is sent to an AI provider. See the [security checklist](security.md) before
+  you store private knowledge.

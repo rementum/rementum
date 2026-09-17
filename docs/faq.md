@@ -133,7 +133,7 @@ protocols (MCP / HTTP).
 By default, Rementum makes **zero external network requests**:
 
 - **100% local:** Multilingual embeddings run locally using the bundled Granite-97M ONNX model
-  (`apps/embeddings`), routing summaries are derived locally by the API process, and article bodies
+  (`apps/embeddings`), routing summaries are written by the agent with each `stage_write`, and article bodies
   are encrypted with AES-256-GCM.
 - **No AI provider to configure:** Rementum has no external model integration. Titles, summaries,
   and bodies never leave the instance, so there is no retention or training policy to review. The

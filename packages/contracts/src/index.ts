@@ -198,18 +198,48 @@ export const createTeamInvitationSchema = z.object({
 });
 export type CreateTeamInvitationInput = z.infer<typeof createTeamInvitationSchema>;
 
+// The routing index other agents scan is a title and a summary per article and nothing
+// else, and nothing is generated on the server. These caps are deliberately tight: a model
+// writes to whatever limit it is given, and a schema rejection is obeyed where prose is not.
+export const ROUTING_SUMMARY_MAX_CHARS = 160;
+export const CHANGE_SUMMARY_MAX_CHARS = 200;
+
 export const stageWriteSchema = z
   .object({
     brainId: idSchema,
     operation: writeOperationSchema,
     articleId: idSchema.optional(),
     slug: slugSchema,
-    title: z.string().trim().min(1).max(240),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(240)
+      .describe(
+        "The specific subject, ideally under 60 characters. Agents pick articles from the title and summary alone.",
+      ),
+    summary: z
+      .string()
+      .trim()
+      .max(ROUTING_SUMMARY_MAX_CHARS)
+      .optional()
+      .describe(
+        `One sentence of at most ${ROUTING_SUMMARY_MAX_CHARS} characters stating what the article concludes, shown next to the title in the routing index. Nothing is generated: omit it and the article has no summary.`,
+      ),
     keywords: z.array(z.string().min(1).max(80)).max(40).default([]),
     kind: articleKindSchema.default("canonical"),
-    body: z.string().min(1).max(2_000_000),
+    body: z
+      .string()
+      .min(1)
+      .max(2_000_000)
+      .describe("Full Markdown body, stored exactly as written. Open with the conclusion."),
     baseVersion: z.number().int().positive().optional(),
-    changeSummary: z.string().min(1).max(500),
+    changeSummary: z
+      .string()
+      .trim()
+      .min(1)
+      .max(CHANGE_SUMMARY_MAX_CHARS)
+      .describe(`One line of at most ${CHANGE_SUMMARY_MAX_CHARS} characters saying what changed.`),
     sources: z.array(sourceSchema).max(100).default([]),
     acknowledgePotentialConflicts: z.boolean().default(false),
     idempotencyKey: z.string().min(8).max(200).optional(),

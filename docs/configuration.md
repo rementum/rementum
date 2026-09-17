@@ -50,9 +50,9 @@ grant for a client, workspace, or expanded scope set still requires an explicit 
 
 ## Article generation
 
-Rementum derives each article's one-sentence routing summary inside the API process and keeps the
-submitted title and body exactly as written. There is no external model to configure: staging,
-conflict checks, routing, and search all work without any request leaving the instance.
+Rementum stores each article's title, optional one-sentence summary, and body exactly as
+submitted. Nothing is generated and there is no external model to configure: staging, conflict
+checks, routing, and search all work without any request leaving the instance.
 
 ## Email
 

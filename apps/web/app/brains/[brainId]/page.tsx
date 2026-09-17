@@ -162,7 +162,9 @@ export default async function BrainPage({
                       </span>
                       <div className="min-w-0 flex-1">
                         <h2 className="truncate text-sm font-medium text-ink">{article.title}</h2>
-                        <p className="line-clamp-1 text-xs text-ink-2">{article.summary}</p>
+                        {article.summary ? (
+                          <p className="line-clamp-1 text-xs text-ink-2">{article.summary}</p>
+                        ) : null}
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
                         <StatusPill status={article.freshness} />
