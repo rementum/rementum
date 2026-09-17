@@ -259,7 +259,7 @@
       "Veriniz sunucunuzda kalır; anahtar hiçbir zaman dışarı çıkmaz",
       "Sınırsız brain, çalışma alanı, ajan ve sürüm",
       "Denetlemek, çatallamak ve geliştirmek için AGPL-3.0 kapsamında tam kaynak",
-      "Kendi yapay zeka sağlayıcınızı getirin ya da yalnızca yerel modellerle çalışın"
+      "Yalnızca yerel modellerle çalışır; harici yapay zeka sağlayıcısı gerekmez"
     ],
     "considerations": [
       "Linux sunucusunu, alan adını ve 80 ile 443 portlarını siz sağlarsınız",
@@ -270,7 +270,7 @@
     "intro": "Rementum'u kendi sunucunuzda çalıştırın. Kaynağın tamamı incelemeniz, değiştirmeniz ve self-host etmeniz için sizindir; ücretli katman veya koltuk başına ödeme yok.",
     "included": "Dahil",
     "includedA": "Sınırsız brain, çalışma alanı, ajan ve sürüm. Kullanım kotası veya ücretli özellik yok.",
-    "includedB": "Varsayılan olarak yerel modeller, sıkıştırma için isteğe bağlı yapay zeka sağlayıcısı.",
+    "includedB": "Yalnızca yerel modeller; harici yapay zeka sağlayıcısı yok.",
     "inYourHands": "Sizin elinizde",
     "handsNote": "Bir Linux sunucusu, bir alan adı ve 80 ile 443 portları. Güncellemeleri, şifreli yedekleri, geçişleri ve kapasiteyi siz yönetirsiniz."
   },

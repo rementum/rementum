@@ -128,17 +128,13 @@ protocols (MCP / HTTP).
   modify Rementum itself and provide it as a public network service to third parties, those
   modifications must remain open source.
 
-### Is Rementum truly local and private? What about external LLM compaction?
+### Is Rementum truly local and private?
 
 By default, Rementum makes **zero external network requests**:
 
-- **100% local by default:** Multilingual embeddings run locally using the bundled Granite-97M ONNX
-  model (`apps/embeddings`), routing summaries are generated locally by the API process, and article
-  bodies are encrypted with AES-256-GCM.
-- **Double opt-in for compaction:** Deferred title and body compaction is disabled by default. It
-  requires an instance-level provider configuration (`REMENTUM_LLM_ENABLED=true`) *and* explicit
-  per-workspace activation by a workspace owner or admin.
-- **Works with local engines (Ollama, vLLM, LocalAI):** The compaction worker connects to any
-  OpenAI-compatible Chat Completions endpoint with JSON Schema support. You can point
-  `REMENTUM_LLM_BASE_URL` to a local Ollama or vLLM instance for a completely air-gapped, zero-cloud
-  deployment.
+- **100% local:** Multilingual embeddings run locally using the bundled Granite-97M ONNX model
+  (`apps/embeddings`), routing summaries are derived locally by the API process, and article bodies
+  are encrypted with AES-256-GCM.
+- **No AI provider to configure:** Rementum has no external model integration. Titles, summaries,
+  and bodies never leave the instance, so there is no retention or training policy to review. The
+  only optional outbound calls are transactional email and Cloudflare Turnstile, both off by default.

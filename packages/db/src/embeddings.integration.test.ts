@@ -194,7 +194,6 @@ integration("vector candidate ranking", () => {
         await store.promoteStagedWrite(
           { writeId, decision: "promote", decisionSummary: "seed" },
           ownerActor,
-          false,
           (_write, version) => ({
             body: encrypt(body, key, contentAad(record.id, articleId, version)),
             bodyAad: contentAad(record.id, articleId, version),

@@ -57,11 +57,10 @@ flowchart LR
     CHK -->|no| PRK[Parked as a conflict]
     PRK -->|reviewer resolves| PRM
     PRM --> VER[New immutable version + audit event]
-    VER -.->|opt-in| CMP[Worker compacts title, summary, body]
 ```
 
-Rementum writes article summaries locally by default. Workspace owners can opt into deferred title,
-summary, and body compaction through an OpenAI-compatible provider.
+Rementum derives article routing summaries inside the instance. Titles and bodies stay exactly as
+submitted, and no article text is ever sent to an external model.
 
 ## Quick start
 
@@ -106,15 +105,15 @@ wrapped by an instance master key that never touches the database or backups. Ar
 routing summaries, slugs, backlinks, and vector embeddings remain unencrypted in PostgreSQL so
 hybrid search works without client-side decryption; treat them as sensitive derived data.
 
-External LLM capability and workspace compaction are **off by default**. With both on, the worker
-sends a version's title and body to the provider in plaintext to compact it.
+Rementum makes **no external AI requests**. Routing summaries are derived inside the API process,
+and titles, summaries, and bodies stay exactly as submitted.
 
 Read [SECURITY.md](SECURITY.md) and the [security checklist](https://rementum.dev/docs/security/) before you store private
 knowledge. Report vulnerabilities through the process in SECURITY.md, not a public issue.
 
 ## Architecture decisions and FAQ
 
-Looking for details on our architectural trade-offs, why we chose PostgreSQL over Git, token efficiency, AGPL-3.0 licensing, or local LLM compaction? Read the **[Architecture decisions and FAQ](https://rementum.dev/docs/faq/)** guide.
+Looking for details on our architectural trade-offs, why we chose PostgreSQL over Git, token efficiency, AGPL-3.0 licensing, or privacy? Read the **[Architecture decisions and FAQ](https://rementum.dev/docs/faq/)** guide.
 
 ## Documentation and contributing
 

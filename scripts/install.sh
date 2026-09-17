@@ -23,10 +23,6 @@ usage() {
     '  REMENTUM_INSTALL_OWNER_EMAIL            required' \
     '  REMENTUM_INSTALL_OWNER_NAME             default: Owner' \
     '  REMENTUM_INSTALL_OWNER_PASSWORD_FILE    required secret file' \
-    '  REMENTUM_INSTALL_LLM_ENABLED             true or false; default: false' \
-    '  REMENTUM_INSTALL_LLM_BASE_URL            required when LLM is true' \
-    '  REMENTUM_INSTALL_LLM_MODEL               required when LLM is true' \
-    '  REMENTUM_INSTALL_LLM_API_KEY_FILE        optional when LLM is true' \
     '  REMENTUM_INSTALL_ALLOW_SIGNUP            true or false; default: false' \
     '  REMENTUM_INSTALL_RESEND_API_KEY_FILE     required when signup is true' \
     '  REMENTUM_INSTALL_MAIL_FROM               required when signup is true' \
@@ -118,16 +114,6 @@ if [ "$non_interactive" = true ]; then
   domain=${REMENTUM_INSTALL_DOMAIN:-}
   owner_email=${REMENTUM_INSTALL_OWNER_EMAIL:-}
   owner_name=${REMENTUM_INSTALL_OWNER_NAME:-Owner}
-  llm_enabled=${REMENTUM_INSTALL_LLM_ENABLED:-false}
-  llm_base_url=""
-  llm_model=""
-  llm_api_key=""
-  if [ "$llm_enabled" = true ]; then
-    llm_base_url=${REMENTUM_INSTALL_LLM_BASE_URL:-}
-    llm_model=${REMENTUM_INSTALL_LLM_MODEL:-}
-    llm_api_key=$(read_secret_file \
-      "LLM API key" "${REMENTUM_INSTALL_LLM_API_KEY_FILE:-}" false)
-  fi
   allow_signup=${REMENTUM_INSTALL_ALLOW_SIGNUP:-false}
   resend_api_key=""
   mail_from=""
@@ -145,20 +131,6 @@ else
   domain=$(prompt "Public domain, without https://" "")
   owner_email=$(prompt "Owner email" "")
   owner_name=$(prompt "Owner display name" "Owner")
-  llm_enabled=$(prompt "Configure an external LLM for optional workspace compaction? (yes/no)" "no")
-  llm_base_url=""
-  llm_model=""
-  llm_api_key=""
-  case "$llm_enabled" in
-    yes|y)
-      llm_enabled=true
-      llm_base_url=$(prompt "OpenAI-compatible API base URL" "https://api.openai.com/v1")
-      llm_model=$(prompt "Model name" "")
-      llm_api_key=$(prompt_secret "API key (leave empty for a keyless local provider)")
-      ;;
-    no|n) llm_enabled=false ;;
-    *) fail "Answer yes or no for external LLM article compaction" ;;
-  esac
   allow_signup=$(prompt "Allow public account registration? (yes/no)" "no")
   case "$allow_signup" in
     yes|y) allow_signup=true ;;
@@ -206,19 +178,6 @@ printf '%s' "$owner_email" | grep -Eq '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space
   || fail "Enter a valid owner email"
 [ -n "$owner_name" ] || fail "Owner display name is required"
 
-case "$llm_enabled" in
-  true|false) ;;
-  *) fail "REMENTUM_INSTALL_LLM_ENABLED must be true or false" ;;
-esac
-
-if [ "$llm_enabled" = true ]; then
-  case "$llm_base_url" in
-    http://*|https://*) ;;
-    *) fail "The API base URL must start with http:// or https://" ;;
-  esac
-  [ -n "$llm_model" ] || fail "A model name is required"
-fi
-
 case "$allow_signup" in
   true|false) ;;
   *) fail "REMENTUM_INSTALL_ALLOW_SIGNUP must be true or false" ;;
@@ -233,9 +192,6 @@ fi
 
 reject_apostrophe "Domain" "$domain"
 reject_apostrophe "Owner display name" "$owner_name"
-reject_apostrophe "LLM base URL" "$llm_base_url"
-reject_apostrophe "Model name" "$llm_model"
-reject_apostrophe "LLM API key" "$llm_api_key"
 reject_apostrophe "Resend API key" "$resend_api_key"
 reject_apostrophe "Mail sender" "$mail_from"
 reject_apostrophe "Turnstile site key" "$turnstile_site_key"
@@ -283,16 +239,6 @@ REMENTUM_LOG_LEVEL='info'
 REMENTUM_EMBEDDINGS_URL='http://embeddings:8790'
 REMENTUM_EMBEDDING_MODEL='onnx-community/granite-embedding-97m-multilingual-r2-ONNX'
 
-REMENTUM_LLM_ENABLED='$llm_enabled'
-REMENTUM_LLM_BASE_URL='$llm_base_url'
-REMENTUM_LLM_MODEL='$llm_model'
-REMENTUM_LLM_API_KEY='$llm_api_key'
-REMENTUM_LLM_REASONING_EFFORT=''
-REMENTUM_LLM_TIMEOUT_MS='45000'
-REMENTUM_LLM_MAX_INPUT_CHARS='24000'
-REMENTUM_LLM_CONCURRENCY='4'
-REMENTUM_COMPACTION_POLL_MS='2000'
-
 REMENTUM_RESEND_API_KEY='$resend_api_key'
 REMENTUM_MAIL_FROM='$mail_from'
 
@@ -307,7 +253,7 @@ chmod 600 .env
 mkdir -p backups
 chmod 700 backups
 
-unset owner_password_again llm_api_key resend_api_key turnstile_secret_key
+unset owner_password_again resend_api_key turnstile_secret_key
 
 printf 'Building and starting Rementum...\n'
 ./scripts/deploy.sh

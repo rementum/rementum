@@ -76,9 +76,8 @@ export function ArticleEditForm({ article }: { article: Article }) {
         />
       </Field>
       <p className="rounded-control border border-dashed border-line bg-inset/50 p-3 text-xs text-ink-2">
-        Staging preserves this title and body and creates a local routing summary without calling an
-        external LLM. If this workspace enables compaction, promotion queues the version for
-        background processing.
+        Staging preserves this title and body exactly as written and derives a local routing
+        summary. No external model is involved.
       </p>
       <Field label="Keywords" htmlFor="article-edit-keywords">
         <input

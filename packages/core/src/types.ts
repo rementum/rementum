@@ -5,7 +5,6 @@ import type {
   BrainInvitation,
   BrainListSort,
   BrainRole,
-  CompactionState,
   CreateBrainInput,
   CreateTaskInput,
   InstanceOverview,
@@ -76,7 +75,6 @@ export interface WorkspaceRecord {
   teamId: string;
   slug: string;
   name: string;
-  llmCompactionEnabled: boolean;
   role: TeamRole;
   createdAt: Date;
 }
@@ -105,10 +103,6 @@ export interface ArticleRecord extends Omit<ArticleSummary, "updatedAt"> {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
-  compactionStatus: "not_requested" | "queued" | "processing" | "compacted" | "failed";
-  compactionAttempts: number;
-  compactionError: string | null;
-  compactedAt: Date | null;
 }
 
 export interface VersionRecord {
@@ -136,7 +130,6 @@ export interface ArticleBundle {
   version: VersionRecord;
   links: Array<{ articleId: string; slug: string; relation: string }>;
   sources: Array<SourceInput & { id: string }>;
-  compactionEnabled: boolean;
 }
 
 /** One current article body, as the export reads them in bulk. */
@@ -186,56 +179,8 @@ export interface SearchHit {
   excerpt: string | null;
 }
 
-export interface GeneratedArticle {
-  title: string;
-  summary: string;
-  body: string;
-}
-
-export interface CompactionJobRecord {
-  id: string;
-  workspaceId: string;
-  brainId: string;
-  articleId: string;
-  articleVersion: number;
-  sourceTitle: string;
-  status: "queued" | "processing" | "failed";
-  attempts: number;
-  availableAt: Date;
-  claimedBy: string | null;
-  leaseExpiresAt: Date | null;
-  lastError: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface ClaimedCompactionJob {
-  jobId: string;
-  workspaceId: string;
-  brainId: string;
-  articleId: string;
-  articleVersion: number;
-  sourceTitle: string;
-  attempts: number;
-  ownerId: string;
-  claimId: string;
-}
-
-export interface ArticleCompactionView {
-  enabled: boolean;
-  available: boolean;
-  status: CompactionState;
-  attempts: number;
-  error: string | null;
-  compactedAt: string | null;
-  canRetry: boolean;
-}
-
-export interface ArticleGenerator {
-  generateArticle(input: { title: string; body: string }): Promise<GeneratedArticle>;
-}
-
-export type ResolvedStageWriteInput = StageWriteInput & GeneratedArticle;
+/** A staged write with the routing summary derived from its body. */
+export type ResolvedStageWriteInput = StageWriteInput & { summary: string };
 
 export interface SealedBody {
   body: CipherEnvelope;
@@ -267,7 +212,7 @@ export interface DataStore {
   getWorkspace(workspaceId: string, actor: Actor): Promise<WorkspaceRecord | null>;
   updateWorkspace(
     workspaceId: string,
-    patch: { name?: string; slug?: string; llmCompactionEnabled?: boolean },
+    patch: { name?: string; slug?: string },
     actor: Actor,
   ): Promise<WorkspaceRecord>;
   deleteWorkspace(
@@ -314,7 +259,6 @@ export interface DataStore {
   countArticles(brainId: string, actor: Actor): Promise<number>;
   getBrain(id: string, actor: Actor): Promise<BrainRecord | null>;
   deleteBrain(brainId: string, confirmation: string, actor: Actor): Promise<BrainRecord>;
-  isBrainCompactionEnabled(brainId: string, actor: Actor): Promise<boolean>;
   listRoutingIndex(
     brainId: string,
     actor: Actor,
@@ -374,34 +318,8 @@ export interface DataStore {
   promoteStagedWrite(
     input: PromoteWriteInput,
     actor: Actor,
-    llmAvailable: boolean,
     sealVersion: (write: StagedWriteRecord, version: number) => SealedBody,
   ): Promise<{ write: StagedWriteRecord; article: ArticleRecord; version: VersionRecord }>;
-  queueWorkspaceCurrentCompactions(workspaceId: string, actor: Actor): Promise<number>;
-  queueArticleCompaction(articleId: string, actor: Actor): Promise<ArticleRecord>;
-  cancelWorkspaceCompactions(workspaceId: string, actor: Actor): Promise<string[]>;
-  getCompactionJob(jobId: string, actor: Actor): Promise<CompactionJobRecord | null>;
-  extendCompactionLease(jobId: string, claimId: string, leaseSeconds: number): Promise<boolean>;
-  /**
-   * Stores the compact result as the article's next version, sealed by `sealVersion` for
-   * the number the store assigns, so the submitted version stays in history. Returns
-   * `current: false` without writing when the source version is no longer current.
-   */
-  completeCompaction(
-    jobId: string,
-    claimId: string,
-    generated: GeneratedArticle,
-    sealVersion: (version: number) => SealedBody,
-    bodyHash: string,
-    actor: Actor,
-  ): Promise<{ current: boolean; articleId: string; version: number } | null>;
-  failCompaction(
-    jobId: string,
-    claimId: string,
-    error: string,
-    retryAt: Date | null,
-    actor: Actor,
-  ): Promise<{ current: boolean; terminal: boolean; articleId: string; version: number } | null>;
   findPotentialConflicts(
     brainId: string,
     articleId: string | undefined,

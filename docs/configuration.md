@@ -50,47 +50,9 @@ grant for a client, workspace, or expanded scope set still requires an explicit 
 
 ## Article generation
 
-| Variable | Purpose |
-| --- | --- |
-| `REMENTUM_LLM_ENABLED` | Set to `true` to use an external OpenAI-compatible provider; defaults to `false` |
-| `REMENTUM_LLM_BASE_URL` | API root that contains `/chat/completions` |
-| `REMENTUM_LLM_MODEL` | Provider model identifier |
-| `REMENTUM_LLM_API_KEY` | Provider credential; leave empty for a keyless local endpoint |
-| `REMENTUM_LLM_REASONING_EFFORT` | Optional `none`, `minimal`, `low`, `medium`, or `high` |
-| `REMENTUM_LLM_TIMEOUT_MS` | Generation request timeout |
-| `REMENTUM_LLM_MAX_INPUT_CHARS` | Maximum source characters per generation chunk |
-| `REMENTUM_LLM_CONCURRENCY` | Maximum concurrent generation requests |
-| `REMENTUM_COMPACTION_POLL_MS` | Worker delay between queue polls; defaults to 2 seconds |
-
-With the default `REMENTUM_LLM_ENABLED=false`, Rementum keeps the submitted title and body and
-derives a one-sentence routing summary inside the instance. It makes no external LLM request, and
-staging, conflict checks, routing, and search all keep working.
-
-Setting `REMENTUM_LLM_ENABLED=true` with a base URL and model only makes deferred compaction
-*available*. It sends nothing on its own: every workspace starts with compaction off, and an owner or
-admin has to turn it on from the team page.
-
-Here is what compaction does once a workspace enables it:
-
-- Staging never calls the provider.
-- On promotion, Rementum stores the submitted version encrypted and queues it for the worker.
-- The worker sends the title and body to the provider **in plaintext**. The provider must support
-  strict JSON Schema through the Chat Completions `response_format` field.
-- The provider returns a title of at most 120 characters, a one-sentence summary of at most 300
-  characters, and a Markdown body of at most 8,000 characters. That length is a ceiling. Compaction
-  keeps the measured values and does not shorten a source that already fits. The body must keep
-  wiki-style `[[slug]]` links so articles stay reachable.
-- A successful job stores the compact result as the article's next version, encrypted like any
-  other edit. The submitted version stays in the article's history, so a poor result can be
-  reviewed against it and the article re-edited.
-- Jobs retry after 1 and 5 minutes. After the third failure the submitted body stays canonical and
-  you can retry the article by hand. While compaction stays on, the worker's maintenance pass also
-  requeues an article that has been failed for at least an hour.
-
-Enabling a workspace affects future promoted versions only. Use **Compact existing** to queue the
-current version of existing articles; it does not touch history. Turning compaction off cancels
-queued jobs. A request already sent to the provider cannot be recalled, but the worker discards its
-result once it sees the workspace is off.
+Rementum derives each article's one-sentence routing summary inside the API process and keeps the
+submitted title and body exactly as written. There is no external model to configure: staging,
+conflict checks, routing, and search all work without any request leaving the instance.
 
 ## Email
 

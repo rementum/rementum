@@ -70,9 +70,6 @@ export async function buildApp(
   const store = new PostgresStore(database);
   const authRepository = new AuthRepository(database);
   const embeddings = new HttpEmbeddingClient(config.REMENTUM_EMBEDDINGS_URL);
-  const llmAvailable = Boolean(
-    config.REMENTUM_LLM_ENABLED && config.REMENTUM_LLM_BASE_URL && config.REMENTUM_LLM_MODEL,
-  );
   const mailer =
     overrides.mailer !== undefined
       ? overrides.mailer
@@ -83,8 +80,6 @@ export async function buildApp(
     store,
     embeddings,
     parseMasterKey(config.REMENTUM_MASTER_KEY),
-    null,
-    llmAvailable,
   );
   const oauth = await buildOauthRuntime(config, database);
   const verifyCredentials = await createCredentialVerifier(authRepository);

@@ -50,7 +50,7 @@ extra **Instance** entry in the sidebar, at `/admin`, with two pages:
 
 - **Overview** counts accounts, teams, workspaces, brains, articles, versions in history, staged
   writes awaiting review or in conflict, open and claimed tasks, MCP tool calls, live browser
-  sessions, live MCP connections, compaction jobs, and the database size, and charts sign-ups and
+  sessions, live MCP connections, and the database size, and charts sign-ups and
   MCP calls per day for the last 30 days. Every figure covers every team.
 - **Accounts** lists every registered account, newest first, with its verification state, team
   memberships, live MCP connections, and last audited action. It can be searched by email or name.

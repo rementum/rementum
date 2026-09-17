@@ -1,11 +1,5 @@
-import { randomUUID } from "node:crypto";
 import type { Actor } from "@rementum/core";
-import {
-  ArticleGenerationError,
-  OpenAICompatibleArticleGenerator,
-  parseMasterKey,
-  RementumService,
-} from "@rementum/core";
+import { parseMasterKey, RementumService } from "@rementum/core";
 import { AuthRepository, createDatabaseClient, PostgresStore } from "@rementum/db";
 
 class WorkerEmbeddingClient {
@@ -71,30 +65,10 @@ const database = createDatabaseClient(databaseUrl, 4);
 const store = new PostgresStore(database);
 const auth = new AuthRepository(database);
 const embeddings = new WorkerEmbeddingClient(embeddingsUrl);
-const llmEnabled = process.env.REMENTUM_LLM_ENABLED === "true";
-const llmBaseUrl = llmEnabled ? required("REMENTUM_LLM_BASE_URL") : null;
-const llmModel = llmEnabled ? required("REMENTUM_LLM_MODEL") : null;
-const llmConcurrency = numberEnv("REMENTUM_LLM_CONCURRENCY", 4, 1, 16);
-const articleGenerator =
-  llmEnabled && llmBaseUrl && llmModel
-    ? new OpenAICompatibleArticleGenerator({
-        baseUrl: llmBaseUrl,
-        model: llmModel,
-        ...(process.env.REMENTUM_LLM_API_KEY ? { apiKey: process.env.REMENTUM_LLM_API_KEY } : {}),
-        ...(process.env.REMENTUM_LLM_REASONING_EFFORT
-          ? { reasoningEffort: process.env.REMENTUM_LLM_REASONING_EFFORT }
-          : {}),
-        timeoutMs: numberEnv("REMENTUM_LLM_TIMEOUT_MS", 45_000, 1_000, 300_000),
-        maxInputChars: numberEnv("REMENTUM_LLM_MAX_INPUT_CHARS", 24_000, 8_000, 200_000),
-        concurrency: llmConcurrency,
-      })
-    : null;
 const service = new RementumService(
   store,
   embeddings,
   parseMasterKey(required("REMENTUM_MASTER_KEY")),
-  articleGenerator,
-  llmEnabled,
 );
 // An empty or non-numeric value used to become 0 or NaN here: back-to-back passes, or no
 // second pass ever and a busy loop in the sleep below.
@@ -104,18 +78,6 @@ const intervalMs = numberEnv(
   10_000,
   7 * 24 * 60 * 60 * 1000,
 );
-const compactionPollMs = numberEnv("REMENTUM_COMPACTION_POLL_MS", 2_000, 250, 60_000);
-const workerId = `rementum-worker-${randomUUID()}`;
-
-// A terminally failed compaction keeps its 3-attempt cost each time it is requeued, so
-// hold retries back for at least an hour rather than every maintenance pass.
-const COMPACTION_RETRY_COOLDOWN_SECONDS = 60 * 60;
-// The claim lease is short and extended while the provider call runs, so a crashed worker
-// frees its jobs quickly while a slow but live call is never taken over mid-flight.
-const COMPACTION_LEASE_SECONDS = 120;
-// failClaimedCompaction treats the third attempt as terminal. A claim numbered past that
-// can only come from a lease that expired unnoticed, and nothing will ever finish it.
-const COMPACTION_MAX_ATTEMPTS = 3;
 
 /**
  * Loads each owner's context at most once every {@link ACTOR_CACHE_MS}.
@@ -177,21 +139,6 @@ async function runPass() {
       process.stderr.write(`Indexing ${article.article_id} failed: ${(error as Error).message}\n`);
     }
   }
-  // Without a generator this worker would queue jobs nothing processes, so skip the retry.
-  const failed = articleGenerator
-    ? await database.sql<Array<{ article_id: string; owner_id: string }>>`
-        SELECT * FROM owl_worker_failed_compactions(${COMPACTION_RETRY_COOLDOWN_SECONDS}, 100)
-      `
-    : [];
-  for (const article of failed) {
-    try {
-      await service.queueArticleCompaction(article.article_id, await actorFor(article.owner_id));
-    } catch (error) {
-      process.stderr.write(
-        `Requeueing compaction for ${article.article_id} failed: ${(error as Error).message}\n`,
-      );
-    }
-  }
   // Expired OAuth tokens and codes were never removed, so every grant lookup scanned the
   // whole history of the instance.
   let pruned = 0;
@@ -201,69 +148,8 @@ async function runPass() {
     process.stderr.write(`Pruning OAuth records failed: ${(error as Error).message}\n`);
   }
   process.stdout.write(
-    `${new Date().toISOString()} maintenance pass: ${brains.length} brains, ${missing.length} index candidates, ${failed.length} compaction retries, ${pruned} OAuth records pruned, ${Date.now() - started}ms\n`,
+    `${new Date().toISOString()} maintenance pass: ${brains.length} brains, ${missing.length} index candidates, ${pruned} OAuth records pruned, ${Date.now() - started}ms\n`,
   );
-}
-
-async function runCompactionPass() {
-  const claims = (
-    await Promise.all(
-      Array.from({ length: llmConcurrency }, () =>
-        store.claimCompaction(workerId, COMPACTION_LEASE_SECONDS),
-      ),
-    )
-  ).filter((claim) => claim !== null);
-  const actorFor = actorCache();
-  await Promise.all(
-    claims.map(async (claim) => {
-      const started = Date.now();
-      let actor: Actor;
-      try {
-        actor = await actorFor(claim.ownerId);
-      } catch (error) {
-        // The lease lapses on its own; the next claim retries with a fresh context load.
-        process.stderr.write(
-          `${new Date().toISOString()} compaction ${claim.jobId} could not load its owner: ${(error as Error).message}\n`,
-        );
-        return;
-      }
-      const heartbeat = setInterval(
-        () => {
-          void store
-            .extendCompactionLease(claim.jobId, claim.claimId, COMPACTION_LEASE_SECONDS)
-            .catch(() => undefined);
-        },
-        (COMPACTION_LEASE_SECONDS * 1000) / 3,
-      );
-      try {
-        if (claim.attempts > COMPACTION_MAX_ATTEMPTS) {
-          throw new ArticleGenerationError(
-            "The compaction lease expired before an earlier attempt finished",
-          );
-        }
-        const result = await service.compactClaimedJob(claim, actor);
-        if (result) {
-          process.stdout.write(
-            `${new Date().toISOString()} compacted article ${result.articleId} v${result.version} attempt ${claim.attempts} in ${Date.now() - started}ms\n`,
-          );
-        }
-      } catch (error) {
-        process.stderr.write(
-          `${new Date().toISOString()} compaction ${claim.jobId} attempt ${claim.attempts} failed: ${(error as Error).message}\n`,
-        );
-        try {
-          await service.failClaimedCompaction(claim, error, actor);
-        } catch (failure) {
-          process.stderr.write(
-            `${new Date().toISOString()} compaction ${claim.jobId} could not be marked failed: ${(failure as Error).message}\n`,
-          );
-        }
-      } finally {
-        clearInterval(heartbeat);
-      }
-    }),
-  );
-  return claims.length;
 }
 
 let stopping = false;
@@ -287,13 +173,12 @@ while (!stopping) {
       nextMaintenanceAt = Date.now() + intervalMs;
       await runPass();
     }
-    if (articleGenerator) await runCompactionPass();
   } catch (error) {
     process.stderr.write(`Worker pass failed: ${(error as Error).stack ?? error}\n`);
   }
   if (stopping) break;
   await new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, articleGenerator ? compactionPollMs : intervalMs);
+    const timer = setTimeout(resolve, intervalMs);
     wake = () => {
       clearTimeout(timer);
       resolve();

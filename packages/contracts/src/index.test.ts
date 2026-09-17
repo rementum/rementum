@@ -48,14 +48,12 @@ describe("updateTeamSchema", () => {
 });
 
 describe("updateWorkspaceSchema", () => {
-  it("accepts a compaction-only workspace update", () => {
-    expect(updateWorkspaceSchema.parse({ llmCompactionEnabled: true })).toEqual({
-      llmCompactionEnabled: true,
-    });
+  it("trims the new name", () => {
+    expect(updateWorkspaceSchema.parse({ name: "  Renamed  " })).toEqual({ name: "Renamed" });
   });
 
   it("rejects an empty workspace update", () => {
-    expect(() => updateWorkspaceSchema.parse({})).toThrow(/workspace field/i);
+    expect(() => updateWorkspaceSchema.parse({})).toThrow();
   });
 });
 
@@ -256,7 +254,6 @@ describe("instance administration schemas", () => {
         webSessions: 2,
         mcpConnections: 3,
       },
-      compaction: { queued: 0, processing: 0, failed: 0 },
       storage: { databaseBytes: 52_428_800 },
       daily: [{ date: "2026-09-02", signups: 1, calls: 5 }],
     };

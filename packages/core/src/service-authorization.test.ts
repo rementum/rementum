@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WrappedKey } from "./crypto.js";
 import { decrypt, encrypt, generateDataKey, unwrapDataKey, wrapDataKey } from "./crypto.js";
-import { ConflictError, ForbiddenError, LlmUnavailableError, NotFoundError } from "./errors.js";
+import { ConflictError, ForbiddenError, NotFoundError } from "./errors.js";
 import { RementumService } from "./service.js";
 import type {
   Actor,
@@ -63,10 +63,6 @@ function articleRecord(overrides: Partial<ArticleRecord> = {}): ArticleRecord {
     kind: "canonical",
     freshness: "current",
     currentVersion: 2,
-    compactionStatus: "not_requested",
-    compactionAttempts: 0,
-    compactionError: null,
-    compactedAt: null,
     verifiedAt: null,
     reviewAfter: null,
     updatedAt: new Date(),
@@ -81,7 +77,7 @@ describe("promotion", () => {
     if (!staged) throw new Error("Expected the fake staged write");
     const plaintext = decrypt(staged.body, key, staged.bodyAad).toString("utf8");
     vi.mocked(store.promoteStagedWrite).mockImplementationOnce(
-      async (_input, _actor, _llm, sealVersion) => {
+      async (_input, _actor, sealVersion) => {
         const sealed = sealVersion(staged, 3);
         expect(sealed.bodyAad).toBe(`brain:${brainId}:article:${staged.articleId}:version:3`);
         expect(sealed.bodyAad).not.toBe(staged.bodyAad);
@@ -144,7 +140,6 @@ describe("article indexing", () => {
       version: { version: 2, body: encrypt(body, key, bodyAad), bodyAad, createdAt: new Date() },
       links: [],
       sources: [],
-      compactionEnabled: false,
     });
     const setEmbedding = vi.fn(async () => undefined);
     (store as unknown as { setEmbedding: typeof setEmbedding }).setEmbedding = setEmbedding;
@@ -166,7 +161,7 @@ describe("article indexing", () => {
   });
 });
 
-function setup(options: { llmAvailable?: boolean } = {}) {
+function setup() {
   const brain = brainRecord();
   const key = unwrapDataKey(brain.wrappedKey, masterKey, brainId);
   const store = {
@@ -187,11 +182,9 @@ function setup(options: { llmAvailable?: boolean } = {}) {
       version: currentVersion(),
       links: [],
       sources: [],
-      compactionEnabled: false,
     })),
     getArticleLinks: vi.fn(async () => []),
     getArticleSources: vi.fn(async () => []),
-    isBrainCompactionEnabled: vi.fn(async () => false),
     listRoutingIndex: vi.fn(async () => []),
     countArticles: vi.fn(async () => 0),
     listStagedWrites: vi.fn(async () => []),
@@ -206,7 +199,6 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     listCurrentVersions: vi.fn(async (_brainId: string, _actor: Actor, limit: number) =>
       exportedVersions(Math.min(limit, 2)),
     ),
-    queueArticleCompaction: vi.fn(async () => undefined),
     claimTask: vi.fn(async () => null),
     getStagedWrite: vi.fn(async () => stagedWrite()),
     withdrawStagedWrite: vi.fn(async () => stagedWrite({ status: "withdrawn" })),
@@ -219,10 +211,8 @@ function setup(options: { llmAvailable?: boolean } = {}) {
       teamId,
       name: "Workspace",
       slug: "workspace",
-      llmCompactionEnabled: patch.llmCompactionEnabled ?? false,
       createdAt: new Date(),
     })),
-    cancelWorkspaceCompactions: vi.fn(async () => []),
     deleteWorkspace: vi.fn(async () => ({ id: workspaceId, teamId, name: "Workspace" })),
     deleteBrain: vi.fn(async () => brainRecord()),
     deleteTeam: vi.fn(async () => ({ id: teamId, slug: "team", name: "Team" })),
@@ -241,7 +231,7 @@ function setup(options: { llmAvailable?: boolean } = {}) {
     embedPassages: vi.fn(async () => ({ model: "test-model", vectors: [[0.1, 0.2]] })),
     healthy: vi.fn(async () => true),
   } as unknown as EmbeddingClient;
-  const service = new RementumService(store, embeddings, masterKey, null, options.llmAvailable);
+  const service = new RementumService(store, embeddings, masterKey);
   return { brain, embeddings, key, service, store };
 
   function exportedVersions(count: number) {
@@ -538,65 +528,6 @@ describe("staged write promotion", () => {
     const review = await service.reviewStagedWrite("write-id", actor("editor"));
     expect(review.currentBody).toBeNull();
     expect(review.candidateBody).toBe("The candidate body.");
-  });
-});
-
-describe("workspace compaction settings", () => {
-  it("refuses to enable compaction on an instance with no provider configured", async () => {
-    const { service, store } = setup({ llmAvailable: false });
-    await expect(
-      service.updateWorkspace(workspaceId, { llmCompactionEnabled: true }, actor("owner")),
-    ).rejects.toThrow(LlmUnavailableError);
-    expect(store.updateWorkspace).not.toHaveBeenCalled();
-  });
-
-  it("enables compaction when a provider is configured", async () => {
-    const { service } = setup({ llmAvailable: true });
-    await expect(
-      service.updateWorkspace(workspaceId, { llmCompactionEnabled: true }, actor("owner")),
-    ).resolves.toMatchObject({ llmCompactionEnabled: true });
-  });
-
-  it("cancels queued compactions when the setting is turned off", async () => {
-    const { service, store } = setup({ llmAvailable: true });
-    await service.updateWorkspace(workspaceId, { llmCompactionEnabled: false }, actor("owner"));
-    expect(store.cancelWorkspaceCompactions).toHaveBeenCalledWith(workspaceId, expect.anything());
-  });
-
-  it("refuses to queue a workspace-wide compaction without a provider", async () => {
-    const { service } = setup({ llmAvailable: false });
-    await expect(service.queueWorkspaceCompactions(workspaceId, actor("owner"))).rejects.toThrow(
-      LlmUnavailableError,
-    );
-  });
-});
-
-describe("article compaction requests", () => {
-  it("refuses when the instance has no provider", async () => {
-    const { service } = setup({ llmAvailable: false });
-    await expect(service.queueArticleCompaction(articleId, actor("owner"))).rejects.toThrow(
-      LlmUnavailableError,
-    );
-  });
-
-  it("refuses when the workspace has compaction switched off", async () => {
-    const { service } = setup({ llmAvailable: true });
-    await expect(service.queueArticleCompaction(articleId, actor("owner"))).rejects.toThrow(
-      ConflictError,
-    );
-  });
-
-  it("returns the queued status without queueing twice", async () => {
-    const { service, store } = setup({ llmAvailable: true });
-    vi.mocked(store.getArticle).mockResolvedValueOnce(
-      articleRecord({ compactionStatus: "queued" }),
-    );
-    await expect(service.queueArticleCompaction(articleId, actor("owner"))).resolves.toEqual({
-      articleId,
-      version: 2,
-      status: "queued",
-    });
-    expect(store.queueArticleCompaction).not.toHaveBeenCalled();
   });
 });
 

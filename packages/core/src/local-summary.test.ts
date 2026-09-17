@@ -1,17 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { clipSentence, createLocalSummary, LocalArticleGenerator } from "./local-summary.js";
+import { clipSentence, createLocalSummary } from "./local-summary.js";
 
 describe("local routing summaries", () => {
-  it("creates a compact plain-text summary without an external provider", async () => {
-    const generator = new LocalArticleGenerator();
-    const input = {
-      title: "Architecture",
-      body: "# Architecture\n\nKeep `packages/core` portable. See [the design](https://example.test/design).",
-    };
-    await expect(generator.generateArticle(input)).resolves.toEqual({
-      ...input,
-      summary: "Keep packages/core portable.",
-    });
+  it("derives a plain-text first sentence and drops a heading that repeats the title", () => {
+    expect(
+      createLocalSummary({
+        title: "Architecture",
+        body: "# Architecture\n\nKeep `packages/core` portable. See [the design](https://example.test/design).",
+      }),
+    ).toBe("Keep packages/core portable.");
   });
 
   it("keeps a long first sentence within the routing limit", () => {
@@ -29,7 +26,7 @@ describe("local routing summaries", () => {
     expect(
       createLocalSummary({
         title: "Config",
-        body: "Use local summaries by default. Enable an LLM only when compaction is wanted.",
+        body: "Use local summaries by default. Everything after the first sentence is dropped.",
       }),
     ).toBe("Use local summaries by default.");
   });
@@ -66,9 +63,9 @@ describe("local routing summaries", () => {
     expect(
       createLocalSummary({
         title: "Config",
-        body: "---\ntags: [runtime]\n---\n\nUse `REMENTUM_LLM_ENABLED=false` with `src/**/*.ts`.",
+        body: "---\ntags: [runtime]\n---\n\nUse `REMENTUM_ALLOW_SIGNUP=false` with `src/**/*.ts`.",
       }),
-    ).toBe("Use REMENTUM_LLM_ENABLED=false with src/**/*.ts.");
+    ).toBe("Use REMENTUM_ALLOW_SIGNUP=false with src/**/*.ts.");
   });
 
   it("is deterministic", () => {

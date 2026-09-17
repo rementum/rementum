@@ -97,8 +97,6 @@ export interface Workspace {
   slug: string;
   name: string;
   role: "owner" | "admin" | "member";
-  llmCompactionEnabled: boolean;
-  llmCompactionAvailable: boolean;
   mcpUrl: string;
   createdAt: string;
 }

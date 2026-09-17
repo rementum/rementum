@@ -1,15 +1,7 @@
-import type { ArticleGenerator } from "./types.js";
-
 export const ROUTING_SUMMARY_MAX_CHARS = 300;
 // Only the first sentence survives, so the passes below never need more of the body than
 // this. A body may be two million characters, and each pass would otherwise walk all of it.
 const SUMMARY_SOURCE_MAX_CHARS = 32_000;
-
-export class LocalArticleGenerator implements ArticleGenerator {
-  generateArticle(input: { title: string; body: string }) {
-    return Promise.resolve({ ...input, summary: createLocalSummary(input) });
-  }
-}
 
 export function createLocalSummary(input: { title: string; body: string }): string {
   const content = stripFrontMatter(input.body).slice(0, SUMMARY_SOURCE_MAX_CHARS);

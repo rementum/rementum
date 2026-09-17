@@ -14,9 +14,7 @@ stack.
 
 ## Run the whole stack in containers
 
-Copy the example environment and fill the required keys. The default config keeps staged titles and
-bodies and uses local routing summaries; configuring the optional AI provider only makes deferred
-compaction available, and an owner or admin still has to enable it per workspace:
+Copy the example environment and fill the required keys:
 
 ```bash
 cp .env.example .env

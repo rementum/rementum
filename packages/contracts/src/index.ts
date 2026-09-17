@@ -41,16 +41,6 @@ export type WriteOperation = z.infer<typeof writeOperationSchema>;
 export const writeStatusSchema = z.enum(["pending", "promoted", "conflicted", "withdrawn"]);
 export type WriteStatus = z.infer<typeof writeStatusSchema>;
 
-export const compactionStateSchema = z.enum([
-  "disabled",
-  "not_compacted",
-  "queued",
-  "processing",
-  "compacted",
-  "failed",
-]);
-export type CompactionState = z.infer<typeof compactionStateSchema>;
-
 export const reviewQueueItemSchema = z.object({
   id: idSchema,
   brainId: idSchema,
@@ -117,15 +107,6 @@ export const articleSchema = articleSummarySchema.extend({
   sources: z.array(sourceSchema.extend({ id: idSchema })),
   verifiedAt: z.iso.datetime().nullable(),
   reviewAfter: z.iso.datetime().nullable(),
-  compaction: z.object({
-    enabled: z.boolean(),
-    available: z.boolean(),
-    status: compactionStateSchema,
-    attempts: z.number().int().nonnegative(),
-    error: z.string().nullable(),
-    compactedAt: z.iso.datetime().nullable(),
-    canRetry: z.boolean(),
-  }),
   provenance: z.object({
     actorId: idSchema,
     clientId: z.string().nullable(),
@@ -174,7 +155,6 @@ export const workspaceSchema = z.object({
   slug: slugSchema,
   name: z.string(),
   role: teamRoleSchema,
-  llmCompactionEnabled: z.boolean(),
   createdAt: z.iso.datetime(),
 });
 export type Workspace = z.infer<typeof workspaceSchema>;
@@ -194,14 +174,9 @@ export const createWorkspaceSchema = z.object({
 });
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
 
-export const updateWorkspaceSchema = z
-  .object({
-    name: z.string().trim().min(1).max(160).optional(),
-    llmCompactionEnabled: z.boolean().optional(),
-  })
-  .refine((value) => value.name !== undefined || value.llmCompactionEnabled !== undefined, {
-    message: "At least one workspace field is required",
-  });
+export const updateWorkspaceSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+});
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
 
 export const brainInvitationSchema = z.object({
@@ -509,11 +484,6 @@ export const instanceOverviewSchema = z.object({
     activeClientsLast30Days: countSchema,
     webSessions: countSchema,
     mcpConnections: countSchema,
-  }),
-  compaction: z.object({
-    queued: countSchema,
-    processing: countSchema,
-    failed: countSchema,
   }),
   storage: z.object({
     databaseBytes: countSchema,

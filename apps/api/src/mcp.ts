@@ -304,7 +304,7 @@ export function createMcpServer(
     {
       title: "Read a full article",
       description:
-        "Reads the current body and routing fields. Use detail=full only when links, sources, provenance, or compaction state are needed.",
+        "Reads the current body and routing fields. Use detail=full only when links, sources, or provenance are needed.",
       inputSchema: z.object({
         articleId: z.uuid(),
         detail: z.enum(["body", "full"]).default("body"),
@@ -326,7 +326,7 @@ export function createMcpServer(
     {
       title: "Stage an article write",
       description:
-        "Use when work produced a durable decision, correction, convention, or gotcha worth keeping across sessions. Stages a create, full canonical update, or log append without calling an external LLM. Rementum preserves the submitted title and body and creates a local routing summary. Promotion may queue deferred compaction when the article's workspace enables it. Read the current article first and pass its version for edits.",
+        "Use when work produced a durable decision, correction, convention, or gotcha worth keeping across sessions. Stages a create, full canonical update, or log append. Rementum preserves the submitted title and body and derives a local routing summary; no external model is involved. Read the current article first and pass its version for edits.",
       inputSchema: stageWriteSchema,
       annotations: write,
     },

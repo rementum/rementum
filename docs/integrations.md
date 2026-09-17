@@ -208,8 +208,8 @@ A typical read path is:
    fields; pass `detail: "full"` only when you need them.
 
 Write memory with `stage_write`. Review its conflict result before you promote the pending write.
-Staging never waits for an external LLM. In an opted-in workspace, `read_article` shows the deferred
-compaction status after promotion, while the submitted body stays usable.
+Staging never calls an external model: the routing summary is derived locally and the body is
+stored exactly as submitted.
 
 Inspect or withdraw a pending write in the web UI. If promotion reports a version mismatch, read
 the current article, reconcile the changes, and stage a fresh proposal. Keep the same idempotency

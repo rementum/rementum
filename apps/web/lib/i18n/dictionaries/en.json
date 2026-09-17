@@ -259,7 +259,7 @@
       "Your data stays on your server; the master key never leaves it",
       "Unlimited brains, workspaces, agents, and versions",
       "Full source under AGPL-3.0 to audit, fork, and extend",
-      "Bring your own AI provider, or run on local models alone"
+      "Runs on local models alone; no external AI provider to configure"
     ],
     "considerations": [
       "You provide the Linux host, a domain, and open ports 80 and 443",
@@ -270,7 +270,7 @@
     "intro": "Run Rementum on your own server. The full source is yours to inspect, modify, and self-host, with no paid tier or per-seat billing.",
     "included": "Included",
     "includedA": "Unlimited brains, workspaces, agents, and versions. No usage caps or paywalled features.",
-    "includedB": "Local models by default, with an optional AI provider for compaction.",
+    "includedB": "Local models only; no external AI provider.",
     "inYourHands": "In your hands",
     "handsNote": "A Linux host, a domain, and ports 80 and 443. You manage updates, encrypted backups, migrations, and capacity."
   },

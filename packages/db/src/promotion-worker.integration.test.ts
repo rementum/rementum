@@ -429,7 +429,7 @@ integration("worker identity", () => {
     const database = createDatabaseClient(databaseUrl, 2);
     const auth = new AuthRepository(database);
     const store = new PostgresStore(database);
-    const service = new RementumService(store, embeddings, Buffer.alloc(32, 7), null, true);
+    const service = new RementumService(store, embeddings, Buffer.alloc(32, 7));
     try {
       const { ownerActor, owner, suffix } = await seed(store, auth, service);
       // A plain member creates a brain; they are its only owner row.
@@ -474,27 +474,6 @@ integration("worker identity", () => {
         SELECT * FROM owl_worker_brains() WHERE brain_id = ${brain.brain.id}
       `;
       expect(fallback[0]?.owner_id).toBe(owner.user.id);
-
-      // A queued compaction on that brain is claimable, carries its own claim id, and its
-      // lease can be extended by the holder only.
-      await service.updateWorkspace(owner.workspaceId, { llmCompactionEnabled: true }, teamOwner);
-      const write = await service.stageWrite(createInput(brain.brain.id, "compact"), teamOwner);
-      await service.promoteWrite(
-        { writeId: write.id, decision: "promote", decisionSummary: "ok" },
-        teamOwner,
-      );
-      // Scoped to this brain: the suites share one database and run in parallel, so
-      // an unscoped claim could lease a job another file had just queued.
-      let claim = null;
-      for (let attempt = 0; attempt < 25 && !claim; attempt += 1) {
-        claim = await store.claimCompaction(`worker-${suffix}`, 120, brain.brain.id);
-      }
-      if (!claim) throw new Error("Expected to claim the queued compaction");
-      expect(claim.ownerId).toBe(owner.user.id);
-      expect(claim.claimId.startsWith(`worker-${suffix}:`)).toBe(true);
-      expect(await store.extendCompactionLease(claim.jobId, claim.claimId, 300)).toBe(true);
-      expect(await store.extendCompactionLease(claim.jobId, `worker-${suffix}`, 300)).toBe(false);
-      await service.updateWorkspace(owner.workspaceId, { llmCompactionEnabled: false }, teamOwner);
     } finally {
       await database.close();
     }
