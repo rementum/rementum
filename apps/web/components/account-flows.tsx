@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { type Dictionary, template } from "../lib/i18n/get-dictionary";
+import type { Locale } from "../lib/i18n/locales";
 import { renderTerms } from "../lib/i18n/terms";
 import { Button, WibblingSpinner } from "./pui";
 import { TurnstileChallenge } from "./turnstile";
@@ -14,14 +15,14 @@ const successBanner =
   "rounded-control border border-green/25 bg-green/10 px-3 py-2 text-sm text-green";
 const errorBanner = "rounded-control border border-red/25 bg-red/10 px-3 py-2 text-sm text-red";
 
-async function request(path: string, body: Record<string, unknown>) {
+async function request(path: string, body: Record<string, unknown>, errorMessage: string) {
   const response = await fetch(`${apiBase}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.title ?? "The request could not be completed.");
+  if (!response.ok) throw new Error(payload.title ?? errorMessage);
   return payload;
 }
 
@@ -65,10 +66,14 @@ export function LoginForm({
   returnTo,
   signupEnabled,
   turnstileSiteKey,
+  strings,
+  locale,
 }: {
   returnTo: string;
   signupEnabled: boolean;
   turnstileSiteKey: string | null;
+  strings: Dictionary["auth"];
+  locale: Locale;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -77,11 +82,15 @@ export function LoginForm({
     setBusy(true);
     setError("");
     try {
-      await request("/api/v1/auth/session", {
-        email: formData.get("email"),
-        password: formData.get("password"),
-        ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
-      });
+      await request(
+        "/api/v1/auth/session",
+        {
+          email: formData.get("email"),
+          password: formData.get("password"),
+          ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
+        },
+        strings.requestError,
+      );
       window.location.assign(returnTo);
     } catch (value) {
       setError((value as Error).message);
@@ -91,7 +100,7 @@ export function LoginForm({
   }
   return (
     <form className="flex flex-col gap-4" action={submit}>
-      <Field label="Email" htmlFor="login-email">
+      <Field label={renderTerms(strings.email)} htmlFor="login-email">
         <input
           id="login-email"
           className={fieldControlClass}
@@ -101,7 +110,7 @@ export function LoginForm({
           required
         />
       </Field>
-      <Field label="Password" htmlFor="login-password">
+      <Field label={renderTerms(strings.password)} htmlFor="login-password">
         <input
           id="login-password"
           className={fieldControlClass}
@@ -113,6 +122,7 @@ export function LoginForm({
       </Field>
       {turnstile.siteKey ? (
         <TurnstileChallenge
+          locale={locale}
           key={turnstile.challenge}
           siteKey={turnstile.siteKey}
           onToken={turnstile.onTurnstileToken}
@@ -127,24 +137,32 @@ export function LoginForm({
         loading={busy}
         disabled={turnstile.turnstileBlocked}
       >
-        {busy ? "Signing in…" : "Sign in"}
+        {busy ? strings.signingIn : strings.signIn}
       </Button>
       {signupEnabled ? (
         <Button as={Link} href="/register" variant="ghost" block>
-          Create account
+          {strings.createAccount}
         </Button>
       ) : null}
       <Link
         className="text-center text-sm font-medium text-accent hover:underline"
         href="/forgot-password"
       >
-        Forgot password?
+        {strings.forgotPassword}
       </Link>
     </form>
   );
 }
 
-export function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey: string | null }) {
+export function RegisterForm({
+  turnstileSiteKey,
+  strings,
+  locale,
+}: {
+  turnstileSiteKey: string | null;
+  strings: Dictionary["auth"];
+  locale: Locale;
+}) {
   const [state, setState] = useState<"idle" | "busy" | "sent">("idle");
   const [error, setError] = useState("");
   const turnstile = useTurnstileGuard(turnstileSiteKey);
@@ -152,13 +170,17 @@ export function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey: string | 
     setState("busy");
     setError("");
     try {
-      await request("/api/v1/auth/register", {
-        displayName: formData.get("displayName"),
-        email: formData.get("email"),
-        password: formData.get("password"),
-        teamName: formData.get("teamName"),
-        ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
-      });
+      await request(
+        "/api/v1/auth/register",
+        {
+          displayName: formData.get("displayName"),
+          email: formData.get("email"),
+          password: formData.get("password"),
+          teamName: formData.get("teamName"),
+          ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
+        },
+        strings.requestError,
+      );
       setState("sent");
     } catch (value) {
       setError((value as Error).message);
@@ -169,18 +191,18 @@ export function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey: string | 
   if (state === "sent")
     return (
       <div className="flex flex-col gap-4">
-        <p className={successBanner}>Check your inbox and verify your email before signing in.</p>
+        <p className={successBanner}>{strings.checkInbox}</p>
         <Button as={Link} href="/auth/login" variant="solid" block>
-          Go to sign in
+          {strings.goToSignIn}
         </Button>
         <Button as={Link} href="/resend-verification" variant="ghost" block>
-          Resend verification
+          {strings.resendVerification}
         </Button>
       </div>
     );
   return (
     <form className="flex flex-col gap-4" action={submit}>
-      <Field label="Your name" htmlFor="register-name">
+      <Field label={renderTerms(strings.yourName)} htmlFor="register-name">
         <input
           id="register-name"
           className={fieldControlClass}
@@ -190,7 +212,7 @@ export function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey: string | 
           required
         />
       </Field>
-      <Field label="Email" htmlFor="register-email">
+      <Field label={renderTerms(strings.email)} htmlFor="register-email">
         <input
           id="register-email"
           className={fieldControlClass}
@@ -200,7 +222,11 @@ export function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey: string | 
           required
         />
       </Field>
-      <Field label="Password" htmlFor="register-password" hint="At least 12 characters.">
+      <Field
+        label={renderTerms(strings.password)}
+        htmlFor="register-password"
+        hint={strings.passwordHint}
+      >
         <input
           id="register-password"
           className={fieldControlClass}
@@ -211,18 +237,19 @@ export function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey: string | 
           required
         />
       </Field>
-      <Field label="First team" htmlFor="register-team">
+      <Field label={renderTerms(strings.firstTeam)} htmlFor="register-team">
         <input
           id="register-team"
           className={fieldControlClass}
           name="teamName"
           maxLength={160}
-          placeholder="Acme engineering"
+          placeholder={strings.teamPlaceholder}
           required
         />
       </Field>
       {turnstile.siteKey ? (
         <TurnstileChallenge
+          locale={locale}
           key={turnstile.challenge}
           siteKey={turnstile.siteKey}
           onToken={turnstile.onTurnstileToken}
@@ -237,23 +264,35 @@ export function RegisterForm({ turnstileSiteKey }: { turnstileSiteKey: string | 
         loading={state === "busy"}
         disabled={turnstile.turnstileBlocked}
       >
-        {state === "busy" ? "Creating account…" : "Create account"}
+        {state === "busy" ? strings.creatingAccount : strings.createAccount}
       </Button>
     </form>
   );
 }
 
-export function ForgotPasswordForm({ turnstileSiteKey }: { turnstileSiteKey: string | null }) {
+export function ForgotPasswordForm({
+  turnstileSiteKey,
+  strings,
+  locale,
+}: {
+  turnstileSiteKey: string | null;
+  strings: Dictionary["auth"];
+  locale: Locale;
+}) {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const turnstile = useTurnstileGuard(turnstileSiteKey);
   async function submit(formData: FormData) {
     setError("");
     try {
-      await request("/api/v1/auth/forgot-password", {
-        email: formData.get("email"),
-        ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
-      });
+      await request(
+        "/api/v1/auth/forgot-password",
+        {
+          email: formData.get("email"),
+          ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
+        },
+        strings.requestError,
+      );
       setSent(true);
       // The form stays mounted for a re-send, and siteverify just consumed the token.
       turnstile.resetTurnstile();
@@ -264,7 +303,7 @@ export function ForgotPasswordForm({ turnstileSiteKey }: { turnstileSiteKey: str
   }
   return (
     <form className="flex flex-col gap-4" action={submit}>
-      <Field label="Account email" htmlFor="forgot-email">
+      <Field label={renderTerms(strings.accountEmail)} htmlFor="forgot-email">
         <input
           id="forgot-email"
           className={fieldControlClass}
@@ -276,34 +315,45 @@ export function ForgotPasswordForm({ turnstileSiteKey }: { turnstileSiteKey: str
       </Field>
       {turnstile.siteKey ? (
         <TurnstileChallenge
+          locale={locale}
           key={turnstile.challenge}
           siteKey={turnstile.siteKey}
           onToken={turnstile.onTurnstileToken}
           onReset={turnstile.onTurnstileReset}
         />
       ) : null}
-      {sent ? (
-        <p className={successBanner}>If the account exists, a reset link is on its way.</p>
-      ) : null}
+      {sent ? <p className={successBanner}>{strings.resetSent}</p> : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
       <Button type="submit" variant="solid" block disabled={turnstile.turnstileBlocked}>
-        Send reset link
+        {strings.sendResetLink}
       </Button>
     </form>
   );
 }
 
-export function ResendVerificationForm({ turnstileSiteKey }: { turnstileSiteKey: string | null }) {
+export function ResendVerificationForm({
+  turnstileSiteKey,
+  strings,
+  locale,
+}: {
+  turnstileSiteKey: string | null;
+  strings: Dictionary["auth"];
+  locale: Locale;
+}) {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const turnstile = useTurnstileGuard(turnstileSiteKey);
   async function submit(formData: FormData) {
     setError("");
     try {
-      await request("/api/v1/auth/resend-verification", {
-        email: formData.get("email"),
-        ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
-      });
+      await request(
+        "/api/v1/auth/resend-verification",
+        {
+          email: formData.get("email"),
+          ...(turnstile.siteKey ? { turnstileToken: turnstile.turnstileToken } : {}),
+        },
+        strings.requestError,
+      );
       setSent(true);
       // The form stays mounted for a re-send, and siteverify just consumed the token.
       turnstile.resetTurnstile();
@@ -314,7 +364,7 @@ export function ResendVerificationForm({ turnstileSiteKey }: { turnstileSiteKey:
   }
   return (
     <form className="flex flex-col gap-4" action={submit}>
-      <Field label="Account email" htmlFor="resend-email">
+      <Field label={renderTerms(strings.accountEmail)} htmlFor="resend-email">
         <input
           id="resend-email"
           className={fieldControlClass}
@@ -326,24 +376,31 @@ export function ResendVerificationForm({ turnstileSiteKey }: { turnstileSiteKey:
       </Field>
       {turnstile.siteKey ? (
         <TurnstileChallenge
+          locale={locale}
           key={turnstile.challenge}
           siteKey={turnstile.siteKey}
           onToken={turnstile.onTurnstileToken}
           onReset={turnstile.onTurnstileReset}
         />
       ) : null}
-      {sent ? (
-        <p className={successBanner}>If verification is pending, a new link is on its way.</p>
-      ) : null}
+      {sent ? <p className={successBanner}>{strings.verificationSent}</p> : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
       <Button type="submit" variant="solid" block disabled={turnstile.turnstileBlocked}>
-        Resend verification
+        {strings.resendVerification}
       </Button>
     </form>
   );
 }
 
-export function TokenActionForm({ token, kind }: { token: string; kind: "verify" | "reset" }) {
+export function TokenActionForm({
+  token,
+  kind,
+  strings,
+}: {
+  token: string;
+  kind: "verify" | "reset";
+  strings: Dictionary["auth"];
+}) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   async function submit(formData: FormData) {
@@ -352,6 +409,7 @@ export function TokenActionForm({ token, kind }: { token: string; kind: "verify"
       await request(
         kind === "verify" ? "/api/v1/auth/verify-email" : "/api/v1/auth/reset-password",
         kind === "verify" ? { token } : { token, password: formData.get("password") },
+        strings.requestError,
       );
       setDone(true);
     } catch (value) {
@@ -362,19 +420,21 @@ export function TokenActionForm({ token, kind }: { token: string; kind: "verify"
     return (
       <div className="flex flex-col gap-4">
         <p className={successBanner}>
-          {kind === "verify"
-            ? "Email verified."
-            : "Password updated and existing sessions revoked."}
+          {kind === "verify" ? strings.emailVerified : strings.passwordUpdated}
         </p>
         <Button as={Link} href="/auth/login" variant="solid" block>
-          Sign in
+          {strings.signIn}
         </Button>
       </div>
     );
   return (
     <form className="flex flex-col gap-4" action={submit}>
       {kind === "reset" ? (
-        <Field label="New password" htmlFor="reset-password" hint="At least 12 characters.">
+        <Field
+          label={renderTerms(strings.newPassword)}
+          htmlFor="reset-password"
+          hint={strings.passwordHint}
+        >
           <input
             id="reset-password"
             className={fieldControlClass}
@@ -388,7 +448,7 @@ export function TokenActionForm({ token, kind }: { token: string; kind: "verify"
       ) : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
       <Button type="submit" variant="solid" block>
-        {kind === "verify" ? "Verify email" : "Set new password"}
+        {kind === "verify" ? strings.verifyEmail : strings.setNewPassword}
       </Button>
     </form>
   );

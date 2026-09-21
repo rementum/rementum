@@ -2,26 +2,30 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { InstanceUsersPage } from "../lib/admin";
+import { getDictionary } from "../lib/i18n/get-dictionary";
 import { InstanceAccounts } from "./instance-accounts";
+
+const dict = getDictionary("en");
+const strings = dict.admin;
 
 describe("InstanceAccounts", () => {
   it("lists accounts with their state and escapes what people typed", () => {
     const html = renderToStaticMarkup(
-      createElement(InstanceAccounts, { page: page(), pageNumber: 1 }),
+      createElement(InstanceAccounts, { page: page(), pageNumber: 1, locale: "en", dict }),
     );
 
     expect(html).toContain('value="&lt;script&gt;"');
     expect(html).not.toContain("<script>");
-    expect(html).toContain("Instance owner");
-    expect(html).toContain("active");
-    expect(html).toContain("unverified");
-    expect(html).toContain("disabled");
+    expect(html).toContain(strings.instanceOwner);
+    expect(html).toContain(strings.statusActive);
+    expect(html).toContain(strings.statusUnverified);
+    expect(html).toContain(strings.statusDisabled);
     expect(html).toContain("owner@example.test");
-    expect(html).toContain("No activity yet");
+    expect(html).toContain(strings.noActivity);
     expect(html).toContain("&lt;b&gt;Ada&lt;/b&gt;");
     expect(html).not.toContain("<b>Ada</b>");
     // Three accounts fit on one page, so no pager is offered.
-    expect(html).not.toContain("Next →");
+    expect(html).not.toContain(`${dict.common.next} →`);
   });
 
   it("explains an empty search and offers to clear it", () => {
@@ -29,9 +33,11 @@ describe("InstanceAccounts", () => {
       createElement(InstanceAccounts, {
         page: { items: [], total: 0, query: "nobody", limit: 50, offset: 0 },
         pageNumber: 1,
+        locale: "en",
+        dict,
       }),
     );
-    expect(html).toContain("No account matches this search.");
+    expect(html).toContain(strings.noMatches);
     expect(html).toContain('href="/admin/accounts"');
   });
 });

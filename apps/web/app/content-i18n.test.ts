@@ -2,27 +2,40 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { formatDate, formatDateTime, relativeTime } from "../lib/format";
 import { getDictionary, template } from "../lib/i18n/get-dictionary";
-import { LOCALE_COOKIE } from "../lib/i18n/locales";
+import { INTL_LOCALE, LOCALE_COOKIE } from "../lib/i18n/locales";
 import { renderTerms } from "../lib/i18n/terms";
+import InstanceAccountsPage, { generateMetadata as accountsMetadata } from "./admin/accounts/page";
+import InstanceOverviewPage, { generateMetadata as overviewMetadata } from "./admin/page";
 import EditArticlePage from "./articles/[articleId]/edit/page";
 import ArticlePage from "./articles/[articleId]/page";
+import LoginPage, { generateMetadata as loginMetadata } from "./auth/login/page";
 import ImportPage from "./brains/[brainId]/import/page";
 import MaintenancePage from "./brains/[brainId]/maintenance/page";
 import BrainPage from "./brains/[brainId]/page";
 import TasksPage from "./brains/[brainId]/tasks/page";
 import WritesPage from "./brains/[brainId]/writes/page";
 import ConnectionsPage, { generateMetadata as connectionsMetadata } from "./connections/page";
+import ForgotPasswordPage, { generateMetadata as forgotMetadata } from "./forgot-password/page";
 import InvitePage, { generateMetadata as inviteMetadata } from "./invite/[token]/page";
+import Loading from "./loading";
+import RegisterPage, { generateMetadata as registerMetadata } from "./register/page";
+import ResendVerificationPage, {
+  generateMetadata as resendMetadata,
+} from "./resend-verification/page";
+import ResetPasswordPage, { generateMetadata as resetMetadata } from "./reset-password/page";
 import TaskPage from "./tasks/[taskId]/page";
 import TeamInvitePage, { generateMetadata as teamInviteMetadata } from "./team-invite/[token]/page";
 import TeamPage, { generateMetadata as teamMetadata } from "./teams/[teamId]/page";
 import TeamsPage, { generateMetadata as teamsMetadata } from "./teams/page";
+import VerifyEmailPage, { generateMetadata as verifyMetadata } from "./verify-email/page";
 import WritePage from "./writes/[writeId]/page";
 
-const mocks = vi.hoisted(() => ({ api: vi.fn(), locale: "en", empty: false }));
+const mocks = vi.hoisted(() => ({ api: vi.fn(), locale: "en", empty: false, signedIn: true }));
 vi.mock("../lib/api", () => ({
   api: mocks.api,
-  hasSession: async () => true,
+  hasSession: async () => mocks.signedIn,
+  requireInstanceOwner: async () => {},
+  publicAuthConfig: async () => ({ signupEnabled: true, turnstileSiteKey: null }),
   workspaceContext: async () => ({
     teams: [{ id: "team-one", name: "Untranslated team", slug: "team-slug", role: "owner" }],
     workspaces: [
@@ -89,8 +102,97 @@ const escaped = (value: string) => renderToStaticMarkup(value);
 
 beforeEach(() => {
   mocks.empty = false;
+  mocks.signedIn = true;
   mocks.api.mockReset();
   mocks.api.mockImplementation(async (path: string) => {
+    if (path === "/api/v1/admin/overview")
+      return {
+        generatedAt: createdAt,
+        timeZone: "UTC",
+        accounts: {
+          total: 1234,
+          verified: 1200,
+          unverified: 30,
+          disabled: 4,
+          systemOwners: 1,
+          newLast7Days: 7,
+          newLast30Days: 40,
+          activeLast7Days: 300,
+          activeLast30Days: 800,
+        },
+        knowledge: {
+          teams: 20,
+          workspaces: 25,
+          brains: 60,
+          articles: 4000,
+          versions: 9000,
+          pendingWrites: 3,
+          conflictedWrites: 2,
+          openTasks: 5,
+          claimedTasks: 1,
+        },
+        usage: {
+          mcpCallsLast24Hours: 3,
+          mcpCallsLast7Days: 4,
+          mcpCallsLast30Days: 4,
+          mcpCallsTotal: 4,
+          activeClientsLast30Days: 2,
+          webSessions: 9,
+          mcpConnections: 11,
+        },
+        storage: { databaseBytes: 52_428_800 },
+        daily: [
+          { date: "2026-09-01", signups: 1, calls: 3 },
+          { date: "2026-09-02", signups: 7, calls: 1 },
+        ],
+      };
+    if (path.startsWith("/api/v1/admin/accounts?"))
+      return {
+        query: new URLSearchParams(path.split("?")[1]).get("query") ?? "",
+        total: mocks.empty ? 0 : 1234,
+        limit: 50,
+        offset: 0,
+        items: mocks.empty
+          ? []
+          : [
+              {
+                id: "owner-one",
+                email: "owner@example.test",
+                displayName: "Untranslated owner",
+                systemOwner: true,
+                emailVerifiedAt: createdAt,
+                disabledAt: null,
+                createdAt,
+                teams: 1234,
+                mcpConnections: 2345,
+                lastActiveAt: createdAt,
+              },
+              {
+                id: "unverified-one",
+                email: "unverified@example.test",
+                displayName: "Untranslated unverified",
+                systemOwner: false,
+                emailVerifiedAt: null,
+                disabledAt: null,
+                createdAt,
+                teams: 0,
+                mcpConnections: 0,
+                lastActiveAt: null,
+              },
+              {
+                id: "disabled-one",
+                email: "disabled@example.test",
+                displayName: "Untranslated disabled",
+                systemOwner: false,
+                emailVerifiedAt: createdAt,
+                disabledAt: createdAt,
+                createdAt,
+                teams: 0,
+                mcpConnections: 0,
+                lastActiveAt: null,
+              },
+            ],
+      };
     if (path === "/api/v1/connections")
       return mocks.empty
         ? []
@@ -368,6 +470,243 @@ describe("content page localization", () => {
       expect(await teamInviteMetadata()).toEqual({ title: strings.teamInvitation });
       expect(await inviteMetadata()).toEqual({ title: strings.brainInvitation });
       expect(await connectionsMetadata()).toEqual({ title: dict.connections.title });
+    },
+  );
+
+  it.each(["en", "tr", "zh"] as const)(
+    "passes the %s request dictionary through admin pages, charts and account states",
+    async (locale) => {
+      mocks.locale = locale;
+      const dict = getDictionary(locale);
+      const strings = dict.admin;
+      const overview = renderToStaticMarkup(await InstanceOverviewPage());
+      for (const value of [
+        strings.kicker,
+        strings.overview,
+        strings.overviewDescription,
+        strings.allTeamsUtc,
+        strings.accounts,
+        strings.active7Days,
+        strings.brains,
+        strings.calls30Days,
+        strings.verified,
+        strings.awaitingVerification,
+        strings.disabled,
+        strings.instanceOwners,
+        strings.new7Days,
+        strings.new30Days,
+        strings.active30Days,
+        strings.teams,
+        strings.workspaces,
+        strings.articles,
+        strings.versions,
+        strings.pendingWrites,
+        strings.conflictedWrites,
+        strings.openTasks,
+        strings.claimedTasks,
+        strings.calls24Hours,
+        strings.calls7Days,
+        strings.callsAllTime,
+        strings.agentClients30Days,
+        strings.liveConnections,
+        strings.oauthGrants,
+        strings.liveSessions,
+        strings.databaseSize,
+        strings.last30Days,
+        strings.newAccounts,
+        strings.mcpToolCalls,
+        strings.knowledge,
+        strings.agentsAndSessions,
+        strings.storage,
+        dict.common.refresh,
+      ]) {
+        expect(overview).toContain(renderToStaticMarkup(renderTerms(value)));
+      }
+      const date = new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+        dateStyle: "medium",
+        timeZone: "UTC",
+      });
+      const dateTime = new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "UTC",
+      });
+      expect(overview).toContain(
+        escaped(template(strings.generatedAt, { date: dateTime.format(new Date(createdAt)) })),
+      );
+      for (const [key, day, count] of [
+        ["signupsOne", "2026-09-01", 1],
+        ["signupsMany", "2026-09-02", 7],
+        ["callsOne", "2026-09-02", 1],
+        ["callsMany", "2026-09-01", 3],
+      ] as const) {
+        const label = template(strings[key], {
+          date: date.format(new Date(`${day}T00:00:00Z`)),
+          count,
+        });
+        expect(overview).toContain(`aria-label="${escaped(label)}"`);
+      }
+      expect(overview).toContain(escaped(template(strings.peak, { count: 7 })));
+      expect(overview).toContain(escaped(template(strings.total, { count: 8 })));
+      expect(overview).toContain(
+        `aria-label="${escaped(template(strings.perDay, { title: strings.newAccounts }))}"`,
+      );
+      expect(overview).toContain(`aria-label="${strings.instanceFacts}"`);
+      expect(overview).toContain((1234).toLocaleString(INTL_LOCALE[locale]));
+      expect(overview).not.toContain("[[");
+
+      const accounts = renderToStaticMarkup(
+        await InstanceAccountsPage({ searchParams: Promise.resolve({ q: "Untranslated query" }) }),
+      );
+      for (const value of [
+        strings.kicker,
+        strings.accounts,
+        strings.accountsDescription,
+        strings.searchAccounts,
+        strings.searchPlaceholder,
+        strings.search,
+        strings.clear,
+        strings.account,
+        strings.status,
+        strings.teams,
+        strings.agents,
+        strings.joined,
+        strings.lastActive,
+        strings.instanceOwner,
+        strings.statusActive,
+        strings.statusUnverified,
+        strings.statusDisabled,
+        strings.noActivity,
+        dict.common.next,
+        dict.common.previous,
+      ]) {
+        expect(accounts).toContain(renderToStaticMarkup(renderTerms(value)));
+      }
+      expect(accounts).toContain(
+        escaped(template(strings.matchingQuery, { query: "Untranslated query" })),
+      );
+      expect(accounts).toContain(escaped(template(dict.common.pageOf, { page: 1, pageCount: 25 })));
+      expect(accounts).toContain(`aria-label="${dict.common.pagination}"`);
+      expect(accounts).toContain(`aria-label="${strings.navigation}"`);
+      expect(accounts).toContain("Untranslated owner");
+      expect(accounts).toContain("owner@example.test");
+      expect(accounts).toContain((2345).toLocaleString(INTL_LOCALE[locale]));
+      expect(accounts).toContain(formatDate(createdAt, locale));
+      expect(accounts).toContain(formatDateTime(createdAt, locale));
+      expect(accounts).toContain(relativeTime(createdAt, locale));
+      expect(accounts).not.toContain("[[");
+      expect(await overviewMetadata()).toEqual({ title: strings.instance });
+      expect(await accountsMetadata()).toEqual({ title: strings.accounts });
+
+      mocks.empty = true;
+      for (const [query, label] of [
+        [{}, strings.noAccounts],
+        [{ q: "nobody" }, strings.noMatches],
+      ] as const) {
+        const html = renderToStaticMarkup(
+          await InstanceAccountsPage({ searchParams: Promise.resolve(query) }),
+        );
+        expect(html).toContain(escaped(label));
+      }
+    },
+  );
+
+  it.each(["en", "tr", "zh"] as const)(
+    "passes the %s request dictionary through auth pages, forms and loading",
+    async (locale) => {
+      mocks.locale = locale;
+      mocks.signedIn = false;
+      const dict = getDictionary(locale);
+      const strings = dict.auth;
+      const login = await LoginPage({ searchParams: Promise.resolve({ returnTo: "/dashboard" }) });
+      const pages = [
+        [
+          login,
+          [
+            strings.webSession,
+            strings.loginTitle,
+            strings.loginDescription,
+            strings.email,
+            strings.password,
+            strings.signIn,
+            strings.createAccount,
+            strings.forgotPassword,
+          ],
+        ],
+        [
+          await RegisterPage(),
+          [
+            strings.openRegistration,
+            strings.registerTitle,
+            strings.registerDescription,
+            strings.yourName,
+            strings.email,
+            strings.password,
+            strings.passwordHint,
+            strings.firstTeam,
+            strings.teamPlaceholder,
+            strings.createAccount,
+          ],
+        ],
+        [
+          await ForgotPasswordPage(),
+          [
+            strings.accountRecovery,
+            strings.forgotTitle,
+            strings.forgotDescription,
+            strings.accountEmail,
+            strings.sendResetLink,
+          ],
+        ],
+        [
+          await ResetPasswordPage({ searchParams: Promise.resolve({ token: "unchanged-token" }) }),
+          [
+            strings.accountRecovery,
+            strings.resetTitle,
+            strings.resetDescription,
+            strings.newPassword,
+            strings.passwordHint,
+            strings.setNewPassword,
+          ],
+        ],
+        [
+          await ResendVerificationPage(),
+          [
+            strings.accountVerification,
+            strings.resendTitle,
+            strings.resendDescription,
+            strings.accountEmail,
+            strings.resendVerification,
+          ],
+        ],
+        [
+          await VerifyEmailPage({ searchParams: Promise.resolve({ token: "unchanged-token" }) }),
+          [
+            strings.accountVerification,
+            strings.verifyTitle,
+            strings.verifyDescription,
+            strings.verifyEmail,
+          ],
+        ],
+      ] as const;
+      for (const [page, labels] of pages) {
+        const html = renderToStaticMarkup(page);
+        for (const value of labels)
+          expect(html).toContain(renderToStaticMarkup(renderTerms(value)));
+        expect(html).not.toContain("[[");
+      }
+      for (const [metadata, title] of [
+        [loginMetadata, strings.loginMetadata],
+        [registerMetadata, strings.createAccount],
+        [forgotMetadata, strings.forgotMetadata],
+        [resetMetadata, strings.setNewPassword],
+        [resendMetadata, strings.resendVerification],
+        [verifyMetadata, strings.verifyEmail],
+      ] as const)
+        expect(await metadata()).toEqual({ title });
+      const loading = renderToStaticMarkup(await Loading());
+      expect(loading).toContain(`aria-label="${dict.common.loading}"`);
+      expect(loading).toContain('aria-busy="true"');
     },
   );
 

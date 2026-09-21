@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import { buildBars, formatBytes, type InstanceOverview } from "../lib/admin";
+import { type Dictionary, template } from "../lib/i18n/get-dictionary";
+import { INTL_LOCALE, type Locale } from "../lib/i18n/locales";
+import { renderTerms } from "../lib/i18n/terms";
 import { Card, CardHeader } from "./ui/card";
 
 interface Fact {
@@ -9,63 +12,72 @@ interface Fact {
   attention?: boolean;
 }
 
-export function InstanceOverviewView({ overview }: { overview: InstanceOverview }) {
+export function InstanceOverviewView({
+  overview,
+  locale,
+  strings,
+}: {
+  overview: InstanceOverview;
+  locale: Locale;
+  strings: Dictionary["admin"];
+}) {
   const { accounts, knowledge, usage, storage } = overview;
   const headline = [
-    { label: "Accounts", value: accounts.total },
-    { label: "Active · 7 days", value: accounts.activeLast7Days },
-    { label: "Brains", value: knowledge.brains },
-    { label: "MCP calls · 30 days", value: usage.mcpCallsLast30Days },
+    { label: strings.accounts, value: accounts.total },
+    { label: strings.active7Days, value: accounts.activeLast7Days },
+    { label: strings.brains, value: knowledge.brains },
+    { label: strings.calls30Days, value: usage.mcpCallsLast30Days },
   ];
   const accountFacts: Fact[] = [
-    { label: "Verified", value: accounts.verified },
+    { label: strings.verified, value: accounts.verified },
     {
-      label: "Awaiting verification",
+      label: strings.awaitingVerification,
       value: accounts.unverified,
       attention: accounts.unverified > 0,
     },
-    { label: "Disabled", value: accounts.disabled },
-    { label: "Instance owners", value: accounts.systemOwners },
-    { label: "New in the last 7 days", value: accounts.newLast7Days },
-    { label: "New in the last 30 days", value: accounts.newLast30Days },
-    { label: "Active in the last 30 days", value: accounts.activeLast30Days },
+    { label: strings.disabled, value: accounts.disabled },
+    { label: strings.instanceOwners, value: accounts.systemOwners },
+    { label: strings.new7Days, value: accounts.newLast7Days },
+    { label: strings.new30Days, value: accounts.newLast30Days },
+    { label: strings.active30Days, value: accounts.activeLast30Days },
   ];
   const knowledgeFacts: Fact[] = [
-    { label: "Teams", value: knowledge.teams },
-    { label: "Workspaces", value: knowledge.workspaces },
-    { label: "Brains", value: knowledge.brains },
-    { label: "Articles", value: knowledge.articles },
-    { label: "Versions in history", value: knowledge.versions },
-    { label: "Writes awaiting review", value: knowledge.pendingWrites },
+    { label: strings.teams, value: knowledge.teams },
+    { label: strings.workspaces, value: knowledge.workspaces },
+    { label: strings.brains, value: knowledge.brains },
+    { label: strings.articles, value: knowledge.articles },
+    { label: strings.versions, value: knowledge.versions },
+    { label: strings.pendingWrites, value: knowledge.pendingWrites },
     {
-      label: "Writes in conflict",
+      label: strings.conflictedWrites,
       value: knowledge.conflictedWrites,
       attention: knowledge.conflictedWrites > 0,
     },
-    { label: "Open tasks", value: knowledge.openTasks },
-    { label: "Claimed tasks", value: knowledge.claimedTasks },
+    { label: strings.openTasks, value: knowledge.openTasks },
+    { label: strings.claimedTasks, value: knowledge.claimedTasks },
   ];
   const usageFacts: Fact[] = [
-    { label: "MCP calls · 24 hours", value: usage.mcpCallsLast24Hours },
-    { label: "MCP calls · 7 days", value: usage.mcpCallsLast7Days },
-    { label: "MCP calls · all time", value: usage.mcpCallsTotal },
-    { label: "Agent clients · 30 days", value: usage.activeClientsLast30Days },
-    { label: "Live MCP connections", value: usage.mcpConnections, hint: "OAuth grants" },
-    { label: "Live browser sessions", value: usage.webSessions },
+    { label: strings.calls24Hours, value: usage.mcpCallsLast24Hours },
+    { label: strings.calls7Days, value: usage.mcpCallsLast7Days },
+    { label: strings.callsAllTime, value: usage.mcpCallsTotal },
+    { label: strings.agentClients30Days, value: usage.activeClientsLast30Days },
+    { label: strings.liveConnections, value: usage.mcpConnections, hint: strings.oauthGrants },
+    { label: strings.liveSessions, value: usage.webSessions },
   ];
   const systemFacts: Fact[] = [
-    { label: "Database size", value: formatBytes(storage.databaseBytes) },
+    { label: strings.databaseSize, value: formatBytes(storage.databaseBytes) },
   ];
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <p className="font-mono text-2xs text-ink-3 uppercase tracking-[0.1em]">
-          Every team on this instance · UTC
+          {renderTerms(strings.allTeamsUtc)}
         </p>
         <p className="font-mono text-2xs text-ink-3">
-          Generated{" "}
-          <time dateTime={overview.generatedAt}>{utcDateTime(overview.generatedAt)} UTC</time>
+          <time dateTime={overview.generatedAt}>
+            {template(strings.generatedAt, { date: utcDateTime(overview.generatedAt, locale) })}
+          </time>
         </p>
       </div>
 
@@ -74,10 +86,10 @@ export function InstanceOverviewView({ overview }: { overview: InstanceOverview 
           {headline.map((metric) => (
             <div className="relative overflow-hidden px-5 py-4" key={metric.label}>
               <dt className="font-mono text-[10.5px] text-ink-3 uppercase tracking-[0.12em]">
-                {metric.label}
+                {renderTerms(metric.label)}
               </dt>
               <dd className="mt-2 font-mono font-semibold text-3xl text-ink tabular-nums tracking-tight">
-                {metric.value.toLocaleString("en")}
+                {metric.value.toLocaleString(INTL_LOCALE[locale])}
               </dd>
               <span
                 aria-hidden="true"
@@ -88,26 +100,30 @@ export function InstanceOverviewView({ overview }: { overview: InstanceOverview 
         </dl>
       </Card>
 
-      <section className="grid gap-5 lg:grid-cols-2" aria-label="Last 30 days">
+      <section className="grid gap-5 lg:grid-cols-2" aria-label={strings.last30Days}>
         <DailyBars
-          title="New accounts"
+          locale={locale}
+          strings={strings}
+          title={strings.newAccounts}
           daily={overview.daily}
           series="signups"
-          unit={["sign-up", "sign-ups"]}
+          unit={[strings.signupsOne, strings.signupsMany]}
         />
         <DailyBars
-          title="MCP tool calls"
+          locale={locale}
+          strings={strings}
+          title={strings.mcpToolCalls}
           daily={overview.daily}
           series="calls"
-          unit={["call", "calls"]}
+          unit={[strings.callsOne, strings.callsMany]}
         />
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-2" aria-label="Instance facts">
-        <FactCard title="Accounts" facts={accountFacts} />
-        <FactCard title="Knowledge" facts={knowledgeFacts} />
-        <FactCard title="Agents and sessions" facts={usageFacts} />
-        <FactCard title="Storage" facts={systemFacts} />
+      <section className="grid gap-5 lg:grid-cols-2" aria-label={strings.instanceFacts}>
+        <FactCard locale={locale} title={strings.accounts} facts={accountFacts} />
+        <FactCard locale={locale} title={strings.knowledge} facts={knowledgeFacts} />
+        <FactCard locale={locale} title={strings.agentsAndSessions} facts={usageFacts} />
+        <FactCard locale={locale} title={strings.storage} facts={systemFacts} />
       </section>
     </div>
   );
@@ -120,7 +136,11 @@ function DailyBars({
   daily,
   series,
   unit,
+  locale,
+  strings,
 }: {
+  locale: Locale;
+  strings: Dictionary["admin"];
   title: string;
   daily: InstanceOverview["daily"];
   series: "signups" | "calls";
@@ -133,19 +153,25 @@ function DailyBars({
     <Card>
       <CardHeader
         title={title}
-        count="Last 30 days"
+        count={strings.last30Days}
         action={
           <span className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.08em]">
-            {total.toLocaleString("en")} total
+            {renderTerms(
+              template(strings.total, { count: total.toLocaleString(INTL_LOCALE[locale]) }),
+            )}
           </span>
         }
       />
       <div className="p-4 sm:p-5">
-        <ol className="flex h-28 items-end gap-[2px]" aria-label={`${title} per day`}>
+        <ol
+          className="flex h-28 items-end gap-[2px]"
+          aria-label={template(strings.perDay, { title })}
+        >
           {bars.map((bar) => {
-            const label = `${utcDate(bar.date)}: ${bar.value.toLocaleString("en")} ${
-              bar.value === 1 ? unit[0] : unit[1]
-            }`;
+            const label = template(bar.value === 1 ? unit[0] : unit[1], {
+              date: utcDate(bar.date, locale),
+              count: bar.value.toLocaleString(INTL_LOCALE[locale]),
+            });
             return (
               <li className="flex h-full flex-1 items-end" key={bar.date}>
                 <span
@@ -162,16 +188,20 @@ function DailyBars({
           })}
         </ol>
         <div className="mt-2 flex items-center justify-between font-mono text-[9px] text-ink-3 uppercase">
-          <span>{first ? utcDate(first) : ""}</span>
-          <span>Peak {peak.toLocaleString("en")}</span>
-          <span>{last ? utcDate(last) : ""}</span>
+          <span>{first ? utcDate(first, locale) : ""}</span>
+          <span>
+            {renderTerms(
+              template(strings.peak, { count: peak.toLocaleString(INTL_LOCALE[locale]) }),
+            )}
+          </span>
+          <span>{last ? utcDate(last, locale) : ""}</span>
         </div>
       </div>
     </Card>
   );
 }
 
-function FactCard({ title, facts }: { title: ReactNode; facts: Fact[] }) {
+function FactCard({ title, facts, locale }: { title: ReactNode; facts: Fact[]; locale: Locale }) {
   return (
     <Card>
       <CardHeader title={title} />
@@ -179,10 +209,10 @@ function FactCard({ title, facts }: { title: ReactNode; facts: Fact[] }) {
         {facts.map((fact) => (
           <div className="flex items-baseline gap-4 px-4 py-2.5" key={fact.label}>
             <dt className="min-w-0 flex-1 text-ink-2 text-sm">
-              {fact.label}
+              {renderTerms(fact.label)}
               {fact.hint ? (
                 <span className="ml-2 font-mono text-[10px] text-ink-3 uppercase tracking-[0.06em]">
-                  {fact.hint}
+                  {renderTerms(fact.hint)}
                 </span>
               ) : null}
             </dt>
@@ -191,7 +221,9 @@ function FactCard({ title, facts }: { title: ReactNode; facts: Fact[] }) {
                 fact.attention ? "text-orange" : "text-ink"
               }`}
             >
-              {typeof fact.value === "number" ? fact.value.toLocaleString("en") : fact.value}
+              {typeof fact.value === "number"
+                ? fact.value.toLocaleString(INTL_LOCALE[locale])
+                : fact.value}
             </dd>
           </div>
         ))}
@@ -200,17 +232,28 @@ function FactCard({ title, facts }: { title: ReactNode; facts: Fact[] }) {
   );
 }
 
-const utcDateFormat = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
-const utcDateTimeFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "UTC",
-});
+const utcFormats = new Map<Locale, { date: Intl.DateTimeFormat; dateTime: Intl.DateTimeFormat }>();
 
-function utcDate(value: string) {
-  return utcDateFormat.format(new Date(`${value}T00:00:00.000Z`));
+function formats(locale: Locale) {
+  let cached = utcFormats.get(locale);
+  if (!cached) {
+    cached = {
+      date: new Intl.DateTimeFormat(INTL_LOCALE[locale], { dateStyle: "medium", timeZone: "UTC" }),
+      dateTime: new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "UTC",
+      }),
+    };
+    utcFormats.set(locale, cached);
+  }
+  return cached;
 }
 
-function utcDateTime(value: string) {
-  return utcDateTimeFormat.format(new Date(value));
+function utcDate(value: string, locale: Locale) {
+  return formats(locale).date.format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function utcDateTime(value: string, locale: Locale) {
+  return formats(locale).dateTime.format(new Date(value));
 }

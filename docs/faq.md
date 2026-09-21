@@ -77,8 +77,8 @@ limits and inflates token costs. Rementum minimizes prompt overhead in several w
 ### Which languages does the web interface support?
 
 You can use the homepage, dashboard, workspace analytics, brain pages (including import and
-maintenance), articles, writes, tasks, teams, invitations, and connections in **English**,
-**Simplified Chinese (中文)**, and **Turkish (Türkçe)**.
+maintenance), articles, writes, tasks, teams, invitations, connections, admin pages, and account
+flows in **English**, **Simplified Chinese (中文)**, and **Turkish (Türkçe)**.
 
 - **Homepage:** each language has its own URL (`/`, `/zh`, and `/tr`) with its own canonical URL
   and `hreflang` links, so search engines see three real translated pages rather than one
@@ -94,13 +94,16 @@ The homepage stays in the public shell when you are signed in: the sidebar is th
 the marketing page is not laid out inside it. The account buttons in the header and the footer
 become a **Dashboard** link in that case, so the page still leads into the app.
 
-The **navigation shell** (sidebar, header, footer, and language switcher) follows your chosen
-language on signed-in pages. Workspace analytics and brain activity also use that language for
-labels, dates, relative times, and counts. Heatmap days still follow UTC. English product terms
-such as `brain` keep English casing within Turkish labels.
+Every signed-in page and account flow follows your chosen language, including the navigation shell
+(sidebar, header, footer, and language switcher) and the labels, dates, relative times, and number
+formatting inside each page. Analytics heatmap days still follow UTC, whatever the language.
 
-Sign-in and other account flows, admin, and instance settings still show English page content.
-The `/docs` site, API messages, and email templates also remain in English.
+English product terms stay English in Turkish, `brain` among them, and keep English capitalization
+inside Turkish labels: `AKTİF BRAIN`, not `AKTİF BRAİN`.
+
+The emergency error screen keeps an English fallback because it must work when server rendering
+fails. The `/docs` site, API messages (including errors shown in forms), and email templates remain
+in English.
 
 User content (brain names, article titles and bodies, comments) is never translated, and neither
 are shell commands, MCP URLs, or slugs.

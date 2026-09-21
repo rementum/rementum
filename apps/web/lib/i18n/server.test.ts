@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { getDictionary } from "./get-dictionary";
 import { LOCALE_COOKIE } from "./locales";
-import { requestDictionary, requestLocale } from "./server";
+import { requestDictionary } from "./server";
 
 const request = vi.hoisted(() => ({ cookie: undefined as string | undefined, language: "en" }));
 vi.mock("next/headers", () => ({
@@ -21,7 +21,6 @@ describe("requestDictionary", () => {
   ] as const)("resolves cookie %s and language %s to %s", async (cookie, language, locale) => {
     request.cookie = cookie;
     request.language = language;
-    expect(await requestLocale()).toBe(locale);
     expect(await requestDictionary()).toEqual({ locale, dict: getDictionary(locale) });
   });
 });

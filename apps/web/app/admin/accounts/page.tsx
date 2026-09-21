@@ -11,13 +11,21 @@ import {
 } from "../../../lib/admin";
 import { api, requireInstanceOwner } from "../../../lib/api";
 
-export const metadata: Metadata = { title: "Accounts" };
+import { requestDictionary } from "../../../lib/i18n/server";
+import { renderTerms } from "../../../lib/i18n/terms";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { dict } = await requestDictionary();
+  return { title: dict.admin.accounts };
+}
 
 export default async function InstanceAccountsPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string | string[]; page?: string | string[] }>;
 }) {
+  const { locale, dict } = await requestDictionary();
+  const strings = dict.admin;
   await requireInstanceOwner();
   const params = await searchParams;
   const query = parseQuery(params.q);
@@ -41,16 +49,18 @@ export default async function InstanceAccountsPage({
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pt-10 pb-20">
       <PageHeader
-        kicker="Instance"
-        title="Accounts"
-        description="Every registered account on this instance, newest first."
-        actions={<RefreshButton />}
+        kicker={renderTerms(strings.kicker)}
+        title={strings.accounts}
+        description={strings.accountsDescription}
+        actions={
+          <RefreshButton label={dict.common.refresh} pendingLabel={dict.common.refreshing} />
+        }
       />
       <div className="mt-6">
-        <InstanceNav />
+        <InstanceNav strings={strings} />
       </div>
       <section className="mt-8">
-        <InstanceAccounts page={page} pageNumber={pageNumber} />
+        <InstanceAccounts page={page} pageNumber={pageNumber} locale={locale} dict={dict} />
       </section>
     </main>
   );

@@ -2,6 +2,8 @@
 
 import { Button } from "../components/pui";
 
+// Next supplies only error/reset to this client boundary, so it cannot load the server dictionary.
+// Keep English here so the fallback also works when server rendering fails.
 export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-16">
