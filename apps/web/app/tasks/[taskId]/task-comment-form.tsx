@@ -4,8 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "../../../components/pui";
 import { Field, fieldControlClass } from "../../../components/ui/field";
+import type { Dictionary } from "../../../lib/i18n/get-dictionary";
 
-export function TaskCommentForm({ taskId }: { taskId: string }) {
+export function TaskCommentForm({
+  taskId,
+  strings,
+}: {
+  taskId: string;
+  strings: Dictionary["tasks"];
+}) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -16,13 +23,13 @@ export function TaskCommentForm({ taskId }: { taskId: string }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ body: formData.get("body") }),
     });
-    if (!response.ok) setError("Could not add the comment.");
+    if (!response.ok) setError(strings.commentError);
     else router.refresh();
     setBusy(false);
   }
   return (
     <form className="grid gap-3" action={submit}>
-      <Field label="Comment" htmlFor="task-comment">
+      <Field label={strings.comment} htmlFor="task-comment">
         <textarea
           className={`${fieldControlClass} min-h-24`}
           id="task-comment"
@@ -34,7 +41,7 @@ export function TaskCommentForm({ taskId }: { taskId: string }) {
       {error ? <p className="text-sm text-red">{error}</p> : null}
       <div>
         <Button variant="solid" size="sm" disabled={busy} type="submit">
-          Add comment
+          {strings.addComment}
         </Button>
       </div>
     </form>

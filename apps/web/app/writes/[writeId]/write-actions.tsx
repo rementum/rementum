@@ -3,9 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "../../../components/pui";
+import { type Dictionary, template } from "../../../lib/i18n/get-dictionary";
 import { isReviewable, promoteRequestFor } from "./promote-decision";
 
-export function WriteActions({ writeId, status }: { writeId: string; status: string }) {
+export function WriteActions({
+  writeId,
+  status,
+  strings,
+}: {
+  writeId: string;
+  status: string;
+  strings: Dictionary["writes"];
+}) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -23,7 +32,7 @@ export function WriteActions({ writeId, status }: { writeId: string; status: str
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      setError(body.title ?? `Request failed (${response.status})`);
+      setError(body.title ?? template(strings.requestError, { status: response.status }));
       setBusy(false);
       return;
     }
@@ -42,7 +51,7 @@ export function WriteActions({ writeId, status }: { writeId: string; status: str
           onClick={() => act("withdraw")}
           type="button"
         >
-          Withdraw
+          {strings.withdraw}
         </button>
         {conflicted && !confirmOverride ? (
           <Button
@@ -54,7 +63,7 @@ export function WriteActions({ writeId, status }: { writeId: string; status: str
             }}
             type="button"
           >
-            Override &amp; promote
+            {strings.overridePromote}
           </Button>
         ) : conflicted ? (
           <div className="flex items-center gap-2">
@@ -64,22 +73,20 @@ export function WriteActions({ writeId, status }: { writeId: string; status: str
               onClick={() => setConfirmOverride(false)}
               type="button"
             >
-              Cancel
+              {strings.cancel}
             </button>
             <Button variant="solid" disabled={busy} onClick={() => act("promote")} type="button">
-              Confirm override
+              {strings.confirmOverride}
             </Button>
           </div>
         ) : (
           <Button variant="solid" disabled={busy} onClick={() => act("promote")} type="button">
-            Promote
+            {strings.promote}
           </Button>
         )}
       </div>
       {conflicted && !confirmOverride ? (
-        <p className="max-w-72 text-right text-xs text-ink-3">
-          Overriding replaces current canon with this candidate and discards the conflicting change.
-        </p>
+        <p className="max-w-72 text-right text-xs text-ink-3">{strings.overrideDescription}</p>
       ) : null}
       {error ? <p className="max-w-64 text-right text-sm text-red">{error}</p> : null}
     </div>

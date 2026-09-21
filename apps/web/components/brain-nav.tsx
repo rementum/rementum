@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import type { Dictionary } from "../lib/i18n/get-dictionary";
 import { GlideNav } from "./ui/glide";
 import {
   IconActivity,
@@ -11,15 +12,19 @@ import {
   IconWrites,
 } from "./ui/icons";
 
-export function BrainNav({ brainId }: { brainId: string }) {
+export function BrainNav({ brainId, strings }: { brainId: string; strings: Dictionary["brains"] }) {
   const pathname = usePathname();
   const items = [
-    { label: "Index", href: `/brains/${brainId}`, icon: IconIndex },
-    { label: "Writes", href: `/brains/${brainId}/writes`, icon: IconWrites },
-    { label: "Tasks", href: `/brains/${brainId}/tasks`, icon: IconTasks },
-    { label: "Maintenance", href: `/brains/${brainId}/maintenance`, icon: IconMaintenance },
-    { label: "Activity", href: `/brains/${brainId}/activity`, icon: IconActivity },
-    { label: "Import", href: `/brains/${brainId}/import`, icon: IconImport },
+    { label: strings.navIndex, href: `/brains/${brainId}`, icon: IconIndex },
+    { label: strings.navWrites, href: `/brains/${brainId}/writes`, icon: IconWrites },
+    { label: strings.navTasks, href: `/brains/${brainId}/tasks`, icon: IconTasks },
+    {
+      label: strings.navMaintenance,
+      href: `/brains/${brainId}/maintenance`,
+      icon: IconMaintenance,
+    },
+    { label: strings.navActivity, href: `/brains/${brainId}/activity`, icon: IconActivity },
+    { label: strings.navImport, href: `/brains/${brainId}/import`, icon: IconImport },
   ];
   const activeIndex = items.findIndex((item) => item.href === pathname);
 
@@ -29,7 +34,7 @@ export function BrainNav({ brainId }: { brainId: string }) {
         items={items}
         activeIndex={activeIndex}
         orientation="horizontal"
-        ariaLabel="Brain management"
+        ariaLabel={strings.management}
       />
     </div>
   );

@@ -5,6 +5,8 @@ import { Button, Sparkle, WibblingSpinner } from "../../../../components/pui";
 import { Card } from "../../../../components/ui/card";
 import { Chip } from "../../../../components/ui/chip";
 import { IconImport } from "../../../../components/ui/icons";
+import { type Dictionary, template } from "../../../../lib/i18n/get-dictionary";
+import { renderTerms } from "../../../../lib/i18n/terms";
 
 interface Preview {
   files: Array<{
@@ -18,7 +20,14 @@ interface Preview {
   totalBytes: number;
 }
 
-export function ImportPanel({ brainId }: { brainId: string }) {
+export function ImportPanel({
+  brainId,
+  strings,
+}: {
+  brainId: string;
+  strings: Dictionary["brains"];
+}) {
+  const kinds: Record<string, string> = { canonical: strings.kindCanonical, log: strings.kindLog };
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [writes, setWrites] = useState<number | null>(null);
@@ -35,7 +44,7 @@ export function ImportPanel({ brainId }: { brainId: string }) {
       body: form,
     });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) setError(body.title ?? "Import request failed.");
+    if (!response.ok) setError(body.title ?? strings.importError);
     else if (mode === "preview") setPreview(body);
     else setWrites(body.writes?.length ?? 0);
     setBusy(false);
@@ -45,12 +54,12 @@ export function ImportPanel({ brainId }: { brainId: string }) {
       <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed border-line px-6 py-12 text-center transition-colors hover:border-accent/40">
         <IconImport className="text-ink-3" />
         <span className="font-mono text-2xs font-semibold uppercase tracking-[0.08em] text-ink-3">
-          Obsidian or Markdown ZIP
+          {renderTerms(strings.importArchive)}
         </span>
         {file ? (
           <span className="font-mono text-xs text-ink">{file.name}</span>
         ) : (
-          <span className="text-xs text-ink-3">Choose a .zip archive to inspect</span>
+          <span className="text-xs text-ink-3">{strings.chooseArchive}</span>
         )}
         <input
           className="sr-only"
@@ -71,16 +80,21 @@ export function ImportPanel({ brainId }: { brainId: string }) {
           onClick={() => send("preview")}
           disabled={!file || busy}
         >
-          Preview
+          {strings.preview}
         </Button>
-        {busy ? <WibblingSpinner className="text-xs text-ink-3" verbs={["Importing"]} /> : null}
+        {busy ? (
+          <WibblingSpinner className="text-xs text-ink-3" verbs={[strings.importing]} />
+        ) : null}
       </div>
       {error ? <p className="mt-3 text-sm text-red">{error}</p> : null}
       {preview ? (
         <div className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="font-mono text-xs tabular-nums text-ink-2">
-              {preview.files.length} Markdown files · {Math.round(preview.totalBytes / 1024)} KB
+              {template(
+                preview.files.length === 1 ? strings.importFilesOne : strings.importFilesMany,
+                { count: preview.files.length, size: Math.round(preview.totalBytes / 1024) },
+              )}
             </p>
             <Button
               variant="solid"
@@ -89,19 +103,26 @@ export function ImportPanel({ brainId }: { brainId: string }) {
               onClick={() => send("stage")}
               disabled={busy}
             >
-              Stage batch
+              {strings.stageBatch}
             </Button>
           </div>
           {preview.unresolvedLinks.length ? (
             <p className="mt-3 rounded-control border border-orange/30 bg-orange/10 px-3 py-2 text-sm text-orange">
-              {preview.unresolvedLinks.length} unresolved wiki-links
+              {template(
+                preview.unresolvedLinks.length === 1
+                  ? strings.unresolvedLinksOne
+                  : strings.unresolvedLinksMany,
+                { count: preview.unresolvedLinks.length },
+              )}
             </p>
           ) : null}
           <Card className="mt-4">
             <div className="divide-y divide-line">
               {preview.files.map((item) => (
                 <div className="flex items-center gap-4 px-4 py-3" key={item.path}>
-                  <Chip className="shrink-0">{item.suggestedKind}</Chip>
+                  <Chip className="shrink-0">
+                    {kinds[item.suggestedKind] ?? item.suggestedKind}
+                  </Chip>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-ink">{item.title}</p>
                     <p className="truncate font-mono text-2xs text-ink-3">{item.path}</p>
@@ -111,7 +132,7 @@ export function ImportPanel({ brainId }: { brainId: string }) {
                       item.warnings.length ? "text-orange" : "text-green"
                     }`}
                   >
-                    {item.warnings.join(", ") || "ready"}
+                    {item.warnings.join(", ") || strings.ready}
                   </span>
                 </div>
               ))}
@@ -122,9 +143,10 @@ export function ImportPanel({ brainId }: { brainId: string }) {
       {writes !== null ? (
         <p className="mt-4 flex items-center gap-2 rounded-control border border-green/25 bg-green/10 px-3 py-2 text-sm text-green">
           <Sparkle />
-          <span>
-            <span className="tabular-nums">{writes}</span> writes staged. Review them in Staged
-            writes before promotion.
+          <span className="tabular-nums">
+            {template(writes === 1 ? strings.writesStagedOne : strings.writesStagedMany, {
+              count: writes,
+            })}
           </span>
         </p>
       ) : null}

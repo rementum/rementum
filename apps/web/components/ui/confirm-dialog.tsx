@@ -20,6 +20,9 @@ interface DialogProps {
   title: string;
   description: string;
   confirmLabel: string;
+  cancelLabel?: string;
+  confirmationLabel?: string;
+  confirmationHint?: string;
   busy?: boolean;
   error?: string;
   /** When set, the confirm button stays disabled until the user types this exact string. */
@@ -51,6 +54,9 @@ function DialogPanel({
   title,
   description,
   confirmLabel,
+  cancelLabel = "Cancel",
+  confirmationLabel = "Confirmation",
+  confirmationHint,
   busy = false,
   error = "",
   expectedName,
@@ -67,7 +73,7 @@ function DialogPanel({
   const matched = expectedName === undefined || typed === expectedName;
 
   // Native dialogs dismiss on Escape; keep that affordance, but never while a
-  // request is in flight — a dialog dismissed mid-request would swallow its
+  // request is in flight, a dialog dismissed mid-request would swallow its
   // outcome, like the busy-disabled Cancel button already prevents.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -107,7 +113,7 @@ function DialogPanel({
     <div className="fixed inset-0 z-50" ref={rootRef}>
       <motion.button
         type="button"
-        aria-label="Cancel"
+        aria-label={cancelLabel}
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         disabled={busy}
         onClick={onCancel}
@@ -144,9 +150,9 @@ function DialogPanel({
             {expectedName !== undefined ? (
               <div className="mt-3">
                 <Field
-                  label="Confirmation"
+                  label={confirmationLabel}
                   htmlFor={inputId}
-                  hint={`Type "${expectedName}" to continue.`}
+                  hint={confirmationHint ?? `Type "${expectedName}" to continue.`}
                 >
                   <input
                     id={inputId}
@@ -173,7 +179,7 @@ function DialogPanel({
                 disabled={busy}
                 onClick={onCancel}
               >
-                Cancel
+                {cancelLabel}
               </button>
               <button className={DANGER_CONFIRM_CLASS} type="submit" disabled={busy || !matched}>
                 {confirmLabel}

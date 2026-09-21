@@ -2,12 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { type Dictionary, template } from "../lib/i18n/get-dictionary";
 import { ConfirmDialog } from "./ui/confirm-dialog";
 
 const DANGER_BUTTON_CLASS =
   "text-xs font-medium text-red transition-colors hover:underline disabled:pointer-events-none disabled:opacity-50";
 
-export function BrainDangerZone({ brainId, name }: { brainId: string; name: string }) {
+export function BrainDangerZone({
+  brainId,
+  name,
+  strings,
+}: {
+  brainId: string;
+  name: string;
+  strings: Dictionary["brains"];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -24,14 +33,14 @@ export function BrainDangerZone({ brainId, name }: { brainId: string; name: stri
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setError(body.title ?? "Only the brain owner can delete it.");
+        setError(body.title ?? strings.deleteOwnerOnly);
         setBusy(false);
         return;
       }
       router.push("/dashboard");
       router.refresh();
     } catch {
-      setError("The request could not be completed. Check your connection and try again.");
+      setError(strings.connectionError);
       setBusy(false);
     }
   }
@@ -40,7 +49,7 @@ export function BrainDangerZone({ brainId, name }: { brainId: string; name: stri
     <div className="mt-4 rounded-control border border-dashed border-line p-3">
       <div className="flex items-center justify-between gap-3">
         <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-          Danger zone
+          {strings.dangerZone}
         </span>
         <button
           className={DANGER_BUTTON_CLASS}
@@ -51,15 +60,18 @@ export function BrainDangerZone({ brainId, name }: { brainId: string; name: stri
             setConfirming(true);
           }}
         >
-          Delete brain
+          {strings.deleteBrain}
         </button>
       </div>
       {error ? <p className="mt-2 text-xs text-red">{error}</p> : null}
       <ConfirmDialog
         open={confirming}
-        title="Delete this brain"
-        description="Permanently deletes every article and note in it. This cannot be undone."
-        confirmLabel="Delete brain"
+        title={strings.deleteTitle}
+        description={strings.deleteDescription}
+        confirmLabel={strings.deleteBrain}
+        cancelLabel={strings.cancel}
+        confirmationLabel={strings.confirmation}
+        confirmationHint={template(strings.confirmationHint, { name })}
         busy={busy}
         error={error}
         expectedName={name}

@@ -9,6 +9,7 @@ import { Chip } from "../../../../components/ui/chip";
 import { EmptyState } from "../../../../components/ui/empty-state";
 import { Field, fieldControlClass } from "../../../../components/ui/field";
 import { StatusPill } from "../../../../components/ui/status-pill";
+import { type Dictionary, template } from "../../../../lib/i18n/get-dictionary";
 
 interface Task {
   id: string;
@@ -23,7 +24,24 @@ interface Task {
 const ghostButtonClass =
   "rounded-control px-2 py-1 text-xs font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink disabled:opacity-50 active:scale-[0.98]";
 
-export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialTasks: Task[] }) {
+export function TaskPanel({
+  brainId,
+  initialTasks,
+  strings,
+}: {
+  brainId: string;
+  initialTasks: Task[];
+  strings: Dictionary["tasks"];
+}) {
+  const statuses: Record<string, string> = {
+    open: strings.statusOpen,
+    claimed: strings.statusClaimed,
+    blocked: strings.statusBlocked,
+    review: strings.statusReview,
+    approved: strings.statusApproved,
+    completed: strings.statusCompleted,
+    cancelled: strings.statusCancelled,
+  };
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
@@ -41,7 +59,7 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
         links: [],
       }),
     });
-    if (!response.ok) setError("Could not create task.");
+    if (!response.ok) setError(strings.createError);
     else router.refresh();
     setBusy("");
   }
@@ -52,7 +70,7 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    if (!response.ok) setError("Could not update task.");
+    if (!response.ok) setError(strings.updateError);
     else router.refresh();
     setBusy("");
   }
@@ -61,7 +79,7 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
       <Card>
         <details className="group">
           <summary className="flex cursor-pointer select-none list-none items-center justify-between px-4 py-2.5 font-mono text-2xs font-semibold uppercase tracking-[0.08em] text-ink-3 transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
-            New task
+            {strings.newTask}
             <span
               aria-hidden="true"
               className="text-sm leading-none transition-transform group-open:rotate-45"
@@ -70,7 +88,7 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
             </span>
           </summary>
           <form className="grid gap-4 border-t border-dashed border-line p-4" action={create}>
-            <Field label="Title" htmlFor="task-title">
+            <Field label={strings.taskTitle} htmlFor="task-title">
               <input
                 className={fieldControlClass}
                 id="task-title"
@@ -79,7 +97,7 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
                 maxLength={240}
               />
             </Field>
-            <Field label="Brief" htmlFor="task-brief">
+            <Field label={strings.brief} htmlFor="task-brief">
               <textarea
                 className={`${fieldControlClass} min-h-24`}
                 id="task-brief"
@@ -88,7 +106,7 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
                 maxLength={20000}
               />
             </Field>
-            <Field label="Priority" htmlFor="task-priority">
+            <Field label={strings.priority} htmlFor="task-priority">
               <input
                 className={`${fieldControlClass} max-w-32 tabular-nums`}
                 id="task-priority"
@@ -101,10 +119,10 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
             </Field>
             <div className="flex items-center gap-3">
               <Button variant="solid" size="sm" disabled={busy === "create"} type="submit">
-                Create task
+                {strings.createTask}
               </Button>
               {busy === "create" ? (
-                <WibblingSpinner className="text-xs text-ink-3" verbs={["Creating"]} />
+                <WibblingSpinner className="text-xs text-ink-3" verbs={[strings.creating]} />
               ) : null}
             </div>
           </form>
@@ -117,7 +135,11 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
             <div className="divide-y divide-line">
               {initialTasks.map((task) => (
                 <article className="flex items-start gap-4 px-4 py-3" key={task.id}>
-                  <StatusPill className="mt-0.5" status={task.status} />
+                  <StatusPill
+                    className="mt-0.5"
+                    status={task.status}
+                    label={statuses[task.status] ?? task.status}
+                  />
                   <div className="min-w-0 flex-1">
                     <h2 className="text-sm font-medium text-ink">
                       <Link
@@ -131,10 +153,12 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Chip tone={task.priority > 0 ? "orange" : "neutral"}>
-                      <span className="tabular-nums">P{task.priority}</span>
+                      <span className="tabular-nums">
+                        {template(strings.priorityValue, { priority: task.priority })}
+                      </span>
                     </Chip>
                     {busy === task.id ? (
-                      <WibblingSpinner className="text-xs text-ink-3" verbs={["Updating"]} />
+                      <WibblingSpinner className="text-xs text-ink-3" verbs={[strings.updating]} />
                     ) : null}
                     {!["completed", "cancelled"].includes(task.status) ? (
                       <>
@@ -144,7 +168,7 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
                           onClick={() => transition(task.id, "review")}
                           disabled={busy === task.id}
                         >
-                          Review
+                          {strings.review}
                         </button>
                         <button
                           className={ghostButtonClass}
@@ -152,7 +176,7 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
                           onClick={() => transition(task.id, "completed")}
                           disabled={busy === task.id}
                         >
-                          Complete
+                          {strings.complete}
                         </button>
                       </>
                     ) : null}
@@ -162,7 +186,7 @@ export function TaskPanel({ brainId, initialTasks }: { brainId: string; initialT
             </div>
           </Card>
         ) : (
-          <EmptyState title="No tasks in the queue." />
+          <EmptyState title={strings.noTasks} />
         )}
       </section>
     </>

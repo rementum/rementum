@@ -59,7 +59,7 @@ export default async function ActivityPage({
         description={dict.analytics.activityDescription}
       />
       <div className="mt-6">
-        <BrainNav brainId={brainId} />
+        <BrainNav strings={dict.brains} brainId={brainId} />
       </div>
       <section className="mt-8">
         <UsageAnalyticsView

@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Button } from "../../../../components/pui";
 import { ButtonLink } from "../../../../components/ui/button-link";
 import { Field, fieldControlClass } from "../../../../components/ui/field";
+import type { Dictionary } from "../../../../lib/i18n/get-dictionary";
+import { renderTerms } from "../../../../lib/i18n/terms";
 
 interface Article {
   id: string;
@@ -17,7 +19,13 @@ interface Article {
   currentVersion: number;
 }
 
-export function ArticleEditForm({ article }: { article: Article }) {
+export function ArticleEditForm({
+  article,
+  strings,
+}: {
+  article: Article;
+  strings: Dictionary["articles"];
+}) {
   const [error, setError] = useState("");
   const [created, setCreated] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,27 +55,25 @@ export function ArticleEditForm({ article }: { article: Article }) {
       }),
     });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) setError(body.title ?? "Could not stage the edit.");
+    if (!response.ok) setError(body.title ?? strings.stageError);
     else setCreated(body.id);
     setBusy(false);
   }
   if (created)
     return (
       <section className="rounded-card border border-green/25 bg-green/10 p-5">
-        <h2 className="text-sm font-semibold text-green">Edit staged</h2>
-        <p className="mt-1 text-sm text-ink-2">
-          Canon is unchanged until this proposal is reviewed.
-        </p>
+        <h2 className="text-sm font-semibold text-green">{strings.editStaged}</h2>
+        <p className="mt-1 text-sm text-ink-2">{strings.canonUnchanged}</p>
         <div className="mt-4">
           <ButtonLink href={`/writes/${created}`} variant="solid">
-            Review staged write
+            {strings.reviewWrite}
           </ButtonLink>
         </div>
       </section>
     );
   return (
     <form className="flex flex-col gap-5" action={submit}>
-      <Field label="Title" htmlFor="article-edit-title">
+      <Field label={strings.title} htmlFor="article-edit-title">
         <input
           id="article-edit-title"
           className={fieldControlClass}
@@ -77,21 +83,20 @@ export function ArticleEditForm({ article }: { article: Article }) {
           maxLength={240}
         />
       </Field>
-      <Field label="Routing summary" htmlFor="article-edit-summary">
+      <Field label={strings.routingSummary} htmlFor="article-edit-summary">
         <input
           id="article-edit-summary"
           className={fieldControlClass}
           name="summary"
           defaultValue={article.summary}
           maxLength={160}
-          placeholder="One sentence saying what this article concludes"
+          placeholder={strings.summaryPlaceholder}
         />
       </Field>
       <p className="rounded-control border border-dashed border-line bg-inset/50 p-3 text-xs text-ink-2">
-        Staging stores the title, summary, and body exactly as written. Nothing is generated: an
-        empty summary stays empty, and agents choose articles from the title and summary alone.
+        {strings.stagingNote}
       </p>
-      <Field label="Keywords" htmlFor="article-edit-keywords">
+      <Field label={strings.keywords} htmlFor="article-edit-keywords">
         <input
           id="article-edit-keywords"
           className={fieldControlClass}
@@ -99,7 +104,7 @@ export function ArticleEditForm({ article }: { article: Article }) {
           defaultValue={article.keywords.join(", ")}
         />
       </Field>
-      <Field label="Markdown body" htmlFor="article-edit-body">
+      <Field label={renderTerms(strings.markdownBody)} htmlFor="article-edit-body">
         <textarea
           id="article-edit-body"
           className={`${fieldControlClass} min-h-[60vh] font-mono leading-relaxed`}
@@ -109,7 +114,7 @@ export function ArticleEditForm({ article }: { article: Article }) {
           maxLength={2000000}
         />
       </Field>
-      <Field label="Change summary" htmlFor="article-edit-change-summary">
+      <Field label={strings.changeSummary} htmlFor="article-edit-change-summary">
         <input
           id="article-edit-change-summary"
           className={fieldControlClass}
@@ -124,7 +129,7 @@ export function ArticleEditForm({ article }: { article: Article }) {
         </p>
       ) : null}
       <Button className="self-start" variant="solid" disabled={busy} type="submit">
-        Stage edit
+        {strings.stageEdit}
       </Button>
     </form>
   );

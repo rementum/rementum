@@ -6,6 +6,7 @@ import { Button, WibblingSpinner } from "../../../../components/pui";
 import { Card } from "../../../../components/ui/card";
 import { Chip } from "../../../../components/ui/chip";
 import { EmptyState } from "../../../../components/ui/empty-state";
+import { type Dictionary, template } from "../../../../lib/i18n/get-dictionary";
 
 interface Candidate {
   id: string;
@@ -19,17 +20,26 @@ interface Candidate {
 export function MaintenanceActions({
   brainId,
   candidates,
+  strings,
 }: {
   brainId: string;
   candidates: Candidate[];
+  strings: Dictionary["brains"];
 }) {
+  const kinds: Record<string, string> = {
+    stale: strings.candidateStale,
+    oversized: strings.candidateOversized,
+    duplicate: strings.candidateDuplicate,
+    potential_conflict: strings.candidatePotentialConflict,
+    broken_link: strings.candidateBrokenLink,
+  };
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   async function scan() {
     setBusy("scan");
     const response = await fetch(`/bridge/brains/${brainId}/maintenance/scan`, { method: "POST" });
-    if (!response.ok) setError("The maintenance scan failed.");
+    if (!response.ok) setError(strings.scanError);
     else router.refresh();
     setBusy("");
   }
@@ -40,19 +50,17 @@ export function MaintenanceActions({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    if (!response.ok) setError("Could not update the candidate.");
+    if (!response.ok) setError(strings.candidateError);
     else router.refresh();
     setBusy("");
   }
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-ink-2">
-          Deterministic checks propose work. They never edit canon.
-        </p>
+        <p className="text-sm text-ink-2">{strings.maintenanceDescription}</p>
         <div className="flex items-center gap-3">
           {busy === "scan" ? (
-            <WibblingSpinner className="text-xs text-ink-3" verbs={["Scanning"]} />
+            <WibblingSpinner className="text-xs text-ink-3" verbs={[strings.scanning]} />
           ) : null}
           <Button
             variant="shimmer"
@@ -61,7 +69,7 @@ export function MaintenanceActions({
             onClick={scan}
             disabled={busy === "scan"}
           >
-            Run scan
+            {strings.runScan}
           </Button>
         </div>
       </div>
@@ -73,17 +81,19 @@ export function MaintenanceActions({
               <Card className="flex flex-col p-4" key={candidate.id}>
                 <div>
                   <Chip tone="orange" className="border-dashed">
-                    {candidate.kind.replaceAll("_", " ")}
+                    {kinds[candidate.kind] ?? candidate.kind}
                   </Chip>
                 </div>
-                <h2 className="mt-3 text-sm font-medium text-ink">
-                  <span className="tabular-nums">{candidate.articleIds.length}</span> article
-                  {candidate.articleIds.length === 1 ? "" : "s"}
+                <h2 className="mt-3 text-sm font-medium text-ink tabular-nums">
+                  {template(
+                    candidate.articleIds.length === 1 ? strings.articlesOne : strings.articlesMany,
+                    { count: candidate.articleIds.length },
+                  )}
                 </h2>
                 <details className="group mb-4 mt-3">
                   <summary className="cursor-pointer select-none list-none font-mono text-2xs font-semibold uppercase tracking-[0.08em] text-ink-3 transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
-                    <span className="group-open:hidden">Show detail</span>
-                    <span className="hidden group-open:inline">Hide detail</span>
+                    <span className="group-open:hidden">{strings.showDetail}</span>
+                    <span className="hidden group-open:inline">{strings.hideDetail}</span>
                   </summary>
                   <pre className="mt-2 overflow-x-auto rounded-control bg-inset p-3 font-mono text-2xs leading-relaxed text-ink-2 shadow-hairline">
                     {JSON.stringify(candidate.detail, null, 2)}
@@ -96,7 +106,7 @@ export function MaintenanceActions({
                     onClick={() => close(candidate.id, "resolved")}
                     disabled={busy === candidate.id}
                   >
-                    Resolved
+                    {strings.resolved}
                   </button>
                   <button
                     className="rounded-control px-2 py-1 text-xs font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink disabled:opacity-50 active:scale-[0.98]"
@@ -104,17 +114,20 @@ export function MaintenanceActions({
                     onClick={() => close(candidate.id, "dismissed")}
                     disabled={busy === candidate.id}
                   >
-                    Dismiss
+                    {strings.dismiss}
                   </button>
                   {busy === candidate.id ? (
-                    <WibblingSpinner className="ml-auto text-xs text-ink-3" verbs={["Updating"]} />
+                    <WibblingSpinner
+                      className="ml-auto text-xs text-ink-3"
+                      verbs={[strings.updating]}
+                    />
                   ) : null}
                 </div>
               </Card>
             ))}
           </div>
         ) : (
-          <EmptyState title="No open maintenance candidates." />
+          <EmptyState title={strings.noCandidates} />
         )}
       </section>
     </>
