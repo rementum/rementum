@@ -1,3 +1,5 @@
+import { INTL_LOCALE, type Locale } from "./i18n/locales";
+
 export const ANALYTICS_RANGES = ["7d", "30d", "90d", "365d"] as const;
 export type AnalyticsRange = (typeof ANALYTICS_RANGES)[number];
 
@@ -71,7 +73,7 @@ export const heatLevels = [
   "bg-green",
 ] as const;
 
-const monthFormat = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" });
+const monthFormats = new Map<Locale, Intl.DateTimeFormat>();
 
 export function parseAnalyticsRange(value: string | string[] | undefined): AnalyticsRange {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -86,7 +88,7 @@ export function parseAnalyticsDay(value: string | string[] | undefined): string 
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : null;
 }
 
-export function buildHeatmap(daily: UsageAnalytics["daily"]): HeatmapModel {
+export function buildHeatmap(daily: UsageAnalytics["daily"], locale: Locale = "en"): HeatmapModel {
   if (!daily.length) return { cells: [], months: [] };
   const values = [
     ...new Set(daily.filter((day) => day.tracked && day.calls > 0).map((day) => day.calls)),
@@ -109,6 +111,11 @@ export function buildHeatmap(daily: UsageAnalytics["daily"]): HeatmapModel {
   const trailing = (7 - (cells.length % 7)) % 7;
   for (let index = 0; index < trailing; index += 1) {
     cells.push({ key: `trailing-${index}`, date: null, calls: 0, tracked: false, level: 0 });
+  }
+  let monthFormat = monthFormats.get(locale);
+  if (!monthFormat) {
+    monthFormat = new Intl.DateTimeFormat(INTL_LOCALE[locale], { month: "short", timeZone: "UTC" });
+    monthFormats.set(locale, monthFormat);
   }
   const months: HeatmapModel["months"] = [];
   for (let index = 0; index < cells.length; index += 1) {

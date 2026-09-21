@@ -11,23 +11,32 @@ import {
 } from "react";
 import { type AnalyticsRange, type HeatmapCell, heatLevels } from "../lib/analytics";
 
-const utcDateFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
+import { type Dictionary, template } from "../lib/i18n/get-dictionary";
+import { INTL_LOCALE, type Locale } from "../lib/i18n/locales";
 
-function utcDate(value: string) {
-  return utcDateFormat.format(new Date(`${value}T00:00:00.000Z`));
+const utcDateFormats = new Map<Locale, Intl.DateTimeFormat>();
+
+function utcDate(value: string, locale: Locale) {
+  let format = utcDateFormats.get(locale);
+  if (!format) {
+    format = new Intl.DateTimeFormat(INTL_LOCALE[locale], { dateStyle: "medium", timeZone: "UTC" });
+    utcDateFormats.set(locale, format);
+  }
+  return format.format(new Date(`${value}T00:00:00.000Z`));
 }
 
 export function HeatmapGrid({
   cells,
+  locale,
+  labels,
   columnTemplate,
   basePath = "/activity",
   range = "30d",
   selectedDay = null,
 }: {
   cells: HeatmapCell[];
+  locale: Locale;
+  labels: Pick<Dictionary["analytics"], "cellCallsOne" | "cellCallsMany" | "cellNotTracked">;
   columnTemplate: string;
   basePath?: string;
   range?: AnalyticsRange;
@@ -161,9 +170,17 @@ export function HeatmapGrid({
     >
       {cells.map((cell) => {
         if (!cell.date) return <span aria-hidden="true" className="h-3" key={cell.key} />;
-        const label = cell.tracked
-          ? `${utcDate(cell.date)}: ${cell.calls.toLocaleString("en")} successful MCP ${cell.calls === 1 ? "call" : "calls"}`
-          : `${utcDate(cell.date)}: not tracked`;
+        const label = template(
+          cell.tracked
+            ? cell.calls === 1
+              ? labels.cellCallsOne
+              : labels.cellCallsMany
+            : labels.cellNotTracked,
+          {
+            date: utcDate(cell.date, locale),
+            count: cell.calls.toLocaleString(INTL_LOCALE[locale]),
+          },
+        );
         const selected = cell.date === selectedDay;
         // A pre-tracking day reads as an empty outlined box: no fill that could be mistaken
         // for usage, and a stronger border than the filled squares' hairline so it still

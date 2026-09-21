@@ -2,28 +2,37 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { UsageAnalytics } from "../lib/analytics";
+import { relativeTime } from "../lib/format";
+import { getDictionary, template } from "../lib/i18n/get-dictionary";
+import { INTL_LOCALE } from "../lib/i18n/locales";
+import { renderTerms } from "../lib/i18n/terms";
 import { UsageAnalyticsView } from "./usage-analytics";
+
+const dict = getDictionary("en");
+const labels = dict.analytics;
 
 describe("UsageAnalyticsView", () => {
   it("renders accessible UTC usage data and escapes client labels", () => {
     const html = renderToStaticMarkup(
       createElement(UsageAnalyticsView, {
         analytics: analytics(),
+        locale: "en",
+        dict,
         day: null,
         range: "30d",
         rangePath: "/activity",
       }),
     );
 
-    expect(html).toContain("Daily brain usage");
-    expect(html).toContain("successful MCP calls");
-    expect(html).toContain("not tracked");
-    expect(html).toContain("Top clients");
-    expect(html).toContain("Team leaderboard");
-    expect(html).toContain("1 write promoted");
-    expect(html).toContain("No activity in this range");
+    expect(html).toContain(labels.dailyBrainUsage);
+    expect(html).toContain(template(labels.cellCallsMany, { date: "Sep 1, 2026", count: 3 }));
+    expect(html).toContain(template(labels.cellNotTracked, { date: "Sep 2, 2025" }));
+    expect(html).toContain(labels.topClients);
+    expect(html).toContain(labels.teamLeaderboard);
+    expect(html).toContain(template(labels.writesPromotedOne, { count: 1 }));
+    expect(html).toContain(template(labels.memberMetaIdle, { role: labels.roleMember }));
     expect(html).toContain("&lt;b&gt;Ada&lt;/b&gt;");
-    expect(html).toContain("Recent tool calls");
+    expect(html).toContain(labels.recentToolCalls);
     expect(html).toContain("&lt;script&gt;client&lt;/script&gt;");
     expect(html).not.toContain("<script>client</script>");
   });
@@ -32,15 +41,61 @@ describe("UsageAnalyticsView", () => {
     const html = renderToStaticMarkup(
       createElement(UsageAnalyticsView, {
         analytics: analytics(),
+        locale: "en",
+        dict,
         day: "2026-09-01",
         range: "30d",
         rangePath: "/activity",
       }),
     );
 
-    expect(html).toContain("Successful MCP tool calls · Sep 1, 2026 · UTC");
+    expect(html).toContain(`${labels.successfulCalls} · Sep 1, 2026${labels.utcSuffix}`);
     expect(html).toContain("ring-2 ring-ink");
   });
+  it.each(["tr", "zh"] as const)(
+    "renders %s labels, roles, UTC dates, weekdays and counts",
+    (locale) => {
+      const dict = getDictionary(locale);
+      const labels = dict.analytics;
+      const data = analytics();
+      data.totals.calls = 1234;
+      const html = renderToStaticMarkup(
+        createElement(UsageAnalyticsView, {
+          analytics: data,
+          locale,
+          dict,
+          day: "2026-09-01",
+          range: "30d",
+          rangePath: "/activity",
+        }),
+      );
+      expect(html).toContain(labels.activeClients);
+      expect(html).toContain(renderToStaticMarkup(renderTerms(labels.activeBrains)));
+      expect(html).toContain((1234).toLocaleString(INTL_LOCALE[locale]));
+      expect(html).toContain(
+        template(labels.memberMeta, {
+          role: labels.roleOwner,
+          writes: template(labels.writesPromotedOne, { count: 1 }),
+          time: relativeTime("2026-09-01T12:00:00.000Z", locale),
+        }),
+      );
+      expect(html).toContain(template(labels.memberMetaIdle, { role: labels.roleMember }));
+      const date = new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+        dateStyle: "medium",
+        timeZone: "UTC",
+      }).format(new Date("2026-09-01T00:00:00.000Z"));
+      expect(html).toContain(`${labels.successfulCalls} · ${date}${labels.utcSuffix}`);
+      expect(html).toContain(template(labels.cellCallsMany, { date, count: 3 }));
+      if (locale === "tr") {
+        expect(html).toContain('Aktif <span lang="en">brain</span>');
+        for (const weekday of ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"]) {
+          expect(html).toContain(`>${weekday}</span>`);
+        }
+        expect(html).not.toContain(">Fri</span>");
+        expect(html).not.toContain("[[brain]]");
+      }
+    },
+  );
 });
 
 function analytics(): UsageAnalytics {

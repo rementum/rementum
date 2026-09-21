@@ -7,6 +7,9 @@ import {
   type UsageAnalytics,
 } from "../lib/analytics";
 import { relativeTime } from "../lib/format";
+import { type Dictionary, template } from "../lib/i18n/get-dictionary";
+import { INTL_LOCALE, type Locale } from "../lib/i18n/locales";
+import { renderTerms } from "../lib/i18n/terms";
 import { HeatmapGrid } from "./heatmap-grid";
 import { Card, CardHeader } from "./ui/card";
 import { Chip } from "./ui/chip";
@@ -18,11 +21,11 @@ const RANGE_DAYS: Record<AnalyticsRange, number> = {
   "365d": 365,
 };
 
-const RANGE_LABELS: Record<AnalyticsRange, string> = {
-  "7d": "7 days",
-  "30d": "30 days",
-  "90d": "90 days",
-  "365d": "1 year",
+const RANGE_LABELS: Record<AnalyticsRange, keyof Dictionary["analytics"]> = {
+  "7d": "range7Days",
+  "30d": "range30Days",
+  "90d": "range90Days",
+  "365d": "range1Year",
 };
 
 interface RankItem {
@@ -35,6 +38,8 @@ interface RankItem {
 
 export function UsageAnalyticsView({
   analytics,
+  locale,
+  dict,
   range,
   rangePath,
   day,
@@ -43,6 +48,8 @@ export function UsageAnalyticsView({
   showRecentCalls = true,
 }: {
   analytics: UsageAnalytics;
+  locale: Locale;
+  dict: Dictionary;
   range: AnalyticsRange;
   rangePath: string;
   day: string | null;
@@ -50,6 +57,7 @@ export function UsageAnalyticsView({
   showLeaderboards?: boolean;
   showRecentCalls?: boolean;
 }) {
+  const labels = dict.analytics;
   const activeDays = day
     ? analytics.daily.some((entry) => entry.date === day && entry.tracked && entry.calls > 0)
       ? 1
@@ -57,22 +65,25 @@ export function UsageAnalyticsView({
     : analytics.daily.slice(-RANGE_DAYS[range]).filter((entry) => entry.tracked && entry.calls > 0)
         .length;
   const metrics = [
-    { label: "MCP calls", value: analytics.totals.calls },
-    { label: "Active clients", value: analytics.totals.activeClients },
+    { label: labels.mcpCalls, value: analytics.totals.calls },
+    { label: labels.activeClients, value: analytics.totals.activeClients },
     brainScoped
-      ? { label: "Active days", value: activeDays }
-      : { label: "Active brains", value: analytics.totals.activeBrains },
-    { label: "Articles used", value: analytics.totals.articlesConsumed },
+      ? { label: labels.activeDays, value: activeDays }
+      : { label: labels.activeBrains, value: analytics.totals.activeBrains },
+    { label: labels.articlesUsed, value: analytics.totals.articlesConsumed },
   ];
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <p className="font-mono text-2xs text-ink-3 uppercase tracking-[0.1em]">
-          Successful MCP tool calls
-          {day ? ` · ${utcDateFormat.format(new Date(`${day}T00:00:00.000Z`))}` : null} · UTC
+          {labels.successfulCalls}
+          {day
+            ? ` · ${analyticsFormats(locale).date.format(new Date(`${day}T00:00:00.000Z`))}`
+            : null}
+          {labels.utcSuffix}
         </p>
-        <RangePicker path={rangePath} selected={range} />
+        <RangePicker path={rangePath} selected={range} labels={labels} />
       </div>
 
       <Card>
@@ -80,10 +91,10 @@ export function UsageAnalyticsView({
           {metrics.map((metric) => (
             <div className="relative overflow-hidden px-5 py-4" key={metric.label}>
               <dt className="font-mono text-[10.5px] text-ink-3 uppercase tracking-[0.12em]">
-                {metric.label}
+                {renderTerms(metric.label)}
               </dt>
               <dd className="mt-2 font-mono font-semibold text-3xl text-ink tabular-nums tracking-tight">
-                {metric.value.toLocaleString("en")}
+                {metric.value.toLocaleString(INTL_LOCALE[locale])}
               </dd>
               <span
                 aria-hidden="true"
@@ -96,21 +107,35 @@ export function UsageAnalyticsView({
 
       <ContributionHeatmap
         analytics={analytics}
+        locale={locale}
+        labels={labels}
         basePath={rangePath}
         range={range}
         selectedDay={day}
       />
 
-      {showLeaderboards ? <Leaderboards analytics={analytics} /> : null}
-      {showRecentCalls ? <RecentCalls calls={analytics.recentCalls} /> : null}
+      {showLeaderboards ? (
+        <Leaderboards analytics={analytics} locale={locale} labels={labels} />
+      ) : null}
+      {showRecentCalls ? (
+        <RecentCalls calls={analytics.recentCalls} locale={locale} labels={labels} />
+      ) : null}
     </div>
   );
 }
 
-function RangePicker({ path, selected }: { path: string; selected: AnalyticsRange }) {
+function RangePicker({
+  path,
+  selected,
+  labels,
+}: {
+  path: string;
+  selected: AnalyticsRange;
+  labels: Dictionary["analytics"];
+}) {
   return (
     <nav
-      aria-label="Analytics range"
+      aria-label={labels.analyticsRange}
       className="flex rounded-control border border-line bg-surface p-1 shadow-btn"
     >
       {ANALYTICS_RANGES.map((range) => (
@@ -122,7 +147,7 @@ function RangePicker({ path, selected }: { path: string; selected: AnalyticsRang
           href={`${path}?range=${range}`}
           key={range}
         >
-          {RANGE_LABELS[range]}
+          {labels[RANGE_LABELS[range]]}
         </Link>
       ))}
     </nav>
@@ -131,26 +156,32 @@ function RangePicker({ path, selected }: { path: string; selected: AnalyticsRang
 
 function ContributionHeatmap({
   analytics,
+  locale,
+  labels,
   basePath,
   range,
   selectedDay,
 }: {
   analytics: UsageAnalytics;
+  locale: Locale;
+  labels: Dictionary["analytics"];
   basePath: string;
   range: AnalyticsRange;
   selectedDay: string | null;
 }) {
-  const heatmap = buildHeatmap(analytics.daily);
+  const heatmap = buildHeatmap(analytics.daily, locale);
   const columns = Math.max(1, Math.ceil(heatmap.cells.length / 7));
   const columnTemplate = `repeat(${columns}, minmax(10px, 1fr))`;
 
   return (
     <Card>
       <CardHeader
-        title="Daily brain usage"
-        count="Rolling 365 days"
+        title={labels.dailyBrainUsage}
+        count={labels.rolling365Days}
         action={
-          <span className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.08em]">UTC</span>
+          <span className="font-mono text-[10px] text-ink-3 uppercase tracking-[0.08em]">
+            {labels.utc}
+          </span>
         }
       />
       <div className="p-4 sm:p-5">
@@ -172,7 +203,9 @@ function ContributionHeatmap({
             </div>
             <div className="grid grid-cols-[28px_1fr] gap-2">
               <div className="grid grid-rows-7 gap-1" aria-hidden="true">
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                {Array.from({ length: 7 }, (_, index) =>
+                  analyticsFormats(locale).weekday.format(new Date(Date.UTC(2026, 0, 4 + index))),
+                ).map((day) => (
                   <span
                     className="flex h-3 items-center font-mono text-[8px] text-ink-3 uppercase"
                     key={day}
@@ -182,6 +215,12 @@ function ContributionHeatmap({
                 ))}
               </div>
               <HeatmapGrid
+                locale={locale}
+                labels={{
+                  cellCallsOne: labels.cellCallsOne,
+                  cellCallsMany: labels.cellCallsMany,
+                  cellNotTracked: labels.cellNotTracked,
+                }}
                 basePath={basePath}
                 cells={heatmap.cells}
                 columnTemplate={columnTemplate}
@@ -192,17 +231,15 @@ function ContributionHeatmap({
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-line border-t border-dashed pt-3">
-          <p className="text-ink-2 text-xs">
-            Each square counts completed tool calls, not internal audit reads.
-          </p>
+          <p className="text-ink-2 text-xs">{labels.heatmapNote}</p>
           <div className="flex items-center gap-1.5 font-mono text-[9px] text-ink-3 uppercase">
-            <span>Less</span>
+            <span>{labels.less}</span>
             {heatLevels.map((level) => (
               <span className={`size-3 rounded-[2px] ${level}`} key={level} />
             ))}
-            <span>More</span>
+            <span>{labels.more}</span>
             <span className="ml-2 size-3 rounded-[2px] ring-1 ring-line ring-inset" />
-            <span>Not tracked</span>
+            <span>{labels.notTracked}</span>
           </div>
         </div>
       </div>
@@ -210,65 +247,121 @@ function ContributionHeatmap({
   );
 }
 
-function Leaderboards({ analytics }: { analytics: UsageAnalytics }) {
+function Leaderboards({
+  analytics,
+  locale,
+  labels,
+}: {
+  analytics: UsageAnalytics;
+  locale: Locale;
+  labels: Dictionary["analytics"];
+}) {
+  const roles = { owner: labels.roleOwner, admin: labels.roleAdmin, member: labels.roleMember };
   const memberItems: RankItem[] = analytics.topMembers.map((member) => ({
     key: member.userId,
     label: member.name,
     value: member.actions,
     meta: member.lastActiveAt
-      ? `${member.role} · ${member.writes} ${member.writes === 1 ? "write" : "writes"} promoted · Last active ${relativeTime(member.lastActiveAt)}`
-      : `${member.role} · No activity in this range`,
+      ? template(labels.memberMeta, {
+          role: roles[member.role],
+          writes: template(
+            member.writes === 1 ? labels.writesPromotedOne : labels.writesPromotedMany,
+            { count: member.writes.toLocaleString(INTL_LOCALE[locale]) },
+          ),
+          time: relativeTime(member.lastActiveAt, locale),
+        })
+      : template(labels.memberMetaIdle, { role: roles[member.role] }),
   }));
   const clientItems: RankItem[] = analytics.topClients.map((client) => ({
     key: client.name,
     label: client.name,
     value: client.calls,
-    meta: `${client.registrations} ${client.registrations === 1 ? "registration" : "registrations"} · ${relativeTime(client.lastUsedAt)}`,
+    meta: template(labels.clientMeta, {
+      registrations: template(
+        client.registrations === 1 ? labels.registrationsOne : labels.registrationsMany,
+        { count: client.registrations.toLocaleString(INTL_LOCALE[locale]) },
+      ),
+      time: relativeTime(client.lastUsedAt, locale),
+    }),
   }));
   const brainItems: RankItem[] = analytics.topBrains.map((brain) => ({
     key: brain.id,
     label: brain.name,
     value: brain.calls,
-    meta: `Last used ${relativeTime(brain.lastUsedAt)}`,
+    meta: template(labels.lastUsed, { time: relativeTime(brain.lastUsedAt, locale) }),
     href: `/brains/${brain.id}/activity`,
   }));
   const articleItems: RankItem[] = analytics.topArticles.map((article) => ({
     key: article.id,
     label: article.title,
     value: article.uses,
-    meta: `${article.brainName} · ${relativeTime(article.lastUsedAt)}`,
+    meta: template(labels.articleMeta, {
+      brain: article.brainName,
+      time: relativeTime(article.lastUsedAt, locale),
+    }),
     href: `/articles/${article.id}`,
   }));
   const toolItems: RankItem[] = analytics.topTools.map((tool) => ({
     key: tool.tool,
     label: tool.tool,
     value: tool.calls,
-    meta: `Last used ${relativeTime(tool.lastUsedAt)}`,
+    meta: template(labels.lastUsed, { time: relativeTime(tool.lastUsedAt, locale) }),
   }));
   return (
-    <section className="grid gap-5 lg:grid-cols-2" aria-label="Usage rankings">
+    <section className="grid gap-5 lg:grid-cols-2" aria-label={labels.usageRankings}>
       <RankedCard
+        locale={locale}
+        emptyLabel={labels.noUsage}
         className="lg:col-span-2"
         items={memberItems}
-        title="Team leaderboard"
-        valueLabel="actions"
+        title={labels.teamLeaderboard}
+        valueLabel={labels.actions}
       />
-      <RankedCard items={clientItems} title="Top clients" valueLabel="calls" />
-      <RankedCard items={brainItems} title="Top brains" valueLabel="calls" />
-      <RankedCard items={articleItems} title="Top articles" valueLabel="uses" />
-      <RankedCard items={toolItems} title="Top tools" valueLabel="calls" mono />
+      <RankedCard
+        locale={locale}
+        emptyLabel={labels.noUsage}
+        items={clientItems}
+        title={labels.topClients}
+        valueLabel={labels.calls}
+      />
+      <RankedCard
+        locale={locale}
+        emptyLabel={labels.noUsage}
+        items={brainItems}
+        title={labels.topBrains}
+        valueLabel={labels.calls}
+      />
+      <RankedCard
+        locale={locale}
+        emptyLabel={labels.noUsage}
+        items={articleItems}
+        title={labels.topArticles}
+        valueLabel={labels.uses}
+      />
+      <RankedCard
+        locale={locale}
+        emptyLabel={labels.noUsage}
+        items={toolItems}
+        title={labels.topTools}
+        valueLabel={labels.calls}
+        mono
+      />
     </section>
   );
 }
 
 function RankedCard({
   title,
+  locale,
+  emptyLabel,
   items,
   valueLabel,
   mono = false,
   className,
 }: {
   title: string;
+  locale: Locale;
+  emptyLabel: string;
   items: RankItem[];
   valueLabel: string;
   mono?: boolean;
@@ -300,7 +393,7 @@ function RankedCard({
                   <span className="block truncate text-2xs text-ink-3">{item.meta}</span>
                 </span>
                 <span className="relative shrink-0 text-right font-mono font-semibold text-ink text-sm tabular-nums">
-                  {item.value.toLocaleString("en")}
+                  {item.value.toLocaleString(INTL_LOCALE[locale])}
                   <span className="ml-1 font-normal text-[9px] text-ink-3 uppercase">
                     {valueLabel}
                   </span>
@@ -324,16 +417,24 @@ function RankedCard({
           })}
         </ol>
       ) : (
-        <p className="px-4 py-8 text-center text-ink-3 text-sm">No usage in this window.</p>
+        <p className="px-4 py-8 text-center text-ink-3 text-sm">{emptyLabel}</p>
       )}
     </Card>
   );
 }
 
-function RecentCalls({ calls }: { calls: UsageAnalytics["recentCalls"] }) {
+function RecentCalls({
+  calls,
+  locale,
+  labels,
+}: {
+  calls: UsageAnalytics["recentCalls"];
+  locale: Locale;
+  labels: Dictionary["analytics"];
+}) {
   return (
     <Card>
-      <CardHeader title="Recent tool calls" count={calls.length || undefined} />
+      <CardHeader title={labels.recentToolCalls} count={calls.length || undefined} />
       {calls.length ? (
         <div className="divide-y divide-line">
           {calls.map((call) => (
@@ -341,14 +442,14 @@ function RecentCalls({ calls }: { calls: UsageAnalytics["recentCalls"] }) {
               <time
                 className="w-16 shrink-0 font-mono text-2xs text-ink-3 tabular-nums"
                 dateTime={call.createdAt}
-                title={`${utcDateTimeFormat.format(new Date(call.createdAt))} UTC`}
+                title={`${analyticsFormats(locale).dateTime.format(new Date(call.createdAt))} ${labels.utc}`}
               >
-                {relativeTime(call.createdAt)}
+                {relativeTime(call.createdAt, locale)}
               </time>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium font-mono text-ink text-sm">{call.tool}</p>
                 <p className="truncate text-2xs text-ink-3">
-                  {call.brainName ?? (call.brainId ? "Deleted brain" : "Workspace-wide")}
+                  {call.brainName ?? (call.brainId ? labels.deletedBrain : labels.workspaceWide)}
                 </p>
               </div>
               <Chip className="max-w-48 shrink-0">
@@ -358,21 +459,30 @@ function RecentCalls({ calls }: { calls: UsageAnalytics["recentCalls"] }) {
           ))}
         </div>
       ) : (
-        <p className="px-4 py-10 text-center text-ink-3 text-sm">
-          Successful MCP tool calls will appear here.
-        </p>
+        <p className="px-4 py-10 text-center text-ink-3 text-sm">{labels.noRecentCalls}</p>
       )}
     </Card>
   );
 }
 
-const utcDateTimeFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "UTC",
-});
+const formats = new Map<
+  Locale,
+  { date: Intl.DateTimeFormat; dateTime: Intl.DateTimeFormat; weekday: Intl.DateTimeFormat }
+>();
 
-const utcDateFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
+function analyticsFormats(locale: Locale) {
+  let cached = formats.get(locale);
+  if (!cached) {
+    cached = {
+      date: new Intl.DateTimeFormat(INTL_LOCALE[locale], { dateStyle: "medium", timeZone: "UTC" }),
+      dateTime: new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "UTC",
+      }),
+      weekday: new Intl.DateTimeFormat(INTL_LOCALE[locale], { weekday: "short", timeZone: "UTC" }),
+    };
+    formats.set(locale, cached);
+  }
+  return cached;
+}

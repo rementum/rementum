@@ -55,6 +55,21 @@ describe("buildHeatmap", () => {
     expect(byDate.get("2026-09-01")?.level).toBe(4);
   });
 
+  it("localizes month labels without changing UTC cells or columns", () => {
+    const daily = daysEnding("2026-10-01", 365);
+    const english = buildHeatmap(daily);
+    for (const locale of ["tr", "zh"] as const) {
+      const localized = buildHeatmap(daily, locale);
+      expect(localized.cells).toEqual(english.cells);
+      expect(localized.months.map((month) => month.column)).toEqual(
+        english.months.map((month) => month.column),
+      );
+      const labels = localized.months.map((month) => month.label);
+      expect(labels).toContain(locale === "tr" ? "Nis" : "4月");
+      expect(labels).toContain(locale === "tr" ? "Eki" : "10月");
+    }
+  });
+
   it("preserves leap day as a UTC contribution cell", () => {
     const heatmap = buildHeatmap(daysEnding("2028-03-01", 365));
     expect(heatmap.cells.some((cell) => cell.date === "2028-02-29")).toBe(true);

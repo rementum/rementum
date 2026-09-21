@@ -1,16 +1,11 @@
-import { cookies, headers } from "next/headers";
 import { Skeleton } from "../../components/ui/skeleton";
-import { getDictionary } from "../../lib/i18n/get-dictionary";
-import { resolveLocale } from "../../lib/i18n/locales";
+import { requestDictionary } from "../../lib/i18n/server";
 
 export default async function DashboardLoading() {
-  const locale = resolveLocale(
-    (await cookies()).get("rementum_locale")?.value,
-    (await headers()).get("accept-language"),
-  );
+  const { dict } = await requestDictionary();
   return (
     <main
-      aria-label={getDictionary(locale).dashboard.loading}
+      aria-label={dict.dashboard.loading}
       aria-busy="true"
       className="mx-auto w-full max-w-[1360px] px-5 pt-8 pb-16 sm:px-8 lg:pt-10"
     >

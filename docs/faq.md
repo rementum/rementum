@@ -76,8 +76,8 @@ limits and inflates token costs. Rementum minimizes prompt overhead in several w
 
 ### Which languages does the web interface support?
 
-The homepage and the dashboard are available in **English**, **Simplified Chinese (中文)**, and
-**Turkish (Türkçe)**.
+You can use the homepage, dashboard, workspace analytics, and brain activity pages in
+**English**, **Simplified Chinese (中文)**, and **Turkish (Türkçe)**.
 
 - **Homepage:** each language has its own URL — `/`, `/zh`, and `/tr` — with its own canonical URL
   and `hreflang` links, so search engines see three real translated pages rather than one
@@ -93,12 +93,13 @@ The homepage stays in the public shell when you are signed in: the sidebar is th
 the marketing page is not laid out inside it. The account buttons in the header and the footer
 become a **Dashboard** link in that case, so the page still leads into the app.
 
-The **navigation shell** — sidebar, header, footer, and the language switcher — follows your chosen
-language on every signed-in page. **Page content** is translated only on the homepage and the
-dashboard. So choosing Chinese gives you a Chinese shell around English content on brains,
-articles, writes, tasks, teams, connections, analytics, auth flows, and admin, and on the `/docs`
-site, in API messages, and in email templates. Those bodies stay English until they are translated
-in turn.
+The **navigation shell** (sidebar, header, footer, and language switcher) follows your chosen
+language on signed-in pages. Workspace analytics and brain activity also use that language for
+labels, dates, relative times, and counts. Heatmap days still follow UTC. English product terms
+such as `brain` keep English casing within Turkish labels.
+
+Other brain pages, articles, writes, tasks, teams, connections, auth flows, and admin still show
+English page content. The `/docs` site, API messages, and email templates also remain in English.
 
 User content (brain names, article titles and bodies, comments) is never translated, and neither
 are shell commands, MCP URLs, or slugs.
