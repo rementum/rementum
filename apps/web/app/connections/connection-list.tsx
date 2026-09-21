@@ -6,6 +6,7 @@ import { WibblingSpinner } from "../../components/pui";
 import { Card } from "../../components/ui/card";
 import { Chip } from "../../components/ui/chip";
 import { EmptyState } from "../../components/ui/empty-state";
+import type { Dictionary } from "../../lib/i18n/get-dictionary";
 
 interface Connection {
   grantId: string;
@@ -14,7 +15,13 @@ interface Connection {
   scopes: string[];
 }
 
-export function ConnectionList({ connections }: { connections: Connection[] }) {
+export function ConnectionList({
+  connections,
+  strings,
+}: {
+  connections: Connection[];
+  strings: Dictionary["connections"];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -23,7 +30,7 @@ export function ConnectionList({ connections }: { connections: Connection[] }) {
     const response = await fetch(`/bridge/connections/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
-    if (!response.ok) setError("Could not revoke the connection.");
+    if (!response.ok) setError(strings.revokeError);
     else router.refresh();
     setBusy("");
   }
@@ -49,7 +56,7 @@ export function ConnectionList({ connections }: { connections: Connection[] }) {
                     <span className="truncate">{connection.clientId}</span>
                   </Chip>
                 </div>
-                <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Granted scopes">
+                <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={strings.grantedScopes}>
                   {connection.scopes.map((scope) => (
                     <li key={scope}>
                       <Chip>{scope}</Chip>
@@ -63,16 +70,17 @@ export function ConnectionList({ connections }: { connections: Connection[] }) {
                 disabled={busy === connection.grantId}
                 onClick={() => revoke(connection.grantId)}
               >
-                {busy === connection.grantId ? <WibblingSpinner verbs={["Revoking"]} /> : "Revoke"}
+                {busy === connection.grantId ? (
+                  <WibblingSpinner verbs={[strings.revoking]} />
+                ) : (
+                  strings.revoke
+                )}
               </button>
             </article>
           </Card>
         ))
       ) : (
-        <EmptyState
-          title="No connected agents"
-          body="Add the MCP URL in a client to start OAuth. The Connect panel on your dashboard has copy-paste setup commands for each agent."
-        />
+        <EmptyState title={strings.noConnectionsTitle} body={strings.noConnectionsBody} />
       )}
     </section>
   );

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button, WibblingSpinner } from "../../../components/pui";
 import { Field, fieldControlClass } from "../../../components/ui/field";
+import type { Dictionary } from "../../../lib/i18n/get-dictionary";
+import { renderTerms } from "../../../lib/i18n/terms";
 
 const apiBase = (process.env.NEXT_PUBLIC_REMENTUM_API_URL ?? "").replace(/\/$/, "");
 
@@ -11,7 +13,23 @@ const successBanner =
   "rounded-control border border-green/25 bg-green/10 px-3 py-2 text-sm text-green";
 const errorBanner = "rounded-control border border-red/25 bg-red/10 px-3 py-2 text-sm text-red";
 
-export function InviteForm({ token, signedIn }: { token: string; signedIn: boolean }) {
+export function InviteForm({
+  token,
+  signedIn,
+  strings,
+  brainStrings,
+}: {
+  token: string;
+  signedIn: boolean;
+  strings: Dictionary["teams"];
+  brainStrings: Dictionary["brains"];
+}) {
+  const roles: Record<string, string> = {
+    owner: brainStrings.roleOwner,
+    editor: brainStrings.roleEditor,
+    commenter: brainStrings.roleCommenter,
+    viewer: brainStrings.roleViewer,
+  };
   const [state, setState] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [error, setError] = useState("");
   const [metadata, setMetadata] = useState<{
@@ -24,11 +42,11 @@ export function InviteForm({ token, signedIn }: { token: string; signedIn: boole
     fetch(`${apiBase}/api/v1/invitations/${encodeURIComponent(token)}`)
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(body.title ?? "Invitation is invalid or expired.");
+        if (!response.ok) throw new Error(body.title ?? strings.invalidInvitation);
         setMetadata(body);
       })
       .catch((value) => setError((value as Error).message));
-  }, [token]);
+  }, [token, strings.invalidInvitation]);
   async function submit(formData: FormData) {
     setState("submitting");
     setError("");
@@ -44,7 +62,7 @@ export function InviteForm({ token, signedIn }: { token: string; signedIn: boole
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      setError(body.title ?? "This invitation is invalid, expired, or already used.");
+      setError(body.title ?? strings.usedInvitation);
       setState("error");
       return;
     }
@@ -55,20 +73,20 @@ export function InviteForm({ token, signedIn }: { token: string; signedIn: boole
   if (!metadata)
     return (
       <div className="flex items-center py-2 text-sm text-ink-2">
-        <WibblingSpinner verbs={["Loading invitation"]} />
+        <WibblingSpinner verbs={[strings.loadingInvitation]} />
       </div>
     );
   if (metadata.loginRequired && !signedIn)
     return (
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-ink-2">This invitation is for an existing account.</p>
+        <p className="text-sm text-ink-2">{strings.existingAccount}</p>
         <Button
           as={Link}
           href={`/auth/login?returnTo=${encodeURIComponent(`/invite/${token}`)}`}
           variant="solid"
           block
         >
-          Sign in to accept
+          {strings.signInToAccept}
         </Button>
       </div>
     );
@@ -77,13 +95,13 @@ export function InviteForm({ token, signedIn }: { token: string; signedIn: boole
       <p className="flex items-center justify-between gap-4 rounded-control border border-dashed border-line bg-inset/50 px-3.5 py-2.5">
         <strong className="text-sm font-semibold text-ink">{metadata.name}</strong>
         <span className="font-mono text-2xs uppercase tracking-[0.08em] text-ink-3">
-          {metadata.role}
+          {renderTerms(roles[metadata.role] ?? metadata.role)}
         </span>
       </p>
       {!signedIn ? (
         <>
           {!metadata.existingAccount ? (
-            <Field label="Display name" htmlFor="invite-name">
+            <Field label={strings.displayName} htmlFor="invite-name">
               <input
                 id="invite-name"
                 className={fieldControlClass}
@@ -94,7 +112,7 @@ export function InviteForm({ token, signedIn }: { token: string; signedIn: boole
               />
             </Field>
           ) : null}
-          <Field label="Password" htmlFor="invite-password" hint="At least 12 characters.">
+          <Field label={strings.password} htmlFor="invite-password" hint={strings.passwordHint}>
             <input
               id="invite-password"
               className={fieldControlClass}
@@ -112,11 +130,9 @@ export function InviteForm({ token, signedIn }: { token: string; signedIn: boole
           {error}
         </p>
       ) : null}
-      {state === "success" ? (
-        <p className={successBanner}>Account created. Redirecting to sign in.</p>
-      ) : null}
+      {state === "success" ? <p className={successBanner}>{strings.accountCreated}</p> : null}
       <Button type="submit" variant="solid" block loading={state === "submitting"}>
-        {state === "submitting" ? "Creating account…" : "Accept invite"}
+        {state === "submitting" ? strings.creatingAccount : strings.acceptInvite}
       </Button>
     </form>
   );

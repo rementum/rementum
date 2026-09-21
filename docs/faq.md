@@ -77,8 +77,8 @@ limits and inflates token costs. Rementum minimizes prompt overhead in several w
 ### Which languages does the web interface support?
 
 You can use the homepage, dashboard, workspace analytics, brain pages (including import and
-maintenance), articles, writes, and tasks in **English**, **Simplified Chinese (中文)**, and
-**Turkish (Türkçe)**.
+maintenance), articles, writes, tasks, teams, invitations, and connections in **English**,
+**Simplified Chinese (中文)**, and **Turkish (Türkçe)**.
 
 - **Homepage:** each language has its own URL (`/`, `/zh`, and `/tr`) with its own canonical URL
   and `hreflang` links, so search engines see three real translated pages rather than one
@@ -99,8 +99,8 @@ language on signed-in pages. Workspace analytics and brain activity also use tha
 labels, dates, relative times, and counts. Heatmap days still follow UTC. English product terms
 such as `brain` keep English casing within Turkish labels.
 
-Teams, connections, auth flows, and admin still show English page content. The `/docs` site, API
-messages, and email templates also remain in English.
+Sign-in and other account flows, admin, and instance settings still show English page content.
+The `/docs` site, API messages, and email templates also remain in English.
 
 User content (brain names, article titles and bodies, comments) is never translated, and neither
 are shell commands, MCP URLs, or slugs.

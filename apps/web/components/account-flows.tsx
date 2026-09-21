@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { type Dictionary, template } from "../lib/i18n/get-dictionary";
+import { renderTerms } from "../lib/i18n/terms";
 import { Button, WibblingSpinner } from "./pui";
 import { TurnstileChallenge } from "./turnstile";
 import { Field, fieldControlClass } from "./ui/field";
@@ -399,7 +401,20 @@ interface InviteMetadata {
   loginRequired: boolean;
 }
 
-export function TeamInviteAcceptance({ token, signedIn }: { token: string; signedIn: boolean }) {
+export function TeamInviteAcceptance({
+  token,
+  signedIn,
+  strings,
+}: {
+  token: string;
+  signedIn: boolean;
+  strings: Dictionary["teams"];
+}) {
+  const roles: Record<string, string> = {
+    owner: strings.roleOwner,
+    admin: strings.roleAdmin,
+    member: strings.roleMember,
+  };
   const [metadata, setMetadata] = useState<InviteMetadata | null>(null);
   const [loadError, setLoadError] = useState("");
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
@@ -408,11 +423,11 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
     fetch(`${apiBase}/api/v1/team-invitations/${encodeURIComponent(token)}`)
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(body.title ?? "Invitation is invalid or expired.");
+        if (!response.ok) throw new Error(body.title ?? strings.invalidInvitation);
         setMetadata(body);
       })
       .catch((value) => setLoadError((value as Error).message));
-  }, [token]);
+  }, [token, strings.invalidInvitation]);
 
   async function submit(formData: FormData) {
     setState("busy");
@@ -429,7 +444,7 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
         }),
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.title ?? "Invitation could not be accepted.");
+      if (!response.ok) throw new Error(body.title ?? strings.acceptError);
       if (signedIn && body.workspaceId) {
         await fetch("/workspaces/select", {
           method: "POST",
@@ -447,31 +462,29 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
   if (!metadata)
     return (
       <div className="flex items-center py-2 text-sm text-ink-2">
-        <WibblingSpinner verbs={["Loading invitation"]} />
+        <WibblingSpinner verbs={[strings.loadingInvitation]} />
       </div>
     );
   if (state === "done")
     return (
       <div className="flex flex-col gap-4">
-        <p className={successBanner}>You joined {metadata.name}.</p>
+        <p className={successBanner}>{template(strings.joinedTeam, { name: metadata.name })}</p>
         <Button as={Link} href="/dashboard" variant="solid" block>
-          Open team
+          {strings.openTeam}
         </Button>
       </div>
     );
   if (metadata.loginRequired && !signedIn)
     return (
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-ink-2">
-          This invitation is for an existing account. Sign in with the invited email to continue.
-        </p>
+        <p className="text-sm text-ink-2">{strings.existingTeamAccount}</p>
         <Button
           as={Link}
           href={`/auth/login?returnTo=${encodeURIComponent(`/team-invite/${token}`)}`}
           variant="solid"
           block
         >
-          Sign in to accept
+          {strings.signInToAccept}
         </Button>
       </div>
     );
@@ -480,13 +493,13 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
       <p className="flex items-center justify-between gap-4 rounded-control border border-dashed border-line bg-inset/50 px-3.5 py-2.5">
         <strong className="text-sm font-semibold text-ink">{metadata.name}</strong>
         <span className="font-mono text-2xs uppercase tracking-[0.08em] text-ink-3">
-          {metadata.role}
+          {renderTerms(roles[metadata.role] ?? metadata.role)}
         </span>
       </p>
       {!signedIn ? (
         <>
           {!metadata.existingAccount ? (
-            <Field label="Display name" htmlFor="team-invite-name">
+            <Field label={strings.displayName} htmlFor="team-invite-name">
               <input
                 id="team-invite-name"
                 className={fieldControlClass}
@@ -496,7 +509,7 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
               />
             </Field>
           ) : null}
-          <Field label="Password" htmlFor="team-invite-password">
+          <Field label={strings.password} htmlFor="team-invite-password">
             <input
               id="team-invite-password"
               className={fieldControlClass}
@@ -510,7 +523,7 @@ export function TeamInviteAcceptance({ token, signedIn }: { token: string; signe
       ) : null}
       {error ? <p className={errorBanner}>{error}</p> : null}
       <Button type="submit" variant="solid" block loading={state === "busy"}>
-        {state === "busy" ? "Joining…" : "Accept invitation"}
+        {state === "busy" ? strings.joining : strings.acceptInvitation}
       </Button>
     </form>
   );

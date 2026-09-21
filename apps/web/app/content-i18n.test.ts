@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { formatDateTime, relativeTime } from "../lib/format";
+import { formatDate, formatDateTime, relativeTime } from "../lib/format";
 import { getDictionary, template } from "../lib/i18n/get-dictionary";
 import { LOCALE_COOKIE } from "../lib/i18n/locales";
 import { renderTerms } from "../lib/i18n/terms";
@@ -11,11 +11,31 @@ import MaintenancePage from "./brains/[brainId]/maintenance/page";
 import BrainPage from "./brains/[brainId]/page";
 import TasksPage from "./brains/[brainId]/tasks/page";
 import WritesPage from "./brains/[brainId]/writes/page";
+import ConnectionsPage, { generateMetadata as connectionsMetadata } from "./connections/page";
+import InvitePage, { generateMetadata as inviteMetadata } from "./invite/[token]/page";
 import TaskPage from "./tasks/[taskId]/page";
+import TeamInvitePage, { generateMetadata as teamInviteMetadata } from "./team-invite/[token]/page";
+import TeamPage, { generateMetadata as teamMetadata } from "./teams/[teamId]/page";
+import TeamsPage, { generateMetadata as teamsMetadata } from "./teams/page";
 import WritePage from "./writes/[writeId]/page";
 
 const mocks = vi.hoisted(() => ({ api: vi.fn(), locale: "en", empty: false }));
-vi.mock("../lib/api", () => ({ api: mocks.api }));
+vi.mock("../lib/api", () => ({
+  api: mocks.api,
+  hasSession: async () => true,
+  workspaceContext: async () => ({
+    teams: [{ id: "team-one", name: "Untranslated team", slug: "team-slug", role: "owner" }],
+    workspaces: [
+      {
+        id: "workspace-one",
+        teamId: "team-one",
+        name: "Untranslated workspace",
+        slug: "workspace-slug",
+        mcpUrl: "https://example.test/mcp/workspace/workspace-one",
+      },
+    ],
+  }),
+}));
 vi.mock("next/headers", () => ({
   cookies: async () => new Map([[LOCALE_COOKIE, { value: mocks.locale }]]),
   headers: async () => new Headers(),
@@ -71,6 +91,52 @@ beforeEach(() => {
   mocks.empty = false;
   mocks.api.mockReset();
   mocks.api.mockImplementation(async (path: string) => {
+    if (path === "/api/v1/connections")
+      return mocks.empty
+        ? []
+        : [
+            {
+              grantId: "grant-one",
+              clientId: "client-one",
+              clientName: "Untranslated client",
+              scopes: ["brains:read"],
+            },
+          ];
+    if (path === "/api/v1/teams/team-one/members")
+      return [
+        {
+          userId: "owner-one",
+          email: "owner@example.test",
+          displayName: "Untranslated owner",
+          role: "owner",
+          createdAt,
+        },
+        {
+          userId: "admin-one",
+          email: "admin@example.test",
+          displayName: "Untranslated admin",
+          role: "admin",
+          createdAt,
+        },
+        {
+          userId: "member-one",
+          email: "member@example.test",
+          displayName: "Untranslated member",
+          role: "member",
+          createdAt,
+        },
+      ];
+    if (path === "/api/v1/teams/team-one/invitations")
+      return mocks.empty
+        ? []
+        : [
+            {
+              id: "team-invitation-one",
+              email: "invited@example.test",
+              role: "member",
+              expiresAt: createdAt,
+            },
+          ];
     if (path.includes("/history"))
       return [{ ...article.provenance, id: "version-one", version: 3 }];
     if (path.includes("/invitations"))
@@ -198,6 +264,113 @@ describe("content page localization", () => {
     },
   );
 
+  it.each(["en", "tr", "zh"] as const)(
+    "passes the %s request dictionary through teams, invitations and connections",
+    async (locale) => {
+      mocks.locale = locale;
+      const dict = getDictionary(locale);
+      const strings = dict.teams;
+      const teams = renderToStaticMarkup(await TeamsPage());
+      for (const value of [
+        strings.title,
+        strings.kicker,
+        strings.description,
+        strings.teamName,
+        strings.teamPlaceholder,
+        strings.createTeam,
+        strings.manage,
+        strings.roleOwner,
+        strings.copyUrl,
+        dict.common.copied,
+        dict.common.copyFailed,
+      ]) {
+        expect(teams).toContain(escaped(value));
+      }
+      expect(teams).toContain(renderToStaticMarkup(renderTerms(strings.workspaceMcpUrl)));
+      expect(teams).toContain("Untranslated team");
+      expect(teams).toContain("Untranslated workspace");
+      expect(teams).toContain("https://example.test/mcp/workspace/workspace-one");
+      expect(teams).not.toContain("[[");
+
+      const team = renderToStaticMarkup(
+        await TeamPage({ params: Promise.resolve({ teamId: "team-one" }) }),
+      );
+      for (const value of [
+        strings.workspaces,
+        strings.members,
+        strings.teamDescription,
+        strings.createWorkspace,
+        strings.workspaceName,
+        strings.workspacePlaceholder,
+        strings.deleteTeamTitle,
+        strings.deleteTeamDescription,
+        strings.deleteTeam,
+        strings.rename,
+        strings.delete,
+        strings.sendInvitation,
+        strings.email,
+        strings.role,
+        strings.roleOwner,
+        strings.roleAdmin,
+        strings.roleMember,
+        strings.makeMember,
+        strings.makeAdmin,
+        strings.remove,
+        strings.pendingInvitations,
+        strings.resend,
+        strings.revoke,
+      ]) {
+        expect(team).toContain(escaped(value));
+      }
+      expect(team).toContain(escaped(template(strings.teamKicker, { role: strings.roleOwner })));
+      expect(team).toContain(
+        escaped(template(strings.invitationExpires, { date: formatDate(createdAt, locale) })),
+      );
+      expect(team).toContain(`aria-label="${strings.workspaces}"`);
+      expect(team).toContain("Untranslated owner");
+      expect(team).toContain("invited@example.test");
+      expect(team).not.toContain("[[");
+
+      const params = { params: Promise.resolve({ token: "unchanged-token" }) };
+      const teamInvite = renderToStaticMarkup(await TeamInvitePage(params));
+      for (const value of [
+        strings.teamInvitation,
+        strings.joinTeamTitle,
+        strings.joinTeamDescription,
+        strings.loadingInvitation,
+      ])
+        expect(teamInvite).toContain(escaped(value));
+      const invite = renderToStaticMarkup(await InvitePage(params));
+      for (const value of [
+        strings.brainInvitation,
+        strings.joinBrainTitle,
+        strings.joinBrainDescription,
+        strings.loadingInvitation,
+      ])
+        expect(invite).toContain(escaped(value));
+      expect(teamInvite).not.toContain("[[");
+      expect(invite).not.toContain("[[");
+
+      const connections = renderToStaticMarkup(await ConnectionsPage());
+      for (const value of [
+        dict.connections.title,
+        dict.connections.kicker,
+        dict.connections.description,
+        dict.connections.revoke,
+      ])
+        expect(connections).toContain(escaped(value));
+      expect(connections).toContain(`aria-label="${dict.connections.grantedScopes}"`);
+      expect(connections).toContain("Untranslated client");
+      expect(connections).toContain("client-one");
+      expect(connections).toContain("brains:read");
+      expect(await teamsMetadata()).toEqual({ title: strings.title });
+      expect(await teamMetadata()).toEqual({ title: strings.title });
+      expect(await teamInviteMetadata()).toEqual({ title: strings.teamInvitation });
+      expect(await inviteMetadata()).toEqual({ title: strings.brainInvitation });
+      expect(await connectionsMetadata()).toEqual({ title: dict.connections.title });
+    },
+  );
+
   it.each(["en", "tr", "zh"] as const)("renders %s empty states", async (locale) => {
     mocks.locale = locale;
     mocks.empty = true;
@@ -211,6 +384,12 @@ describe("content page localization", () => {
       [await TasksPage(brainParams), dict.tasks.noTasks],
       [await MaintenancePage(brainParams), dict.brains.noCandidates],
       [await TaskPage(taskParams), dict.tasks.noComments],
+      [
+        await TeamPage({ params: Promise.resolve({ teamId: "team-one" }) }),
+        dict.teams.noInvitations,
+      ],
+      [await ConnectionsPage(), dict.connections.noConnectionsTitle],
+      [await ConnectionsPage(), dict.connections.noConnectionsBody],
     ] as const;
     for (const [page, label] of pages) expect(renderToStaticMarkup(page)).toContain(escaped(label));
   });
