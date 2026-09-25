@@ -6,10 +6,12 @@ import { IconRefresh } from "./icons";
 
 export function RefreshButton({
   label = "Refresh",
+  pendingLabel = "Refreshing",
   className,
   href,
 }: {
   label?: string;
+  pendingLabel?: string;
   className?: string;
   href?: string;
 }) {
@@ -33,7 +35,7 @@ export function RefreshButton({
       className={`inline-flex items-center gap-1.5 rounded-control border border-line bg-surface px-2.5 py-1.5 font-medium text-ink-2 text-xs shadow-btn transition-all hover:bg-hover hover:text-ink active:scale-[0.96] disabled:pointer-events-none disabled:opacity-60 ${className ?? ""}`}
     >
       <IconRefresh className={pending ? "animate-spin" : undefined} />
-      {pending ? "Refreshing" : label}
+      {pending ? pendingLabel : label}
     </button>
   );
 }

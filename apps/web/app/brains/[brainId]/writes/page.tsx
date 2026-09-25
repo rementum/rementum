@@ -7,6 +7,7 @@ import { PageHeader } from "../../../../components/ui/page-header";
 import { StatusPill } from "../../../../components/ui/status-pill";
 import { api } from "../../../../lib/api";
 import { formatDateTime, relativeTime } from "../../../../lib/format";
+import { requestDictionary } from "../../../../lib/i18n/server";
 
 interface Write {
   id: string;
@@ -20,6 +21,20 @@ interface Write {
 }
 
 export default async function WritesPage({ params }: { params: Promise<{ brainId: string }> }) {
+  const { locale, dict } = await requestDictionary();
+  const strings = dict.writes;
+  const statuses: Record<string, string> = {
+    pending: strings.statusPending,
+    promoted: strings.statusPromoted,
+    conflicted: strings.statusConflicted,
+    withdrawn: strings.statusWithdrawn,
+  };
+  const operations: Record<string, string> = {
+    create: strings.operationCreate,
+    update: strings.operationUpdate,
+    append: strings.operationAppend,
+  };
+
   const { brainId } = await params;
   const [brain, writes] = await Promise.all([
     api<{ brain: { name: string } }>(`/api/v1/brains/${brainId}`),
@@ -27,14 +42,14 @@ export default async function WritesPage({ params }: { params: Promise<{ brainId
   ]);
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
-      <PageHeader kicker={brain.brain.name} title="Staged writes" />
+      <PageHeader kicker={brain.brain.name} title={strings.title} />
       <div className="mt-6">
-        <BrainNav brainId={brainId} />
+        <BrainNav strings={dict.brains} brainId={brainId} />
       </div>
       <section className="mt-8">
         {writes.length ? (
           <Card>
-            <CardHeader title="Proposals" count={writes.length} />
+            <CardHeader title={strings.proposals} count={writes.length} />
             <div className="divide-y divide-line">
               {writes.map((write) => (
                 <Link
@@ -46,19 +61,22 @@ export default async function WritesPage({ params }: { params: Promise<{ brainId
                   href={`/writes/${write.id}`}
                   key={write.id}
                 >
-                  <StatusPill status={write.status} />
+                  <StatusPill
+                    status={write.status}
+                    label={statuses[write.status] ?? write.status}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-ink">{write.title}</p>
                     <p className="truncate text-xs text-ink-2">{write.changeSummary}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    <Chip>{write.operation}</Chip>
+                    <Chip>{operations[write.operation] ?? write.operation}</Chip>
                     <time
                       className="font-mono text-2xs tabular-nums text-ink-3"
                       dateTime={write.createdAt}
-                      title={formatDateTime(write.createdAt)}
+                      title={formatDateTime(write.createdAt, locale)}
                     >
-                      {relativeTime(write.createdAt)}
+                      {relativeTime(write.createdAt, locale)}
                     </time>
                   </div>
                 </Link>
@@ -66,10 +84,7 @@ export default async function WritesPage({ params }: { params: Promise<{ brainId
             </div>
           </Card>
         ) : (
-          <EmptyState
-            title="No staged writes."
-            body="Connected agents can propose the first change."
-          />
+          <EmptyState title={strings.noWritesTitle} body={strings.noWritesBody} />
         )}
       </section>
     </main>

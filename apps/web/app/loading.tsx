@@ -1,8 +1,15 @@
 import { Skeleton } from "../components/ui/skeleton";
 
-export default function Loading() {
+import { requestDictionary } from "../lib/i18n/server";
+
+export default async function Loading() {
+  const { dict } = await requestDictionary();
   return (
-    <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
+    <main
+      aria-label={dict.common.loading}
+      aria-busy="true"
+      className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10"
+    >
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
           <Skeleton className="h-6 w-48 rounded-full" />

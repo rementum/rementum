@@ -2,7 +2,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { HeatmapCell } from "../lib/analytics";
+import { getDictionary, template } from "../lib/i18n/get-dictionary";
 import { HeatmapGrid } from "./heatmap-grid";
+
+const labels = getDictionary("en").analytics;
 
 describe("HeatmapGrid", () => {
   it("renders tracked, untracked, and padding cells with accessible labels and attributes", () => {
@@ -16,6 +19,8 @@ describe("HeatmapGrid", () => {
     const html = renderToStaticMarkup(
       createElement(HeatmapGrid, {
         cells,
+        locale: "en",
+        labels,
         columnTemplate: "repeat(4, minmax(10px, 1fr))",
         basePath: "/activity",
         range: "30d",
@@ -23,24 +28,28 @@ describe("HeatmapGrid", () => {
       }),
     );
 
+    const untracked = template(labels.cellNotTracked, { date: "Sep 1, 2026" });
+    const one = template(labels.cellCallsOne, { date: "Sep 2, 2026", count: 1 });
+    const many = template(labels.cellCallsMany, { date: "Sep 3, 2026", count: 42 });
+
     // Padding cell is aria-hidden and carries no label or role
     expect(html).toContain('<span aria-hidden="true" class="h-3"></span>');
 
     // Untracked cell renders as an outlined box with role="img"
-    expect(html).toContain('aria-label="Sep 1, 2026: not tracked"');
-    expect(html).toContain('data-label="Sep 1, 2026: not tracked"');
+    expect(html).toContain(`aria-label="${untracked}"`);
+    expect(html).toContain(`data-label="${untracked}"`);
     expect(html).toContain("ring-1 ring-line ring-inset");
     expect(html).toContain('role="img"');
 
     // Tracked cells render as links with day drilldown hrefs
-    expect(html).toContain('aria-label="Sep 2, 2026: 1 successful MCP call"');
-    expect(html).toContain('data-label="Sep 2, 2026: 1 successful MCP call"');
+    expect(html).toContain(`aria-label="${one}"`);
+    expect(html).toContain(`data-label="${one}"`);
     expect(html).toContain('href="/activity?range=30d&amp;day=2026-09-02"');
     expect(html).toContain("bg-green/20");
 
     // Selected cell links back without day, has selection ring and aria-current
-    expect(html).toContain('aria-label="Sep 3, 2026: 42 successful MCP calls"');
-    expect(html).toContain('data-label="Sep 3, 2026: 42 successful MCP calls"');
+    expect(html).toContain(`aria-label="${many}"`);
+    expect(html).toContain(`data-label="${many}"`);
     expect(html).toContain('href="/activity?range=30d"');
     expect(html).toContain('aria-current="true"');
     expect(html).toContain("ring-2 ring-ink");

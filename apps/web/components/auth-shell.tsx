@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { renderTerms } from "../lib/i18n/terms";
 import { EyebrowPill } from "./pui";
 import { AURORA_SOFT, AuroraBackdrop } from "./ui/backdrop";
 
@@ -21,7 +22,7 @@ export function AuthShell({
       </div>
       <main className="relative mx-auto grid min-h-[70vh] w-full max-w-6xl gap-12 px-6 pb-24 pt-16 lg:grid-cols-2 lg:items-center">
         <section>
-          <EyebrowPill>{kicker}</EyebrowPill>
+          <EyebrowPill>{renderTerms(kicker)}</EyebrowPill>
           <h1 className="mt-4 text-[clamp(34px,4.5vw,52px)] font-medium leading-[1.05] tracking-tighter text-ink text-balance">
             {title}
           </h1>

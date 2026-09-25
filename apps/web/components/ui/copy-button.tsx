@@ -14,7 +14,7 @@ export function CopyButton({
   text: string;
   label?: string;
   className?: string;
-  dict?: Dictionary;
+  dict?: Pick<Dictionary, "common">;
 }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const [keyboard, setKeyboard] = useState(false);

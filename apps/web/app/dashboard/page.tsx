@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
-import { cookies, headers } from "next/headers";
 import { Dashboard } from "../../components/dashboard";
-import { getDictionary } from "../../lib/i18n/get-dictionary";
-import { resolveLocale } from "../../lib/i18n/locales";
+import { requestDictionary } from "../../lib/i18n/server";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const cookieStore = await cookies();
-  const locale = resolveLocale(
-    cookieStore.get("rementum_locale")?.value,
-    (await headers()).get("accept-language"),
-  );
-  return { title: getDictionary(locale).dashboard.title };
+  const { dict } = await requestDictionary();
+  return { title: dict.dashboard.title };
 }
 
 export default async function DashboardPage({
@@ -19,12 +13,6 @@ export default async function DashboardPage({
   searchParams: Promise<{ page?: string; sharedPage?: string }>;
 }) {
   const { page, sharedPage } = await searchParams;
-  const cookieStore = await cookies();
-  const locale = resolveLocale(
-    cookieStore.get("rementum_locale")?.value,
-    (await headers()).get("accept-language"),
-  );
-  return (
-    <Dashboard page={page} sharedPage={sharedPage} locale={locale} dict={getDictionary(locale)} />
-  );
+  const { locale, dict } = await requestDictionary();
+  return <Dashboard page={page} sharedPage={sharedPage} locale={locale} dict={dict} />;
 }

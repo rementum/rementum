@@ -76,10 +76,11 @@ limits and inflates token costs. Rementum minimizes prompt overhead in several w
 
 ### Which languages does the web interface support?
 
-The homepage and the dashboard are available in **English**, **Simplified Chinese (中文)**, and
-**Turkish (Türkçe)**.
+You can use the homepage, dashboard, workspace analytics, brain pages (including import and
+maintenance), articles, writes, tasks, teams, invitations, connections, admin pages, and account
+flows in **English**, **Simplified Chinese (中文)**, and **Turkish (Türkçe)**.
 
-- **Homepage:** each language has its own URL — `/`, `/zh`, and `/tr` — with its own canonical URL
+- **Homepage:** each language has its own URL (`/`, `/zh`, and `/tr`) with its own canonical URL
   and `hreflang` links, so search engines see three real translated pages rather than one
   cookie-dependent one. Each is cached and revalidated every 60 seconds. They are deliberately
   *not* prerendered at build time: the language the page shell renders in comes from the request,
@@ -93,12 +94,16 @@ The homepage stays in the public shell when you are signed in: the sidebar is th
 the marketing page is not laid out inside it. The account buttons in the header and the footer
 become a **Dashboard** link in that case, so the page still leads into the app.
 
-The **navigation shell** — sidebar, header, footer, and the language switcher — follows your chosen
-language on every signed-in page. **Page content** is translated only on the homepage and the
-dashboard. So choosing Chinese gives you a Chinese shell around English content on brains,
-articles, writes, tasks, teams, connections, analytics, auth flows, and admin, and on the `/docs`
-site, in API messages, and in email templates. Those bodies stay English until they are translated
-in turn.
+Every signed-in page and account flow follows your chosen language, including the navigation shell
+(sidebar, header, footer, and language switcher) and the labels, dates, relative times, and number
+formatting inside each page. Analytics heatmap days still follow UTC, whatever the language.
+
+English product terms stay English in Turkish, `brain` among them, and keep English capitalization
+inside Turkish labels: `AKTİF BRAIN`, not `AKTİF BRAİN`.
+
+The emergency error screen keeps an English fallback because it must work when server rendering
+fails. The `/docs` site, API messages (including errors shown in forms), and email templates remain
+in English.
 
 User content (brain names, article titles and bodies, comments) is never translated, and neither
 are shell commands, MCP URLs, or slugs.

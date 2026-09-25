@@ -2,26 +2,29 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { InstanceOverview } from "../lib/admin";
+import { getDictionary, template } from "../lib/i18n/get-dictionary";
 import { InstanceOverviewView } from "./instance-overview";
+
+const strings = getDictionary("en").admin;
 
 describe("InstanceOverviewView", () => {
   it("renders every figure with a UTC label and names each bar's day", () => {
     const html = renderToStaticMarkup(
-      createElement(InstanceOverviewView, { overview: overview() }),
+      createElement(InstanceOverviewView, { overview: overview(), locale: "en", strings }),
     );
 
-    expect(html).toContain("Every team on this instance · UTC");
+    expect(html).toContain(strings.allTeamsUtc);
     expect(html).toContain("Sep 2, 2026, 12:00 PM UTC");
     expect(html).toContain("1,234");
-    expect(html).toContain("New accounts");
-    expect(html).toContain("MCP tool calls");
-    expect(html).toContain("Sep 2, 2026: 7 sign-ups");
-    expect(html).toContain("Sep 1, 2026: 1 call");
-    expect(html).toContain("Peak 7");
-    expect(html).toContain("Writes in conflict");
+    expect(html).toContain(strings.newAccounts);
+    expect(html).toContain(strings.mcpToolCalls);
+    expect(html).toContain(template(strings.signupsMany, { date: "Sep 2, 2026", count: 7 }));
+    expect(html).toContain(template(strings.callsOne, { date: "Sep 1, 2026", count: 1 }));
+    expect(html).toContain(template(strings.peak, { count: 7 }));
+    expect(html).toContain(strings.conflictedWrites);
     expect(html).toContain("text-orange");
     expect(html).toContain("50.0 MB");
-    expect(html).toContain("Live MCP connections");
+    expect(html).toContain(strings.liveConnections);
   });
 });
 

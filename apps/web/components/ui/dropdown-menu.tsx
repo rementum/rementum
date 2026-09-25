@@ -49,7 +49,12 @@ export function DropdownMenu({
     };
     position();
     const selected = menu.current.querySelector<HTMLButtonElement>('[aria-checked="true"]');
-    (selected ?? menu.current.querySelector<HTMLButtonElement>("button"))?.focus();
+    // setPlacement above is a state update, so the panel is still at its static position
+    // here: below a trigger that sits at the bottom of the sidebar, hanging past the
+    // viewport. Letting focus scroll that into view drags the whole document down.
+    (selected ?? menu.current.querySelector<HTMLButtonElement>("button"))?.focus({
+      preventScroll: true,
+    });
     window.addEventListener("resize", position);
     return () => window.removeEventListener("resize", position);
   }, [open]);

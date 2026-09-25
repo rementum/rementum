@@ -5,14 +5,19 @@ import { RefreshButton } from "../../components/ui/refresh-button";
 import { UsageAnalyticsView } from "../../components/usage-analytics";
 import { parseAnalyticsDay, parseAnalyticsRange, type UsageAnalytics } from "../../lib/analytics";
 import { api, workspaceContext } from "../../lib/api";
+import { requestDictionary } from "../../lib/i18n/server";
 
-export const metadata: Metadata = { title: "Analytics" };
+export async function generateMetadata(): Promise<Metadata> {
+  const { dict } = await requestDictionary();
+  return { title: dict.analytics.title };
+}
 
 export default async function WorkspaceAnalyticsPage({
   searchParams,
 }: {
   searchParams: Promise<{ range?: string | string[]; day?: string | string[] }>;
 }) {
+  const { locale, dict } = await requestDictionary();
   const query = await searchParams;
   const range = parseAnalyticsRange(query.range);
   const day = parseAnalyticsDay(query.day);
@@ -20,11 +25,11 @@ export default async function WorkspaceAnalyticsPage({
   if (!activeTeam || !activeWorkspace) {
     return (
       <main className="mx-auto w-full max-w-6xl px-6 pt-10 pb-20">
-        <PageHeader kicker="Workspace" title="Analytics" />
+        <PageHeader kicker={dict.analytics.noWorkspaceKicker} title={dict.analytics.title} />
         <section className="mt-8">
           <EmptyState
-            title="No workspace yet."
-            body="Create a team and workspace to begin tracking MCP usage."
+            title={dict.analytics.noWorkspaceTitle}
+            body={dict.analytics.noWorkspaceBody}
           />
         </section>
       </main>
@@ -39,12 +44,25 @@ export default async function WorkspaceAnalyticsPage({
     <main className="mx-auto w-full max-w-6xl px-6 pt-10 pb-20">
       <PageHeader
         kicker={`${activeTeam.name} · ${activeWorkspace.name}`}
-        title="Analytics"
-        description="See where connected agents spend attention across this workspace."
-        actions={<RefreshButton href={`/activity?range=${range}`} />}
+        title={dict.analytics.title}
+        description={dict.analytics.description}
+        actions={
+          <RefreshButton
+            href={`/activity?range=${range}`}
+            label={dict.analytics.refresh}
+            pendingLabel={dict.analytics.refreshing}
+          />
+        }
       />
       <section className="mt-8">
-        <UsageAnalyticsView analytics={analytics} day={day} range={range} rangePath="/activity" />
+        <UsageAnalyticsView
+          locale={locale}
+          dict={dict}
+          analytics={analytics}
+          day={day}
+          range={range}
+          rangePath="/activity"
+        />
       </section>
     </main>
   );

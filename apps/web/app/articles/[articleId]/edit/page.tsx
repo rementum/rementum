@@ -1,5 +1,8 @@
 import { PageHeader } from "../../../../components/ui/page-header";
 import { api } from "../../../../lib/api";
+import { template } from "../../../../lib/i18n/get-dictionary";
+import { requestDictionary } from "../../../../lib/i18n/server";
+import { renderTerms } from "../../../../lib/i18n/terms";
 import { ArticleEditForm } from "./article-edit-form";
 
 interface Article {
@@ -19,18 +22,20 @@ export default async function EditArticlePage({
 }: {
   params: Promise<{ articleId: string }>;
 }) {
+  const { dict } = await requestDictionary();
+  const strings = dict.articles;
   const { articleId } = await params;
   const article = await api<Article>(`/api/v1/articles/${articleId}`);
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
       <PageHeader
-        back={{ href: `/articles/${articleId}`, label: "Article" }}
-        kicker="Stage only"
-        title={`Edit ${article.title}`}
-        description="Saving creates a reviewable staged write. Canon is unchanged until promotion."
+        back={{ href: `/articles/${articleId}`, label: strings.article }}
+        kicker={renderTerms(strings.stageOnly)}
+        title={template(strings.editTitle, { title: article.title })}
+        description={strings.editDescription}
       />
       <div className="mt-8">
-        <ArticleEditForm article={article} />
+        <ArticleEditForm strings={strings} article={article} />
       </div>
     </main>
   );

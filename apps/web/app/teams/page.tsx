@@ -1,21 +1,27 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { TeamCreateForm, WorkspaceMcpLink } from "../../components/team-management";
 import { Card } from "../../components/ui/card";
 import { Chip } from "../../components/ui/chip";
 import { PageHeader } from "../../components/ui/page-header";
 import { workspaceContext } from "../../lib/api";
+import { requestDictionary } from "../../lib/i18n/server";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { dict } = await requestDictionary();
+  return { title: dict.teams.title };
+}
 
 export default async function TeamsPage() {
+  const { dict } = await requestDictionary();
+  const strings = dict.teams;
+  const roles = { owner: strings.roleOwner, admin: strings.roleAdmin, member: strings.roleMember };
   const { teams, workspaces } = await workspaceContext();
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
-      <PageHeader
-        kicker="Collaboration"
-        title="Teams"
-        description="Teams own membership. Each team can contain multiple isolated workspaces."
-      />
+      <PageHeader kicker={strings.kicker} title={strings.title} description={strings.description} />
       <div className="mt-8">
-        <TeamCreateForm />
+        <TeamCreateForm strings={strings} />
       </div>
       <section className="mt-6 grid gap-4 md:grid-cols-2">
         {teams.map((team) => (
@@ -35,14 +41,16 @@ export default async function TeamsPage() {
                   <span className="truncate text-[15px] font-semibold tracking-tight text-ink">
                     {team.name}
                   </span>
-                  <Chip tone={team.role === "owner" ? "accent" : "neutral"}>{team.role}</Chip>
+                  <Chip tone={team.role === "owner" ? "accent" : "neutral"}>
+                    {roles[team.role]}
+                  </Chip>
                 </span>
                 <Chip className="mt-1.5 max-w-full">
                   <span className="truncate">{team.slug}</span>
                 </Chip>
               </span>
               <span className="shrink-0 text-xs font-medium text-ink-3 transition-colors group-hover:text-ink">
-                Manage →
+                {strings.manage}
               </span>
             </Link>
             <div className="flex flex-col divide-y divide-dashed divide-line border-t border-dashed border-line">
@@ -51,7 +59,10 @@ export default async function TeamsPage() {
                 .map((workspace) => (
                   <div className="flex min-w-0 flex-col gap-1.5 px-4 py-3" key={workspace.id}>
                     <p className="truncate text-sm font-medium text-ink">{workspace.name}</p>
-                    <WorkspaceMcpLink url={workspace.mcpUrl} />
+                    <WorkspaceMcpLink
+                      dict={{ teams: strings, common: dict.common }}
+                      url={workspace.mcpUrl}
+                    />
                   </div>
                 ))}
             </div>

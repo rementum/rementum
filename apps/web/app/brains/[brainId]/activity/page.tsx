@@ -11,6 +11,8 @@ import {
 import { api } from "../../../../lib/api";
 import { formatDate, formatDateTime, relativeTime } from "../../../../lib/format";
 
+import { requestDictionary } from "../../../../lib/i18n/server";
+
 interface Activity {
   id: string;
   action: string;
@@ -28,6 +30,7 @@ export default async function ActivityPage({
   params: Promise<{ brainId: string }>;
   searchParams: Promise<{ range?: string | string[]; day?: string | string[] }>;
 }) {
+  const { locale, dict } = await requestDictionary();
   const { brainId } = await params;
   const query = await searchParams;
   const range = parseAnalyticsRange(query.range);
@@ -43,7 +46,7 @@ export default async function ActivityPage({
   ]);
   const days: Array<{ day: string; events: Activity[] }> = [];
   for (const event of activity) {
-    const day = formatDate(event.createdAt);
+    const day = formatDate(event.createdAt, locale);
     const group = days.at(-1);
     if (group && group.day === day) group.events.push(event);
     else days.push({ day, events: [event] });
@@ -52,15 +55,17 @@ export default async function ActivityPage({
     <main className="mx-auto w-full max-w-6xl px-6 pt-10 pb-20">
       <PageHeader
         kicker={brain.brain.name}
-        title="Activity"
-        description="MCP usage intensity and the detailed audit trail for this brain."
+        title={dict.analytics.activityTitle}
+        description={dict.analytics.activityDescription}
       />
       <div className="mt-6">
-        <BrainNav brainId={brainId} />
+        <BrainNav strings={dict.brains} brainId={brainId} />
       </div>
       <section className="mt-8">
         <UsageAnalyticsView
           analytics={analytics}
+          locale={locale}
+          dict={dict}
           brainScoped
           day={selectedDay}
           range={range}
@@ -74,7 +79,7 @@ export default async function ActivityPage({
           className="mb-3 font-mono font-semibold text-2xs text-ink-3 uppercase tracking-[0.08em]"
           id="brain-audit-title"
         >
-          Detailed audit trail
+          {dict.analytics.detailedAuditTrail}
         </h2>
         {days.length ? (
           days.map((group) => (
@@ -90,22 +95,22 @@ export default async function ActivityPage({
                     <time
                       className="w-16 shrink-0 font-mono text-2xs text-ink-3 tabular-nums"
                       dateTime={event.createdAt}
-                      title={formatDateTime(event.createdAt)}
+                      title={formatDateTime(event.createdAt, locale)}
                     >
-                      {relativeTime(event.createdAt)}
+                      {relativeTime(event.createdAt, locale)}
                     </time>
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-ink text-sm">{event.action}</p>
                       <p className="truncate font-mono text-2xs text-ink-3">{event.resource}</p>
                     </div>
-                    <Chip className="shrink-0">{event.clientId ?? "web"}</Chip>
+                    <Chip className="shrink-0">{event.clientId ?? dict.analytics.web}</Chip>
                   </article>
                 ))}
               </div>
             </div>
           ))
         ) : (
-          <EmptyState title="No activity yet." body="Connected agents will appear here." />
+          <EmptyState title={dict.analytics.noActivityTitle} body={dict.analytics.noActivityBody} />
         )}
       </section>
     </main>

@@ -1,14 +1,15 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import type { Dictionary } from "../lib/i18n/get-dictionary";
 import { GlideNav } from "./ui/glide";
 import { IconActivity, IconTeams } from "./ui/icons";
 
-export function InstanceNav() {
+export function InstanceNav({ strings }: { strings: Dictionary["admin"] }) {
   const pathname = usePathname();
   const items = [
-    { label: "Overview", href: "/admin", icon: IconActivity },
-    { label: "Accounts", href: "/admin/accounts", icon: IconTeams },
+    { label: strings.overview, href: "/admin", icon: IconActivity },
+    { label: strings.accounts, href: "/admin/accounts", icon: IconTeams },
   ];
   const activeIndex = items.findIndex((item) => item.href === pathname);
 
@@ -18,7 +19,7 @@ export function InstanceNav() {
         items={items}
         activeIndex={activeIndex}
         orientation="horizontal"
-        ariaLabel="Instance administration"
+        ariaLabel={strings.navigation}
       />
     </div>
   );

@@ -10,6 +10,9 @@ import { Pager } from "../../../components/ui/pager";
 import { StatusPill } from "../../../components/ui/status-pill";
 import { api } from "../../../lib/api";
 import { relativeTime } from "../../../lib/format";
+import { template } from "../../../lib/i18n/get-dictionary";
+import { requestDictionary } from "../../../lib/i18n/server";
+import { renderTerms } from "../../../lib/i18n/terms";
 import { ARTICLES_SORT_COOKIE, ARTICLES_SORTS, parsePref } from "../../../lib/prefs";
 
 interface BrainResponse {
@@ -36,6 +39,15 @@ export default async function BrainPage({
   params: Promise<{ brainId: string }>;
   searchParams: Promise<{ page?: string }>;
 }) {
+  const { locale, dict } = await requestDictionary();
+  const strings = dict.brains;
+  const statuses: Record<string, string> = {
+    current: dict.articles.freshnessCurrent,
+    review_due: dict.articles.freshnessReviewDue,
+    stale: dict.articles.freshnessStale,
+    unknown: dict.articles.freshnessUnknown,
+  };
+
   const { brainId } = await params;
   const { page: pageParam } = await searchParams;
   // parsePref narrows the cookie to the closed enum before it touches the URL,
@@ -72,7 +84,7 @@ export default async function BrainPage({
             className="inline-flex items-center gap-1 font-mono text-2xs text-ink-3 transition-colors hover:text-ink"
             href="/dashboard"
           >
-            ← All brains
+            {strings.allBrains}
           </Link>
           <div className="mt-5 flex items-center gap-3">
             <span
@@ -82,7 +94,9 @@ export default async function BrainPage({
               {data.brain.name.slice(0, 2)}
             </span>
             <div className="min-w-0">
-              <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink-3">Brain</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink-3">
+                {renderTerms(strings.brain)}
+              </p>
               <h1 className="truncate text-[17px] font-semibold tracking-tight text-ink">
                 {data.brain.name}
               </h1>
@@ -94,7 +108,7 @@ export default async function BrainPage({
           {data.brain.instructions ? (
             <div className="mt-4 rounded-control border border-dashed border-line bg-inset/50 p-3">
               <span className="mb-1.5 block font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-                Instructions
+                {strings.instructions}
               </span>
               <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink-2">
                 {data.brain.instructions}
@@ -106,12 +120,12 @@ export default async function BrainPage({
               className="inline-flex items-center gap-1.5 rounded-control border border-line px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink active:scale-[0.98]"
               href={`/brains/${brainId}/export`}
             >
-              Export Markdown
+              {strings.exportMarkdown}
             </a>
           </div>
           <details className="group mt-4 rounded-control border border-line bg-surface shadow-hairline">
             <summary className="flex cursor-pointer select-none list-none items-center justify-between px-3 py-2 font-mono text-2xs font-semibold uppercase tracking-[0.08em] text-ink-3 transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
-              Invite teammate
+              {strings.inviteTeammate}
               <span
                 aria-hidden="true"
                 className="text-sm leading-none transition-transform group-open:rotate-45"
@@ -120,31 +134,39 @@ export default async function BrainPage({
               </span>
             </summary>
             <div className="border-t border-dashed border-line p-3">
-              <InviteMemberForm brainId={brainId} />
+              <InviteMemberForm dict={dict} brainId={brainId} />
             </div>
           </details>
           {data.role === "owner" ? (
-            <BrainInvitations brainId={brainId} invitations={invitations} />
+            <BrainInvitations
+              dict={dict}
+              locale={locale}
+              brainId={brainId}
+              invitations={invitations}
+            />
           ) : null}
           {data.role === "owner" ? (
-            <BrainDangerZone brainId={brainId} name={data.brain.name} />
+            <BrainDangerZone strings={strings} brainId={brainId} name={data.brain.name} />
           ) : null}
         </aside>
         <section>
-          <BrainNav brainId={brainId} />
+          <BrainNav strings={dict.brains} brainId={brainId} />
           <div className="mt-6">
             <Card>
               <CardHeader
-                title="Current canon"
-                count={`${data.articleTotal} ${data.articleTotal === 1 ? "article" : "articles"}`}
+                title={strings.currentCanon}
+                count={template(
+                  data.articleTotal === 1 ? strings.articlesOne : strings.articlesMany,
+                  { count: data.articleTotal },
+                )}
                 action={
                   <PrefToggle
                     cookieName={ARTICLES_SORT_COOKIE}
                     value={sort}
-                    label="Sort articles"
+                    label={strings.sortArticles}
                     options={[
-                      { value: "updated", label: "Updated" },
-                      { value: "title", label: "Title" },
+                      { value: "updated", label: strings.updated },
+                      { value: "title", label: strings.title },
                     ]}
                   />
                 }
@@ -167,27 +189,29 @@ export default async function BrainPage({
                         ) : null}
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
-                        <StatusPill status={article.freshness} />
+                        <StatusPill
+                          status={article.freshness}
+                          label={statuses[article.freshness] ?? article.freshness}
+                        />
                         <time
                           className="font-mono text-2xs tabular-nums text-ink-3"
                           dateTime={article.updatedAt}
                         >
-                          {relativeTime(article.updatedAt)}
+                          {relativeTime(article.updatedAt, locale)}
                         </time>
                         <span className="font-mono text-2xs tabular-nums text-ink-3">
-                          v{article.currentVersion}
+                          {template(dict.articles.version, { version: article.currentVersion })}
                         </span>
                       </div>
                     </Link>
                   ))}
                 </div>
               ) : (
-                <p className="px-4 py-6 text-sm text-ink-2">
-                  The routing index is empty. Ask a connected agent to stage the first article.
-                </p>
+                <p className="px-4 py-6 text-sm text-ink-2">{strings.emptyIndex}</p>
               )}
             </Card>
             <Pager
+              dict={dict}
               className="mt-4"
               page={page}
               pageCount={pageCount}
