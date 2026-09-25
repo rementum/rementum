@@ -99,6 +99,11 @@ become part of the stored identity (for example `acme/some-embedder#pooling=cls`
 same automatic re-embed when they change. `REMENTUM_EMBEDDING_DTYPE` does not: precision only nudges
 vectors within the same space, and an unsupported value is rejected at startup.
 
+The embedding service embeds one text at a time and truncates each to 1,024 tokens, which keeps its
+memory bounded: about 450 MB with the model loaded, and under 800 MB while it indexes. A 1,024-token
+window holds roughly a whole 4,000-character English section; in denser text, such as Turkish or
+Chinese, the end of a long section does not reach its vector.
+
 The Compose file creates named volumes for PostgreSQL, blobs, Caddy state, and the embedding model
 cache. `REMENTUM_BACKUP_HOST_DIR` is a host bind mount, so you can move encrypted archives off the
 server.
