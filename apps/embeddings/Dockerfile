@@ -20,11 +20,19 @@ RUN pnpm install --prod --filter @rementum/embeddings... --frozen-lockfile --con
   && pnpm prune --prod
 
 FROM node:24-bookworm-slim
+# ONNX Runtime frees every activation buffer after each text, but glibc keeps most of that memory
+# fragmented across its per-thread arenas, so the service grew by a couple of hundred megabytes
+# under indexing and never shrank. jemalloc hands it back at no measurable speed cost. The library
+# path carries the architecture, so a fixed link lets one LD_PRELOAD serve amd64 and arm64; the
+# build checks the link, since the loader skips a missing preload with nothing but a warning.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates wget \
+  && apt-get install -y --no-install-recommends ca-certificates libjemalloc2 wget \
   && rm -rf /var/lib/apt/lists/* \
+  && ln -s "/usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2" /usr/local/lib/libjemalloc.so.2 \
+  && test -e /usr/local/lib/libjemalloc.so.2 \
   && addgroup --system rementum \
   && adduser --system --ingroup rementum rementum
+ENV LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
 WORKDIR /app
 COPY --from=prod /app/node_modules ./node_modules
 COPY --from=prod /app/apps/embeddings/node_modules ./apps/embeddings/node_modules

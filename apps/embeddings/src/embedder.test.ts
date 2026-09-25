@@ -9,8 +9,10 @@ import {
   embeddingDimensions,
   embeddingSpaceId,
   MAX_TEXTS_PER_REQUEST,
+  MAX_TOKENS_PER_TEXT,
   type ModelSpec,
   resolveModelSpec,
+  tokenLimit,
 } from "./embedder.js";
 
 describe("request limits", () => {
@@ -18,6 +20,12 @@ describe("request limits", () => {
   // here. EMBEDDING_BATCH_LIMIT is pinned to the same literal by the core batching test.
   it("accepts the batch size the contracts promise indexers", () => {
     expect(MAX_TEXTS_PER_REQUEST).toBe(64);
+  });
+
+  it("truncates to the token cap, or to a model's own lower limit", () => {
+    expect(tokenLimit(32_768)).toBe(MAX_TOKENS_PER_TEXT);
+    expect(tokenLimit(512)).toBe(512);
+    expect(tokenLimit(undefined)).toBe(MAX_TOKENS_PER_TEXT);
   });
 });
 
@@ -69,6 +77,23 @@ describe("createEmbedder", () => {
     const options = { pooling: "mean", normalize: true };
     expect(extractor).toHaveBeenNthCalledWith(1, ["query: how do I deploy"], options);
     expect(extractor).toHaveBeenNthCalledWith(2, ["passage: deployment guide"], options);
+  });
+
+  // A batch holds every text's activations at once; one text per pass bounds the peak.
+  it("runs one forward pass per text and keeps the input order", async () => {
+    const extractor = vi.fn(async (texts: string[]) => ({
+      tolist: () => texts.map((text) => new Array(embeddingDimensions).fill(text.length)),
+    }));
+    const embedder = createEmbedder("test-model", E5_SPEC, async () => extractor);
+
+    const vectors = await embedder.embed("passage", ["a", "bb", "ccc"]);
+
+    expect(extractor).toHaveBeenCalledTimes(3);
+    expect(extractor).toHaveBeenNthCalledWith(2, ["passage: bb"], {
+      pooling: "mean",
+      normalize: true,
+    });
+    expect(vectors.map((vector) => vector[0])).toEqual([10, 11, 12]);
   });
 
   it("refuses a model whose vectors are the wrong width", async () => {

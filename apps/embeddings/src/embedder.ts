@@ -10,6 +10,16 @@ import type { DataType } from "@huggingface/transformers";
 // @rementum/contracts, which every indexer batches by; tests on both sides pin the value.
 export const MAX_TEXTS_PER_REQUEST = 64;
 
+// Attention memory grows with the square of the input length, and granite accepts 32,768 tokens:
+// one 20,000-character text took the service to 3.6 GB. 1,024 tokens holds about a whole
+// 4,000-character English section; denser text, such as Turkish or CJK, keeps its opening and
+// loses its tail. The tokenizer truncates to this, never above what the model itself allows.
+export const MAX_TOKENS_PER_TEXT = 1024;
+
+export function tokenLimit(modelMaxLength: number | undefined): number {
+  return Math.min(modelMaxLength || MAX_TOKENS_PER_TEXT, MAX_TOKENS_PER_TEXT);
+}
+
 export function assertModelCacheWritable(dir: string): void {
   try {
     mkdirSync(dir, { recursive: true });
@@ -159,11 +169,18 @@ export function createEmbedder(
     async embed(kind, texts) {
       const prefix = kind === "query" ? spec.queryPrefix : spec.passagePrefix;
       const extractor = await loadOnce();
-      const output = await extractor(
-        texts.map((text) => `${prefix}${text}`),
-        { pooling: spec.pooling, normalize: true },
-      );
-      const vectors = output.tolist() as number[][];
+      // One text per forward pass. A batch pads every text to the longest and holds all of their
+      // activations at once, so 64 indexed sections needed several gigabytes. One at a time the
+      // peak is a single text's, long sections embed faster without the padding, and a search
+      // query waits behind one section instead of the whole batch.
+      const vectors: number[][] = [];
+      for (const text of texts) {
+        const output = await extractor([`${prefix}${text}`], {
+          pooling: spec.pooling,
+          normalize: true,
+        });
+        vectors.push(...(output.tolist() as number[][]));
+      }
       if (vectors.some((vector) => vector.length !== embeddingDimensions)) {
         throw new Error(
           `Embedding model ${model} did not produce ${embeddingDimensions} dimensions`,

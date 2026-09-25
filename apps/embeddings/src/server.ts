@@ -13,6 +13,7 @@ import {
   embeddingSpaceId,
   MAX_TEXTS_PER_REQUEST,
   resolveModelSpec,
+  tokenLimit,
 } from "./embedder.js";
 
 const model =
@@ -42,12 +43,19 @@ const requestSchema = z.object({
 const loadPipeline = pipeline as unknown as (
   task: "feature-extraction",
   modelName: string,
-  options: { dtype: DataType },
+  options: { dtype: DataType; session_options: { enableCpuMemArena: boolean } },
 ) => Promise<FeatureExtractionPipeline>;
 
-const embedder = createEmbedder(model, spec, (name) =>
-  loadPipeline("feature-extraction", name, { dtype: spec.dtype }),
-);
+const embedder = createEmbedder(model, spec, async (name) => {
+  const extractor = await loadPipeline("feature-extraction", name, {
+    dtype: spec.dtype,
+    // ONNX Runtime's arena keeps the largest activations it ever allocated for the life of the
+    // process, so one long text left the service hundreds of megabytes larger for good.
+    session_options: { enableCpuMemArena: false },
+  });
+  extractor.tokenizer.model_max_length = tokenLimit(extractor.tokenizer.model_max_length);
+  return extractor;
+});
 
 app.get("/healthz", async (request, reply) => {
   try {
