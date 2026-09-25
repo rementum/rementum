@@ -735,7 +735,7 @@ integration("OAuth refresh lifetime", () => {
     const f = await fixture();
     try {
       const initial = await f.readGrant();
-      expect(initial?.payload.exp - initial?.payload.iat).toBe(60 * 86400);
+      expect(initial?.payload.exp - initial?.payload.iat).toBe(360 * 86400);
       // An existing grant near its old deadline also gets the new idle lifetime on refresh.
       await f.ageGrant(3600);
       const before = await f.readGrant();
@@ -745,8 +745,8 @@ integration("OAuth refresh lifetime", () => {
       expect(next.refresh_token).not.toBe(f.refreshToken);
       expect(next.expires_in).toBe(900);
       const after = await f.readGrant();
-      expect(after?.payload.exp).toBeGreaterThan(Math.floor(Date.now() / 1000) + 59 * 86400);
-      expect(Date.parse(after?.expires_at ?? "")).toBeGreaterThan(Date.now() + 59 * 86400_000);
+      expect(after?.payload.exp).toBeGreaterThan(Math.floor(Date.now() / 1000) + 359 * 86400);
+      expect(Date.parse(after?.expires_at ?? "")).toBeGreaterThan(Date.now() + 359 * 86400_000);
       expect(after?.payload.resources).toEqual(before?.payload.resources);
       expect(after?.payload.openid).toEqual(before?.payload.openid);
       const jwks = await f.app.inject({
@@ -762,22 +762,71 @@ integration("OAuth refresh lifetime", () => {
       await f.ageGrant(3600);
       expect((await f.refresh(next.refresh_token)).statusCode).toBe(200);
       expect((await f.readGrant())?.payload.exp).toBeGreaterThan(
-        Math.floor(Date.now() / 1000) + 59 * 86400,
+        Math.floor(Date.now() / 1000) + 359 * 86400,
       );
     } finally {
       await f.close();
     }
   });
 
-  it("rejects replay of a consumed token and invalidates its replacement", async () => {
+  it("lets a client retry a refresh whose reply it never read", async () => {
+    const f = await fixture();
+    try {
+      const unread = await f.refresh();
+      expect(unread.statusCode).toBe(200);
+      const retried = await f.refresh();
+      expect(retried.statusCode).toBe(200);
+      expect(retried.json().refresh_token).not.toBe(unread.json().refresh_token);
+      const next = await f.refresh(retried.json().refresh_token);
+      expect(next.statusCode).toBe(200);
+      // The retry consumed the unread replacement: if it surfaces, two holders exist.
+      const surfaced = await f.refresh(unread.json().refresh_token);
+      expect(surfaced.statusCode).toBe(400);
+      expect(surfaced.json().error).toBe("invalid_grant");
+      expect((await f.refresh(next.json().refresh_token)).statusCode).toBe(400);
+      expect(await f.readGrant()).toBeUndefined();
+    } finally {
+      await f.close();
+    }
+  });
+
+  it("revokes the grant on replay once the replacement was used", async () => {
     const f = await fixture();
     try {
       const first = await f.refresh();
       expect(first.statusCode).toBe(200);
+      const second = await f.refresh(first.json().refresh_token);
+      expect(second.statusCode).toBe(200);
       const replay = await f.refresh();
       expect(replay.statusCode).toBe(400);
       expect(replay.json().error).toBe("invalid_grant");
-      expect((await f.refresh(first.json().refresh_token)).statusCode).toBe(400);
+      expect((await f.refresh(second.json().refresh_token)).statusCode).toBe(400);
+      expect(await f.readGrant()).toBeUndefined();
+    } finally {
+      await f.close();
+    }
+  });
+
+  it("does not reopen a rotated token for another client", async () => {
+    const f = await fixture();
+    try {
+      const first = await f.refresh();
+      expect(first.statusCode).toBe(200);
+      const other = await f.app.inject({
+        method: "POST",
+        url: "/oauth/reg",
+        headers: { host, "x-forwarded-proto": "http" },
+        payload: {
+          redirect_uris: [redirectUri],
+          grant_types: ["authorization_code", "refresh_token"],
+          response_types: ["code"],
+          token_endpoint_auth_method: "none",
+        },
+      });
+      expect(other.statusCode).toBe(201);
+      const stolen = await f.refresh(f.refreshToken, { client_id: other.json().client_id });
+      expect(stolen.statusCode).toBe(400);
+      expect((await f.refresh(first.json().refresh_token)).statusCode).toBe(200);
     } finally {
       await f.close();
     }

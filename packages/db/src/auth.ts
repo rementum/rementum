@@ -303,6 +303,39 @@ export class AuthRepository {
     return rows.length;
   }
 
+  async recordRefreshReplacement(rotatedId: string, replacementId: string): Promise<void> {
+    await this.client.sql`
+      UPDATE oauth_records SET replaced_by = ${replacementId}
+      WHERE model = 'RefreshToken' AND id = ${rotatedId}
+    `;
+  }
+
+  /**
+   * Lets a client retry a rotation whose reply it never received: the consumed token becomes
+   * usable again and its unused replacement is consumed in its place, so if that replacement
+   * surfaces later, two holders exist and the provider's replay detection revokes the grant.
+   * A replacement that was already used means the old token is a replay, and nothing changes.
+   */
+  async reopenUnreadRefreshRotation(tokenId: string, clientId: string): Promise<boolean> {
+    const rows = await this.client.sql<Array<{ id: string }>>`
+      WITH replacement AS (
+        UPDATE oauth_records replacement SET consumed_at = now()
+        FROM oauth_records rotated
+        WHERE rotated.model = 'RefreshToken' AND rotated.id = ${tokenId}
+          AND rotated.payload->>'clientId' = ${clientId}
+          AND rotated.consumed_at IS NOT NULL AND rotated.expires_at > now()
+          AND replacement.model = 'RefreshToken' AND replacement.id = rotated.replaced_by
+          AND replacement.payload->>'grantId' = rotated.payload->>'grantId'
+          AND replacement.consumed_at IS NULL AND replacement.expires_at > now()
+        RETURNING rotated.id
+      )
+      UPDATE oauth_records SET consumed_at = NULL, replaced_by = NULL
+      WHERE model = 'RefreshToken' AND id IN (SELECT id FROM replacement)
+      RETURNING id
+    `;
+    return rows.length > 0;
+  }
+
   async listConnections(userId: string) {
     const rows = await this.client.sql<any[]>`
       SELECT grants.id, grants.payload, clients.payload AS client
