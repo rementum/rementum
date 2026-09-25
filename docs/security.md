@@ -69,20 +69,26 @@ the current session; a password reset revokes every web session and MCP OAuth gr
 OAuth bearer tokens are accepted only at the exact workspace MCP URL, never by the REST API, so an
 MCP client cannot reuse the browser cookie as an API credential.
 
-MCP access tokens last 15 minutes. Refresh tokens and their authorization grants have a 60-day
+MCP access tokens last 15 minutes. Refresh tokens and their authorization grants have a 360-day
 idle lifetime: issuing a replacement refresh token extends the still-valid grant to cover it.
 Clients allowed to refresh tokens are independent of the browser OAuth session, including clients
 that omit `offline_access`. Active clients can stay connected beyond the original authorization date. Expired or revoked
-grants are never revived, and reusing a consumed refresh token still invalidates its token family.
+grants are never revived, and replaying a refresh token whose replacement was used invalidates its
+token family.
 Existing valid grants adopt the longer lifetime when refreshed; an already expired grant requires
 new authorization. Connections issued by older releases may still carry a browser-session binding;
 re-authorize those once to obtain an independent connection.
 
-Clients must persist each replacement refresh token before exiting and coordinate refreshes across
-processes sharing credentials. A client that loses the replacement cannot recover by replaying the
-old token and must authorize again. This includes background processes that share a CLI's credential
-store. The API logs `oauth_refresh_failed` with a fixed reason category to distinguish missing or
-expired grants from refresh-token reuse; it does not log token values or raw provider error details.
+Clients should persist each replacement refresh token before exiting and coordinate refreshes
+across processes sharing credentials, including background processes that share a CLI's credential
+store. A client that never read a refresh reply, for example because the machine slept
+mid-request, may retry with the old token while the lost replacement is still unused: the API
+consumes that replacement and issues a new one. If the lost replacement surfaces later, two holders
+exist and the grant is revoked. The trade-off is that a leaked, already rotated token works until
+the legitimate client next refreshes, which then revokes the grant for both. The API logs
+`oauth_refresh_failed` with a fixed reason category to distinguish missing or expired grants from
+refresh-token reuse, and `oauth_refresh_retried` when it recovers a lost reply; it does not log
+token values or raw provider error details.
 
 The browser portion of MCP OAuth uses the current web session as its identity. A browser without one
 is redirected through the normal sign-in page. Before Rementum grants the scopes requested by the

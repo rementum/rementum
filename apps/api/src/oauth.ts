@@ -9,6 +9,7 @@ import {
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { exportJWK, generateKeyPair, type JWK } from "jose";
 import Provider, { type Configuration, errors } from "oidc-provider";
+import * as refreshTokenGrant from "oidc-provider/lib/actions/grants/refresh_token.js";
 import { z } from "zod";
 import { allAccessScopes } from "./access.js";
 import type { AppConfig } from "./config.js";
@@ -117,8 +118,8 @@ export async function buildOauthRuntime(
       AuthorizationCode: 60,
       Interaction: 15 * 60,
       Session: 14 * 24 * 60 * 60,
-      Grant: 60 * 24 * 60 * 60,
-      RefreshToken: 60 * 24 * 60 * 60,
+      Grant: 360 * 24 * 60 * 60,
+      RefreshToken: 360 * 24 * 60 * 60,
     },
     interactions: {
       url: (_ctx, interaction) => `/oauth/interaction/${interaction.uid}`,
@@ -145,6 +146,7 @@ export async function buildOauthRuntime(
   provider.on("server_error", (_ctx, error) => {
     console.error("OAuth provider error", error);
   });
+  retryUnreadRefreshRotations(provider, auth);
   return {
     provider,
     publicJwks,
@@ -160,6 +162,9 @@ export async function registerOauthRoutes(
   auth: AuthRepository,
   store: PostgresStore,
 ): Promise<void> {
+  runtime.provider.on(refreshRetriedEvent, () => {
+    app.log.info({ event: "oauth_refresh_retried" }, "OAuth refresh retried after a lost reply");
+  });
   runtime.provider.on("grant.error", (ctx, error) => {
     if (ctx.oidc.params?.grant_type !== "refresh_token") return;
     app.log.warn(
@@ -297,6 +302,37 @@ export async function registerOauthRoutes(
       .send(brandFaviconSvg),
   );
   app.get("/favicon.ico", async (_request, reply) => reply.redirect("/icon.svg", 302));
+}
+
+const refreshRetriedEvent = "rementum.refresh_retried";
+
+// oidc-provider revokes the whole grant when a rotated refresh token comes back. A client that
+// sent the refresh but never read the reply, such as a laptop falling asleep mid-request, holds
+// only the old token, so every process sharing its credentials would be logged out. Recording
+// each rotation's replacement lets the old token be retried while that replacement is unused.
+function retryUnreadRefreshRotations(provider: Provider, auth: AuthRepository): void {
+  provider.registerGrantType(
+    refreshTokenGrant.grantType,
+    async (ctx) => {
+      const presented = ctx.oidc.params?.refresh_token;
+      const clientId = ctx.oidc.client?.clientId;
+      if (
+        typeof presented === "string" &&
+        clientId &&
+        (await auth.reopenUnreadRefreshRotation(presented, clientId))
+      ) {
+        provider.emit(refreshRetriedEvent, ctx);
+      }
+      await refreshTokenGrant.handler(ctx);
+      const { RotatedRefreshToken: rotated, RefreshToken: replacement } = ctx.oidc.entities;
+      if (rotated?.jti && replacement?.jti && rotated.jti !== replacement.jti) {
+        await auth.recordRefreshReplacement(rotated.jti, replacement.jti);
+      }
+    },
+    // The provider adds these to its built-in grants when resource indicators are enabled.
+    [...refreshTokenGrant.parameters, "resource"],
+    ["resource"],
+  );
 }
 
 type InteractionDetails = Awaited<ReturnType<Provider["interactionDetails"]>>;
