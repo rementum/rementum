@@ -89,6 +89,26 @@ opencode mcp add rementum --url https://rementum.dev/mcp/workspace/WORKSPACE_UUI
 opencode mcp auth rementum
 ```
 
+## Pi
+
+Pi has no built-in MCP client, so the [pi-rementum](https://github.com/rementum/pi-rementum) package
+connects to the workspace itself:
+
+```bash
+pi install git:github.com/rementum/pi-rementum
+```
+
+Then, inside Pi:
+
+```text
+/rementum login https://rementum.dev/mcp/workspace/WORKSPACE_UUID
+```
+
+Pi opens OAuth in the browser, registers the workspace's MCP tools as native Pi tools, and adds the
+`rementum` skill and the server instructions to its prompt. `/rementum status` shows the connection;
+`/rementum logout` deletes this machine's tokens. Tokens are kept in `~/.pi/agent/rementum/`,
+readable only by your user. Revoke the grant on the **Connections** page to end it on the server.
+
 ## Agents without plugin support
 
 Any coding agent can install the same four skills directly:
