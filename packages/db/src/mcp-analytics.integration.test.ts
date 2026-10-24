@@ -268,4 +268,42 @@ integration("MCP usage analytics", () => {
       await database.close();
     }
   });
+
+  it("names an API key's calls after the key", async () => {
+    if (!databaseUrl) return;
+    const database = createDatabaseClient(databaseUrl, 2);
+    const auth = new AuthRepository(database);
+    const store = new PostgresStore(database);
+    const suffix = randomBytes(6).toString("hex");
+
+    try {
+      const owner = await auth.registerAccount(
+        `analytics-key-${suffix}@example.test`,
+        "Key owner",
+        "owner-password-hash",
+        "Key team",
+        `analytics-key-${suffix}`,
+      );
+      if (!owner) throw new Error("Owner registration failed");
+      const key = await auth.createApiKey(
+        owner.user.id,
+        owner.workspaceId,
+        "Laptop Claude Code",
+        hashContent(`key-${suffix}`),
+      );
+      const keyActor = await store.loadActor(owner.user.id, `api-key:${key.id}`);
+      await store.recordMcpToolCall(
+        { workspaceId: owner.workspaceId, tool: "search_brains", articleIds: [] },
+        keyActor,
+      );
+      const analytics = await store.getMcpAnalytics(
+        owner.workspaceId,
+        "30d",
+        await store.loadActor(owner.user.id, "owner-browser"),
+      );
+      expect(analytics.topClients).toMatchObject([{ name: "Laptop Claude Code", calls: 1 }]);
+    } finally {
+      await database.close();
+    }
+  });
 });
