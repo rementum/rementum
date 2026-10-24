@@ -164,6 +164,24 @@ export const createTeamSchema = z.object({
 });
 export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 
+export const createApiKeySchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  workspaceId: idSchema,
+});
+export type CreateApiKeyInput = z.infer<typeof createApiKeySchema>;
+
+export const apiKeySchema = z.object({
+  id: idSchema,
+  workspaceId: idSchema,
+  name: z.string(),
+  createdAt: z.iso.datetime(),
+});
+export type ApiKey = z.infer<typeof apiKeySchema>;
+
+// The plaintext key exists only in the creation response; the database keeps its hash.
+export const createdApiKeySchema = apiKeySchema.extend({ key: z.string() });
+export type CreatedApiKey = z.infer<typeof createdApiKeySchema>;
+
 export const updateTeamSchema = z.object({
   name: z.string().trim().min(1).max(160),
 });
