@@ -110,6 +110,13 @@ when the owner leaves the team. Keys do not expire, so a leaked key works until 
 **Connections**, reset the password, or delete the workspace. MCP usage analytics list a key's calls
 under its name.
 
+A client sends the key as the `apiKey` query parameter of the workspace MCP URL, so connectors that
+only take a URL can use it. A URL is copied and logged more readily than a header. The API's request
+log and the bundled Caddy's access and error logs replace the value with `[redacted]`, but the client's own
+configuration and logs keep it in full, and so does any proxy or CDN in front of Rementum that logs
+request URLs. The API reads the key only from that parameter; a key sent as a bearer token is
+rejected.
+
 An MCP client identifies itself in one of two ways. A client that publishes an OAuth Client ID
 Metadata Document, as Claude Code does at `https://claude.ai/oauth/claude-code-client-metadata`, uses
 that HTTPS URL as its client id. Rementum fetches the document, requires it to name the same URL as

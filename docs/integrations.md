@@ -127,67 +127,35 @@ the Codex plugin.
 
 ## API keys
 
-An API key replaces OAuth for clients that can send a fixed `Authorization` header. Use one when a
-client keeps asking you to sign in again. A key has no refresh token and never expires, so nothing
-has to stay in sync between the client and Rementum.
+An API key replaces OAuth with a URL. Use one when a client keeps asking you to sign in again, or
+when a connector only takes a URL. A key has no refresh token and never expires, so nothing has to
+stay in sync between the client and Rementum.
 
 Open **Connections**, enter a name, pick the workspace, and choose **Create key**. Rementum shows the
-key once. It starts with `rmk_` and works only at that workspace's MCP URL. It acts as you, with
-the same four workspace scopes an OAuth connection gets, and lasts until you revoke it on the same
-page. Create one key per machine or client so you can revoke each one on its own.
+workspace MCP URL with the key attached, once:
 
-Keep the key in an environment variable where the client supports it, rather than in a file you
-might commit:
-
-```bash
-export REMENTUM_API_KEY=rmk_...
+```text
+https://rementum.dev/mcp/workspace/WORKSPACE_UUID?apiKey=rmk_...
 ```
 
-Claude Code sends the header from its own configuration. With a header set it uses the key and never
-falls back to OAuth, so remove an existing OAuth connection with the same name first:
+The key works only at that workspace's URL. It acts as you, with the same four workspace scopes an
+OAuth connection gets, and lasts until you revoke it on the same page. Create one key per machine or
+client so you can revoke each one on its own. Treat the whole URL like a password: anyone who has it
+can use the workspace as you.
+
+Use the URL wherever a client asks for the server URL, in place of the plain one shown above. Quote
+it on the command line, because shells treat `?` as a wildcard:
 
 ```bash
 claude mcp add --scope user --transport http rementum \
-  https://rementum.dev/mcp/workspace/WORKSPACE_UUID \
-  --header "Authorization: Bearer $REMENTUM_API_KEY"
+  "https://rementum.dev/mcp/workspace/WORKSPACE_UUID?apiKey=rmk_..."
+codex mcp add rementum --url "https://rementum.dev/mcp/workspace/WORKSPACE_UUID?apiKey=rmk_..."
 ```
 
-Codex reads the token from the environment variable you name:
-
-```bash
-codex mcp add rementum --url https://rementum.dev/mcp/workspace/WORKSPACE_UUID \
-  --bearer-token-env-var REMENTUM_API_KEY
-```
-
-Cursor resolves `${env:...}` inside `headers`:
-
-```json
-{
-  "mcpServers": {
-    "rementum": {
-      "url": "https://rementum.dev/mcp/workspace/WORKSPACE_UUID",
-      "headers": { "Authorization": "Bearer ${env:REMENTUM_API_KEY}" }
-    }
-  }
-}
-```
-
-OpenCode uses `{env:...}`, and `oauth: false` stops it from starting OAuth:
-
-```json
-{
-  "mcp": {
-    "rementum": {
-      "type": "remote",
-      "url": "https://rementum.dev/mcp/workspace/WORKSPACE_UUID",
-      "headers": { "Authorization": "Bearer {env:REMENTUM_API_KEY}" },
-      "oauth": false
-    }
-  }
-}
-```
-
-Claude, Claude Desktop, and ChatGPT connectors only do OAuth, so they cannot use a key.
+Remove an existing OAuth connection with the same name first, and skip the `login` or `auth` step.
+In Cursor and OpenCode put the URL in the `url` field; OpenCode also needs `"oauth": false` so it
+does not start OAuth. Custom connectors in Claude, Claude Desktop, and ChatGPT take the same URL;
+choose no authentication where the client asks.
 
 ## Other MCP clients
 
