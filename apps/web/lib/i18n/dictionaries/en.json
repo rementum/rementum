@@ -701,19 +701,18 @@
     "noConnectionsTitle": "No connected agents",
     "noConnectionsBody": "Add the MCP URL in a client to start OAuth. The Connect panel on your dashboard has copy-paste setup commands for each agent.",
     "apiKeysTitle": "API keys",
-    "apiKeysDescription": "For clients that keep losing their OAuth session. A key works only at its workspace's MCP URL, never expires, and lasts until you revoke it. It acts as you, with the same workspace access an OAuth connection gets.",
+    "apiKeysDescription": "For clients that keep losing their OAuth session, and for connectors that only take a URL. A key works only at its workspace's MCP URL, never expires, and lasts until you revoke it. It acts as you, with the same workspace access an OAuth connection gets.",
     "apiKeyName": "Name",
     "apiKeyNamePlaceholder": "Laptop Claude Code",
     "apiKeyWorkspace": "Workspace",
     "apiKeyCreate": "Create key",
     "apiKeyCreateError": "Could not create the API key.",
     "apiKeyRevokeError": "Could not revoke the API key.",
-    "apiKeyShownOnce": "Copy this key now. Rementum stores only its hash and cannot show it again.",
-    "apiKeyCopy": "Copy key",
-    "apiKeyClaudeCode": "Claude Code: add the workspace with the key as a header.",
+    "apiKeyShownOnce": "Copy this MCP URL now and use it as the server URL in your client. It contains the key, and Rementum stores only the key's hash, so it cannot show it again. Treat the URL like a password.",
+    "apiKeyCopy": "Copy MCP URL",
     "apiKeyCreated": "Created {date}",
     "noApiKeysTitle": "No API keys",
-    "noApiKeysBody": "Create a key and send it as an Authorization: Bearer header from any MCP client that supports custom headers."
+    "noApiKeysBody": "Create a key to get an MCP URL that carries it as ?apiKey=. Any MCP client can use it, including connectors that only accept a URL."
   },
   "admin": {
     "instance": "Instance",

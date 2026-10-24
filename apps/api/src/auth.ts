@@ -47,13 +47,11 @@ export function createAuthenticator(
       return withAllAccessScopes(await store.loadActor(session.userId, WEB_SESSION_CLIENT_ID));
     }
 
-    const authorization = request.headers.authorization;
-    if (!authorization?.startsWith("Bearer ")) {
-      throw new DomainError("unauthorized", "A bearer access token is required", 401);
-    }
-    const token = authorization.slice("Bearer ".length);
-    if (token.startsWith(API_KEY_PREFIX)) {
-      const key = API_KEY_PATTERN.test(token) ? await auth.findApiKey(hashContent(token)) : null;
+    // The key rides in the MCP URL so clients that only take a URL, such as hosted
+    // connectors, can use it; the API log and the edge Caddy redact the parameter.
+    const apiKey = new URLSearchParams(request.url.slice(path.length + 1)).get("apiKey");
+    if (apiKey !== null) {
+      const key = API_KEY_PATTERN.test(apiKey) ? await auth.findApiKey(hashContent(apiKey)) : null;
       if (!key || key.workspaceId !== workspaceId) {
         throw new DomainError("invalid_token", "The API key is invalid or revoked", 401);
       }
@@ -66,6 +64,11 @@ export function createAuthenticator(
         workspaceId,
       );
     }
+    const authorization = request.headers.authorization;
+    if (!authorization?.startsWith("Bearer ")) {
+      throw new DomainError("unauthorized", "A bearer access token is required", 401);
+    }
+    const token = authorization.slice("Bearer ".length);
     let payload: JWTPayload;
     try {
       ({ payload } = await jwtVerify(token, jwks, {
@@ -88,7 +91,7 @@ export function createAuthenticator(
   };
 }
 
-export const API_KEY_PREFIX = "rmk_";
+const API_KEY_PREFIX = "rmk_";
 const API_KEY_PATTERN = /^rmk_[A-Za-z0-9_-]{43}$/;
 
 export function generateApiKey(): string {

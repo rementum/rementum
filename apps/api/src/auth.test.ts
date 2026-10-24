@@ -147,9 +147,16 @@ describe("web session and MCP OAuth boundaries", () => {
 });
 
 describe("MCP API keys", () => {
+  const keyRequest = (path: string, key: string) =>
+    ({
+      method: "POST",
+      url: `${path}?apiKey=${encodeURIComponent(key)}`,
+      headers: {},
+    }) as FastifyRequest;
+
   it("narrows a key to its workspace with the workspace MCP scopes only", async () => {
     const { authenticate, store } = await setup();
-    const actor = await authenticate(mcpRequest(`/mcp/workspace/${workspaceId}`, apiKey));
+    const actor = await authenticate(keyRequest(`/mcp/workspace/${workspaceId}`, apiKey));
     expect(actor.workspaceId).toBe(workspaceId);
     expect([...actor.scopes]).toEqual(workspaceMcpScopes);
     expect(actor.scopes.has("connection:write")).toBe(false);
@@ -163,24 +170,32 @@ describe("MCP API keys", () => {
   it("rejects a key at another workspace's MCP URL", async () => {
     const { authenticate, store } = await setup();
     await expect(
-      authenticate(mcpRequest("/mcp/workspace/00000000-0000-4000-8000-000000000009", apiKey)),
+      authenticate(keyRequest("/mcp/workspace/00000000-0000-4000-8000-000000000009", apiKey)),
     ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
     expect(store.loadActor).not.toHaveBeenCalled();
   });
 
   it("rejects unknown and malformed keys without a lookup for the malformed one", async () => {
     const { authenticate, auth } = await setup();
-    for (const key of [generateApiKey(), "rmk_short", `${apiKey}x`]) {
+    for (const key of [generateApiKey(), "", "rmk_short", `${apiKey}x`]) {
       await expect(
-        authenticate(mcpRequest(`/mcp/workspace/${workspaceId}`, key)),
+        authenticate(keyRequest(`/mcp/workspace/${workspaceId}`, key)),
       ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
     }
     expect(auth.findApiKey).toHaveBeenCalledTimes(1);
   });
 
+  it("does not take a key from the Authorization header", async () => {
+    const { authenticate, auth } = await setup();
+    await expect(
+      authenticate(mcpRequest(`/mcp/workspace/${workspaceId}`, apiKey)),
+    ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+    expect(auth.findApiKey).not.toHaveBeenCalled();
+  });
+
   it("does not accept a key on the REST API", async () => {
     const { authenticate, auth } = await setup();
-    await expect(authenticate(mcpRequest("/api/v1/brains", apiKey))).rejects.toMatchObject({
+    await expect(authenticate(keyRequest("/api/v1/brains", apiKey))).rejects.toMatchObject({
       code: "unauthorized",
       status: 401,
     });
