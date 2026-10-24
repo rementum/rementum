@@ -15,6 +15,8 @@ Until 1.0, only the most recent release receives security fixes.
 - Article bodies, versions, and staged bodies use application-layer envelope encryption with per-brain data keys.
 - The root wrapping key is supplied as `REMENTUM_MASTER_KEY` and never persisted or backed up.
 - OAuth access tokens are audience restricted and short lived; refresh tokens rotate.
+- MCP API keys are stored only as hashes, bound to one workspace, accepted only at its MCP URL, and
+  last until revoked.
 - Agent writes never bypass the staged-write and promotion protocol.
 - No article content is sent to any external AI provider, and nothing is generated: titles,
   summaries, and bodies are stored exactly as submitted.

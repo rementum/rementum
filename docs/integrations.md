@@ -21,6 +21,8 @@ document's URL on the **Connections** page. Clients without a hosted document, s
 Codex, still register themselves dynamically. See [the security guide](security.md#accounts) for
 what Rementum checks.
 
+If a client keeps losing its OAuth session, give it an [API key](#api-keys) instead.
+
 ## Two parts: the plugin and the MCP URL
 
 - **MCP** exposes the tools.
@@ -123,9 +125,74 @@ See
 The repository marketplace targets Codex, not ChatGPT. ChatGPT can use the MCP tools but does not get
 the Codex plugin.
 
+## API keys
+
+An API key replaces OAuth for clients that can send a fixed `Authorization` header. Use one when a
+client keeps asking you to sign in again. A key has no refresh token and never expires, so nothing
+has to stay in sync between the client and Rementum.
+
+Open **Connections**, enter a name, pick the workspace, and choose **Create key**. Rementum shows the
+key once. It starts with `rmk_` and works only at that workspace's MCP URL. It acts as you, with
+the same four workspace scopes an OAuth connection gets, and lasts until you revoke it on the same
+page. Create one key per machine or client so you can revoke each one on its own.
+
+Keep the key in an environment variable where the client supports it, rather than in a file you
+might commit:
+
+```bash
+export REMENTUM_API_KEY=rmk_...
+```
+
+Claude Code sends the header from its own configuration. With a header set it uses the key and never
+falls back to OAuth, so remove an existing OAuth connection with the same name first:
+
+```bash
+claude mcp add --scope user --transport http rementum \
+  https://rementum.dev/mcp/workspace/WORKSPACE_UUID \
+  --header "Authorization: Bearer $REMENTUM_API_KEY"
+```
+
+Codex reads the token from the environment variable you name:
+
+```bash
+codex mcp add rementum --url https://rementum.dev/mcp/workspace/WORKSPACE_UUID \
+  --bearer-token-env-var REMENTUM_API_KEY
+```
+
+Cursor resolves `${env:...}` inside `headers`:
+
+```json
+{
+  "mcpServers": {
+    "rementum": {
+      "url": "https://rementum.dev/mcp/workspace/WORKSPACE_UUID",
+      "headers": { "Authorization": "Bearer ${env:REMENTUM_API_KEY}" }
+    }
+  }
+}
+```
+
+OpenCode uses `{env:...}`, and `oauth: false` stops it from starting OAuth:
+
+```json
+{
+  "mcp": {
+    "rementum": {
+      "type": "remote",
+      "url": "https://rementum.dev/mcp/workspace/WORKSPACE_UUID",
+      "headers": { "Authorization": "Bearer {env:REMENTUM_API_KEY}" },
+      "oauth": false
+    }
+  }
+}
+```
+
+Claude, Claude Desktop, and ChatGPT connectors only do OAuth, so they cannot use a key.
+
 ## Other MCP clients
 
-Any client that supports remote Streamable HTTP MCP with OAuth can use the same workspace URL. Keep
+Any client that supports remote Streamable HTTP MCP with OAuth or a custom `Authorization` header
+can use the same workspace URL. Keep
 write-tool approval on. Rementum marks read tools with `readOnlyHint`; writes go through the staged
 write and promotion protocol.
 

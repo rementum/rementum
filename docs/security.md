@@ -65,9 +65,9 @@ applies request rate limits. Prefer team invitations for controlled access, and 
 longer need the team's workspaces.
 
 The web interface uses a 14-day opaque session cookie. PostgreSQL stores only its hash. Logout revokes
-the current session; a password reset revokes every web session and MCP OAuth grant for the account.
-OAuth bearer tokens are accepted only at the exact workspace MCP URL, never by the REST API, so an
-MCP client cannot reuse the browser cookie as an API credential.
+the current session; a password reset revokes every web session, MCP OAuth grant, and API key for the
+account. OAuth bearer tokens and API keys are accepted only at the exact workspace MCP URL, never by
+the REST API, so an MCP client cannot reuse the browser cookie as an API credential.
 
 MCP access tokens last 15 minutes. Refresh tokens and their authorization grants have a 360-day
 idle lifetime: issuing a replacement refresh token extends the still-valid grant to cover it.
@@ -98,6 +98,17 @@ client identity, callback destination, resource, scopes, and a deny action; an a
 can reconnect silently. Knowing a workspace URL alone grants nothing, and the issued bearer token
 remains audience-bound to that one workspace. Successful clients remain individually revocable on
 **Connections**.
+
+API keys are the alternative for clients that cannot keep a refresh chain alive. Only the web app can
+create, list, or revoke one: the key routes need the `connection:*` scopes, which neither an OAuth
+connection nor a key carries, so an agent cannot mint a key for itself. Rementum generates 32 random
+bytes, shows the `rmk_` key once, and stores only its SHA-256 hash. A key is bound to the workspace
+chosen when it was created and is refused at any other MCP URL. On each request the API checks the
+owner's account is still enabled and narrows them to that workspace exactly as it does an OAuth
+token, so the key gets the four workspace scopes, never the instance-owner flag, and stops working
+when the owner leaves the team. Keys do not expire, so a leaked key works until you revoke it on
+**Connections**, reset the password, or delete the workspace. MCP usage analytics list a key's calls
+under its name.
 
 An MCP client identifies itself in one of two ways. A client that publishes an OAuth Client ID
 Metadata Document, as Claude Code does at `https://claude.ai/oauth/claude-code-client-metadata`, uses
