@@ -204,6 +204,17 @@ beforeEach(() => {
               scopes: ["brains:read"],
             },
           ];
+    if (path === "/api/v1/api-keys")
+      return mocks.empty
+        ? []
+        : [
+            {
+              id: "api-key-one",
+              workspaceId: "workspace-one",
+              name: "Untranslated key",
+              createdAt,
+            },
+          ];
     if (path === "/api/v1/teams/team-one/members")
       return [
         {
@@ -459,8 +470,12 @@ describe("content page localization", () => {
         dict.connections.kicker,
         dict.connections.description,
         dict.connections.revoke,
+        dict.connections.apiKeysTitle,
+        dict.connections.apiKeyCreate,
       ])
         expect(connections).toContain(escaped(value));
+      expect(connections).toContain("Untranslated key");
+      expect(connections).toContain("Untranslated team / Untranslated workspace");
       expect(connections).toContain(`aria-label="${dict.connections.grantedScopes}"`);
       expect(connections).toContain("Untranslated client");
       expect(connections).toContain("client-one");
@@ -729,6 +744,7 @@ describe("content page localization", () => {
       ],
       [await ConnectionsPage(), dict.connections.noConnectionsTitle],
       [await ConnectionsPage(), dict.connections.noConnectionsBody],
+      [await ConnectionsPage(), dict.connections.noApiKeysTitle],
     ] as const;
     for (const [page, label] of pages) expect(renderToStaticMarkup(page)).toContain(escaped(label));
   });
