@@ -1,3 +1,25 @@
+# Email verification and password reset tokens and MCP API keys travel in the query string,
+# invitation tokens in the path; the logs would otherwise be the plaintext store of every one of
+# those secrets. Tokens are 43 base64url characters, so the length floor leaves fixed segments
+# such as /invitations/accept readable.
+(redact_secrets) {
+	format filter {
+		wrap json
+		fields {
+			request>uri regexp "(/(?:team-)?invite/|/api/v1/(?:team-)?invitations/|[?&]token=|[?&]apiKey=)[A-Za-z0-9_%-]{32,}" "$1[redacted]"
+		}
+	}
+}
+
+{
+	# Access logs are filtered in the site block; this covers the error log, which records the
+	# full request whenever an upstream is unreachable, such as while the API restarts.
+	log default {
+		output stdout
+		import redact_secrets
+	}
+}
+
 # Only useful when a www record points at this host; without one Caddy retries certificate
 # issuance for the name in the background, which is noisy in the logs but harmless.
 www.{$REMENTUM_DOMAIN:localhost} {
@@ -13,16 +35,7 @@ www.{$REMENTUM_DOMAIN:localhost} {
 	}
 	log {
 		output stdout
-		# Email verification and password reset tokens travel in the query string, invitation
-		# tokens in the path; the access log would otherwise be the plaintext store of every
-		# account-creating secret. Tokens are 43 base64url characters, so the length floor
-		# leaves fixed segments such as /invitations/accept readable.
-		format filter {
-			wrap json
-			fields {
-				request>uri regexp "(/(?:team-)?invite/|/api/v1/(?:team-)?invitations/|[?&]token=)[A-Za-z0-9_%-]{32,}" "$1[redacted]"
-			}
-		}
+		import redact_secrets
 	}
 
 	@backend path /api/* /mcp/* /.well-known/* /oauth/* /healthz /readyz /metrics
