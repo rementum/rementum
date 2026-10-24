@@ -1,10 +1,10 @@
-import type { Actor } from "@rementum/core";
+import { type Actor, hashContent } from "@rementum/core";
 import type { AuthRepository, PostgresStore } from "@rementum/db";
 import type { FastifyRequest } from "fastify";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it, vi } from "vitest";
-import { allAccessScopes } from "./access.js";
-import { createAuthenticator } from "./auth.js";
+import { allAccessScopes, workspaceMcpScopes } from "./access.js";
+import { createAuthenticator, generateApiKey } from "./auth.js";
 import type { AppConfig } from "./config.js";
 import type { OauthRuntime } from "./oauth.js";
 
@@ -12,6 +12,8 @@ const issuer = "https://rementum.example.test/oauth";
 const mcpBase = "https://rementum.example.test/mcp";
 const userId = "00000000-0000-4000-8000-000000000001";
 const workspaceId = "00000000-0000-4000-8000-000000000002";
+const apiKeyId = "00000000-0000-4000-8000-000000000004";
+const apiKey = generateApiKey();
 
 async function setup() {
   const { privateKey, publicKey } = await generateKeyPair("RS256", { extractable: true });
@@ -39,6 +41,9 @@ async function setup() {
   } as unknown as PostgresStore;
   const auth = {
     findWebSession: vi.fn(async () => ({ userId })),
+    findApiKey: vi.fn(async (tokenHash: string) =>
+      tokenHash === hashContent(apiKey) ? { id: apiKeyId, userId, workspaceId } : null,
+    ),
   } as unknown as AuthRepository;
   const config = {
     REMENTUM_DEV_AUTH: false,
@@ -138,5 +143,47 @@ describe("web session and MCP OAuth boundaries", () => {
     await expect(
       authenticate(webRequest("POST", "https://rementum.example.test")),
     ).resolves.toMatchObject({ userId });
+  });
+});
+
+describe("MCP API keys", () => {
+  it("narrows a key to its workspace with the workspace MCP scopes only", async () => {
+    const { authenticate, store } = await setup();
+    const actor = await authenticate(mcpRequest(`/mcp/workspace/${workspaceId}`, apiKey));
+    expect(actor.workspaceId).toBe(workspaceId);
+    expect([...actor.scopes]).toEqual(workspaceMcpScopes);
+    expect(actor.scopes.has("connection:write")).toBe(false);
+    expect(store.loadActor).toHaveBeenCalledWith(userId, `api-key:${apiKeyId}`);
+    expect(store.scopeActorToWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ userId }),
+      workspaceId,
+    );
+  });
+
+  it("rejects a key at another workspace's MCP URL", async () => {
+    const { authenticate, store } = await setup();
+    await expect(
+      authenticate(mcpRequest("/mcp/workspace/00000000-0000-4000-8000-000000000009", apiKey)),
+    ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+    expect(store.loadActor).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown and malformed keys without a lookup for the malformed one", async () => {
+    const { authenticate, auth } = await setup();
+    for (const key of [generateApiKey(), "rmk_short", `${apiKey}x`]) {
+      await expect(
+        authenticate(mcpRequest(`/mcp/workspace/${workspaceId}`, key)),
+      ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+    }
+    expect(auth.findApiKey).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not accept a key on the REST API", async () => {
+    const { authenticate, auth } = await setup();
+    await expect(authenticate(mcpRequest("/api/v1/brains", apiKey))).rejects.toMatchObject({
+      code: "unauthorized",
+      status: 401,
+    });
+    expect(auth.findApiKey).not.toHaveBeenCalled();
   });
 });

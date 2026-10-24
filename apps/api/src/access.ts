@@ -19,6 +19,10 @@ export type ScopedActor = Actor & {
 
 export const allAccessScopes = Object.freeze(Object.keys(accessScopeDescriptions) as AccessScope[]);
 
+export const workspaceMcpScopes = allAccessScopes.filter(
+  (scope) => !scope.startsWith("team:") && !scope.startsWith("connection:"),
+);
+
 export function withAccessScopes(
   actor: Actor,
   value: unknown,

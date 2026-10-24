@@ -1,4 +1,4 @@
-import { DomainError, ForbiddenError, type RementumService } from "@rementum/core";
+import { DomainError, ForbiddenError, hashContent, type RementumService } from "@rementum/core";
 import type { AuthRepository } from "@rementum/db";
 import { hash } from "argon2";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
@@ -16,6 +16,7 @@ const brainId = "00000000-0000-4000-8000-000000000002";
 const workspaceId = "00000000-0000-4000-8000-000000000003";
 const teamId = "00000000-0000-4000-8000-000000000004";
 const grantId = "grant-id";
+const apiKeyId = "00000000-0000-4000-8000-000000000005";
 const token = "t".repeat(43);
 const registration = {
   email: "New@Example.Test",
@@ -141,6 +142,14 @@ async function harness(config: Partial<AppConfig> = {}, withMailer = true): Prom
     acceptBrainInvitation: vi.fn(async () => ({ brainId, role: "editor" })),
     listConnections: vi.fn(async () => [{ grantId }]),
     revokeConnection: vi.fn(async () => true),
+    listApiKeys: vi.fn(async () => []),
+    createApiKey: vi.fn(async (_userId: string, keyWorkspaceId: string, name: string) => ({
+      id: apiKeyId,
+      workspaceId: keyWorkspaceId,
+      name,
+      createdAt: "2026-10-24T10:00:00.000Z",
+    })),
+    revokeApiKey: vi.fn(async () => true),
   } as unknown as AuthRepository;
   const mailer = { send: vi.fn(async () => ({ id: "email-id" })) } satisfies TransactionalMailer;
   const authenticate = vi.fn(async (_request: FastifyRequest) => actorWith());
@@ -824,6 +833,67 @@ describe("workspaces and connections", () => {
     const missing = await context.app.inject({
       method: "DELETE",
       url: `/api/v1/connections/${grantId}`,
+    });
+    expect(missing.statusCode).toBe(404);
+  });
+});
+
+describe("API keys", () => {
+  it("returns a new key once and stores only its hash", async () => {
+    const response = await context.app.inject({
+      method: "POST",
+      url: "/api/v1/api-keys",
+      payload: { name: " Laptop ", workspaceId },
+    });
+    expect(response.statusCode).toBe(201);
+    const body = response.json();
+    expect(body).toMatchObject({ id: apiKeyId, workspaceId, name: "Laptop" });
+    expect(body.key).toMatch(/^rmk_[A-Za-z0-9_-]{43}$/);
+    expect(context.auth.createApiKey).toHaveBeenCalledWith(
+      userId,
+      workspaceId,
+      "Laptop",
+      hashContent(body.key),
+    );
+  });
+
+  it("refuses a key for a workspace the caller is not a member of", async () => {
+    const response = await context.app.inject({
+      method: "POST",
+      url: "/api/v1/api-keys",
+      payload: { name: "Laptop", workspaceId: "00000000-0000-4000-8000-000000000009" },
+    });
+    expect(response.statusCode).toBe(403);
+    expect(context.auth.createApiKey).not.toHaveBeenCalled();
+  });
+
+  it("needs the connection scopes, which no workspace MCP credential carries", async () => {
+    context.authenticate.mockResolvedValue(
+      actorWith("brain:read brain:write task:read task:write"),
+    );
+    for (const request of [
+      { method: "GET", url: "/api/v1/api-keys" },
+      { method: "POST", url: "/api/v1/api-keys", payload: { name: "Laptop", workspaceId } },
+      { method: "DELETE", url: `/api/v1/api-keys/${apiKeyId}` },
+    ] as const) {
+      expect((await context.app.inject(request)).statusCode).toBe(403);
+    }
+    expect(context.auth.createApiKey).not.toHaveBeenCalled();
+    expect(context.auth.revokeApiKey).not.toHaveBeenCalled();
+  });
+
+  it("reports whether a key was there to revoke", async () => {
+    const revoked = await context.app.inject({
+      method: "DELETE",
+      url: `/api/v1/api-keys/${apiKeyId}`,
+    });
+    expect(revoked.statusCode).toBe(204);
+    expect(context.auth.revokeApiKey).toHaveBeenCalledWith(userId, apiKeyId);
+
+    vi.mocked(context.auth.revokeApiKey).mockResolvedValueOnce(false);
+    const missing = await context.app.inject({
+      method: "DELETE",
+      url: `/api/v1/api-keys/${apiKeyId}`,
     });
     expect(missing.statusCode).toBe(404);
   });

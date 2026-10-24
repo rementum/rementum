@@ -11,13 +11,9 @@ import { exportJWK, generateKeyPair, type JWK } from "jose";
 import Provider, { type Configuration, errors } from "oidc-provider";
 import * as refreshTokenGrant from "oidc-provider/lib/actions/grants/refresh_token.js";
 import { z } from "zod";
-import { allAccessScopes } from "./access.js";
+import { workspaceMcpScopes } from "./access.js";
 import type { AppConfig } from "./config.js";
 import { requirePublicOrigin, resolveWebSession } from "./web-session.js";
-
-const workspaceMcpScopes = allAccessScopes.filter(
-  (scope) => !scope.startsWith("team:") && !scope.startsWith("connection:"),
-);
 
 // Claude uses the metadata document Anthropic hosts on claude.ai as its client id once discovery
 // advertises this feature, so no client is registered or stored for it. The ack pins the draft

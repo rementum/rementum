@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import {
   brainListSortSchema,
   claimTaskSchema,
+  createApiKeySchema,
   createBrainSchema,
   createTaskSchema,
   createTeamInvitationSchema,
@@ -20,6 +21,7 @@ import {
 } from "@rementum/contracts";
 import {
   DomainError,
+  ForbiddenError,
   hashContent,
   inspectMarkdownArchive,
   type RementumService,
@@ -32,6 +34,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import JSZip from "jszip";
 import { z } from "zod";
 import { type AccessScope, requireAccessScope, type ScopedActor } from "./access.js";
+import { generateApiKey } from "./auth.js";
 import type { AppConfig } from "./config.js";
 import type { TransactionalMailer } from "./mailer.js";
 import { sanitize } from "./mcp.js";
@@ -652,6 +655,30 @@ export async function registerApiRoutes(
     const actor = await authorize(request, "connection:write");
     const { grantId } = z.object({ grantId: z.string().min(1).max(240) }).parse(request.params);
     const revoked = await authRepository.revokeConnection(actor.userId, grantId);
+    return revoked ? reply.code(204).send() : reply.code(404).send();
+  });
+
+  app.get("/api/v1/api-keys", async (request) => {
+    const actor = await authorize(request, "connection:read");
+    return authRepository.listApiKeys(actor.userId);
+  });
+  app.post("/api/v1/api-keys", async (request, reply) => {
+    const actor = await authorize(request, "connection:write");
+    const input = createApiKeySchema.parse(request.body);
+    if (!actor.workspaceRoles.has(input.workspaceId)) throw new ForbiddenError();
+    const key = generateApiKey();
+    const created = await authRepository.createApiKey(
+      actor.userId,
+      input.workspaceId,
+      input.name,
+      hashContent(key),
+    );
+    return reply.code(201).send({ ...created, key });
+  });
+  app.delete("/api/v1/api-keys/:keyId", async (request, reply) => {
+    const actor = await authorize(request, "connection:write");
+    const { keyId } = z.object({ keyId: z.uuid() }).parse(request.params);
+    const revoked = await authRepository.revokeApiKey(actor.userId, keyId);
     return revoked ? reply.code(204).send() : reply.code(404).send();
   });
 
