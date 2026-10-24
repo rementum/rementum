@@ -701,19 +701,18 @@
     "noConnectionsTitle": "没有已连接的 Agent",
     "noConnectionsBody": "在客户端中添加 MCP URL 以启动 OAuth。仪表盘的连接面板提供了各个 Agent 的配置命令，可直接复制粘贴。",
     "apiKeysTitle": "API 密钥",
-    "apiKeysDescription": "适用于经常丢失 OAuth 会话的客户端。密钥只在其所属工作区的 MCP URL 上有效，永不过期，直到你撤销为止。它以你的身份运行，拥有与 OAuth 连接相同的工作区访问权限。",
+    "apiKeysDescription": "适用于经常丢失 OAuth 会话的客户端，以及只接受 URL 的连接器。密钥只在其所属工作区的 MCP URL 上有效，永不过期，直到你撤销为止。它以你的身份运行，拥有与 OAuth 连接相同的工作区访问权限。",
     "apiKeyName": "名称",
     "apiKeyNamePlaceholder": "笔记本上的 Claude Code",
     "apiKeyWorkspace": "工作区",
     "apiKeyCreate": "创建密钥",
     "apiKeyCreateError": "无法创建 API 密钥。",
     "apiKeyRevokeError": "无法撤销 API 密钥。",
-    "apiKeyShownOnce": "请立即复制此密钥。Rementum 只保存其哈希值，无法再次显示。",
-    "apiKeyCopy": "复制密钥",
-    "apiKeyClaudeCode": "Claude Code：将密钥作为请求头添加工作区。",
+    "apiKeyShownOnce": "请立即复制此 MCP URL，并在客户端中将其用作服务器 URL。URL 中包含密钥，Rementum 只保存密钥的哈希值，无法再次显示。请像对待密码一样保管此 URL。",
+    "apiKeyCopy": "复制 MCP URL",
     "apiKeyCreated": "创建于 {date}",
     "noApiKeysTitle": "没有 API 密钥",
-    "noApiKeysBody": "创建一个密钥，并在任何支持自定义请求头的 MCP 客户端中以 Authorization: Bearer 请求头发送。"
+    "noApiKeysBody": "创建一个密钥，即可获得以 ?apiKey= 携带该密钥的 MCP URL。任何 MCP 客户端都可以使用它，包括只接受 URL 的连接器。"
   },
   "admin": {
     "instance": "实例",

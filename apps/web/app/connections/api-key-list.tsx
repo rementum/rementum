@@ -40,7 +40,7 @@ export function ApiKeyList({
 }) {
   const strings = dict.connections;
   const router = useRouter();
-  const [created, setCreated] = useState<{ key: string; mcpUrl: string } | null>(null);
+  const [createdUrl, setCreatedUrl] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const workspaceLabel = (id: string) =>
@@ -60,7 +60,7 @@ export function ApiKeyList({
       return;
     }
     const mcpUrl = workspaces.find((workspace) => workspace.id === workspaceId)?.mcpUrl ?? "";
-    setCreated({ key: body.key, mcpUrl });
+    setCreatedUrl(`${mcpUrl}?apiKey=${body.key}`);
     router.refresh();
   }
 
@@ -73,10 +73,6 @@ export function ApiKeyList({
     else router.refresh();
     setBusy("");
   }
-
-  const command = created
-    ? `claude mcp add --scope user --transport http rementum ${created.mcpUrl} --header "Authorization: Bearer ${created.key}"`
-    : "";
 
   return (
     <section className="flex flex-col gap-4" aria-labelledby="api-keys-title">
@@ -120,17 +116,12 @@ export function ApiKeyList({
           </div>
         </form>
       </Card>
-      {created ? (
+      {createdUrl ? (
         <output className="grid gap-2 rounded-control border border-green/25 bg-green/10 p-3">
           <p className="font-medium text-green text-sm">{strings.apiKeyShownOnce}</p>
-          <code className="break-all font-mono text-2xs text-ink">{created.key}</code>
+          <code className="break-all font-mono text-2xs text-ink">{createdUrl}</code>
           <div>
-            <CopyButton dict={dict} text={created.key} label={strings.apiKeyCopy} />
-          </div>
-          <p className="text-ink-2 text-xs">{strings.apiKeyClaudeCode}</p>
-          <code className="break-all font-mono text-2xs text-ink-2">{command}</code>
-          <div>
-            <CopyButton dict={dict} text={command} />
+            <CopyButton dict={dict} text={createdUrl} label={strings.apiKeyCopy} />
           </div>
         </output>
       ) : null}
