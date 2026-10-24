@@ -30,12 +30,14 @@ export function requestId(header: string | string[] | undefined): string {
 }
 
 /**
- * Invitation tokens travel in the path of the routes that inspect them, and the request
- * log would otherwise become the only plaintext store of seven-day, account-creating
+ * Invitation tokens travel in the path of the routes that inspect them and MCP API keys in
+ * the query, and the request log would otherwise become the only plaintext store of those
  * secrets. The database keeps their hashes; the log gets a placeholder.
  */
 export function redactRequestUrl(url: string): string {
-  return url.replace(/(\/api\/v1\/(?:team-)?invitations\/)[^/?#]+/, "$1[redacted]");
+  return url
+    .replace(/(\/api\/v1\/(?:team-)?invitations\/)[^/?#]+/, "$1[redacted]")
+    .replace(/([?&]apiKey=)[^&#]*/g, "$1[redacted]");
 }
 
 function serializeRequest(request: FastifyRequest) {

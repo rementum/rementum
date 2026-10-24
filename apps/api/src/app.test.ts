@@ -14,7 +14,7 @@ describe("requestId", () => {
 });
 
 describe("redactRequestUrl", () => {
-  it("hides invitation tokens and leaves everything else alone", () => {
+  it("hides invitation tokens and API keys and leaves everything else alone", () => {
     expect(redactRequestUrl("/api/v1/invitations/abc123?x=1")).toBe(
       "/api/v1/invitations/[redacted]?x=1",
     );
@@ -25,5 +25,11 @@ describe("redactRequestUrl", () => {
       "/api/v1/team-invitations/[redacted]",
     );
     expect(redactRequestUrl("/api/v1/brains/abc/writes")).toBe("/api/v1/brains/abc/writes");
+    expect(redactRequestUrl("/mcp/workspace/w?apiKey=rmk_secret&x=1")).toBe(
+      "/mcp/workspace/w?apiKey=[redacted]&x=1",
+    );
+    expect(redactRequestUrl("/mcp/workspace/w?x=1&apiKey=rmk_secret")).toBe(
+      "/mcp/workspace/w?x=1&apiKey=[redacted]",
+    );
   });
 });
