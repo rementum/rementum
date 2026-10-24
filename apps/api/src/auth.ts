@@ -1,9 +1,15 @@
+import { randomBytes } from "node:crypto";
 import { WEB_SESSION_CLIENT_ID } from "@rementum/contracts";
-import { DomainError } from "@rementum/core";
+import { DomainError, hashContent } from "@rementum/core";
 import type { AuthRepository, PostgresStore } from "@rementum/db";
 import type { FastifyRequest } from "fastify";
 import { createLocalJWKSet, type JWK, type JWTPayload, jwtVerify } from "jose";
-import { type ScopedActor, withAccessScopes, withAllAccessScopes } from "./access.js";
+import {
+  type ScopedActor,
+  withAccessScopes,
+  withAllAccessScopes,
+  workspaceMcpScopes,
+} from "./access.js";
 import type { AppConfig } from "./config.js";
 import type { OauthRuntime } from "./oauth.js";
 import { requirePublicOrigin, resolveWebSession } from "./web-session.js";
@@ -46,6 +52,20 @@ export function createAuthenticator(
       throw new DomainError("unauthorized", "A bearer access token is required", 401);
     }
     const token = authorization.slice("Bearer ".length);
+    if (token.startsWith(API_KEY_PREFIX)) {
+      const key = API_KEY_PATTERN.test(token) ? await auth.findApiKey(hashContent(token)) : null;
+      if (!key || key.workspaceId !== workspaceId) {
+        throw new DomainError("invalid_token", "The API key is invalid or revoked", 401);
+      }
+      // A key stands in for an OAuth connection, so it carries the same workspace scopes a
+      // connection is granted and never the connection or team scopes a web session holds.
+      const actor = await store.loadActor(key.userId, `api-key:${key.id}`);
+      return withAccessScopes(
+        await store.scopeActorToWorkspace(actor, workspaceId),
+        workspaceMcpScopes.join(" "),
+        workspaceId,
+      );
+    }
     let payload: JWTPayload;
     try {
       ({ payload } = await jwtVerify(token, jwks, {
@@ -66,6 +86,13 @@ export function createAuthenticator(
       workspaceId,
     );
   };
+}
+
+export const API_KEY_PREFIX = "rmk_";
+const API_KEY_PATTERN = /^rmk_[A-Za-z0-9_-]{43}$/;
+
+export function generateApiKey(): string {
+  return `${API_KEY_PREFIX}${randomBytes(32).toString("base64url")}`;
 }
 
 export function workspaceIdFromMcpPath(path: string): string | null {

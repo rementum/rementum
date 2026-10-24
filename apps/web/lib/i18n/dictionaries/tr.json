@@ -699,7 +699,21 @@
     "revoking": "İptal ediliyor",
     "revoke": "İptal et",
     "noConnectionsTitle": "Bağlı ajan yok",
-    "noConnectionsBody": "OAuth akışını başlatmak için MCP URL'sini bir istemciye ekleyin. Panonuzdaki Bağlan panelinde her ajan için kopyalayıp yapıştırabileceğiniz kurulum komutları bulunur."
+    "noConnectionsBody": "OAuth akışını başlatmak için MCP URL'sini bir istemciye ekleyin. Panonuzdaki Bağlan panelinde her ajan için kopyalayıp yapıştırabileceğiniz kurulum komutları bulunur.",
+    "apiKeysTitle": "API anahtarları",
+    "apiKeysDescription": "OAuth oturumunu sürekli kaybeden istemciler için. Bir anahtar yalnızca kendi çalışma alanının MCP URL'sinde çalışır, süresi dolmaz ve siz iptal edene kadar geçerli kalır. Sizin adınıza, bir OAuth bağlantısıyla aynı çalışma alanı erişimiyle hareket eder.",
+    "apiKeyName": "Ad",
+    "apiKeyNamePlaceholder": "Dizüstü Claude Code",
+    "apiKeyWorkspace": "Çalışma alanı",
+    "apiKeyCreate": "Anahtar oluştur",
+    "apiKeyCreateError": "API anahtarı oluşturulamadı.",
+    "apiKeyRevokeError": "API anahtarı iptal edilemedi.",
+    "apiKeyShownOnce": "Bu anahtarı şimdi kopyalayın. Rementum yalnızca özetini saklar ve anahtarı bir daha gösteremez.",
+    "apiKeyCopy": "Anahtarı kopyala",
+    "apiKeyClaudeCode": "Claude Code: çalışma alanını anahtarı başlık olarak vererek ekleyin.",
+    "apiKeyCreated": "{date} tarihinde oluşturuldu",
+    "noApiKeysTitle": "API anahtarı yok",
+    "noApiKeysBody": "Bir anahtar oluşturun ve özel başlık destekleyen herhangi bir MCP istemcisinden Authorization: Bearer başlığıyla gönderin."
   },
   "admin": {
     "instance": "Instance",

@@ -123,6 +123,68 @@ integration("AuthRepository", () => {
     }
   }, 30_000);
 
+  it("resolves an API key by hash until its owner revokes it or resets the password", async () => {
+    if (!databaseUrl) return;
+    const database = createDatabaseClient(databaseUrl, 2);
+    const auth = new AuthRepository(database);
+    const suffix = randomBytes(6).toString("hex");
+
+    try {
+      const account = await auth.registerAccount(
+        `api-key-${suffix}@example.test`,
+        "Key owner",
+        "password-hash",
+        "Key team",
+        `api-key-${suffix}`,
+      );
+      if (!account) throw new Error("Registration failed");
+      const owner = account.user.id;
+
+      const created = await auth.createApiKey(
+        owner,
+        account.workspaceId,
+        "Laptop",
+        `hash-${suffix}`,
+      );
+      expect(created).toMatchObject({ workspaceId: account.workspaceId, name: "Laptop" });
+      expect(await auth.findApiKey(`hash-${suffix}`)).toEqual({
+        id: created.id,
+        userId: owner,
+        workspaceId: account.workspaceId,
+      });
+      expect(await auth.findApiKey(`never-issued-${suffix}`)).toBeNull();
+      expect(await auth.listApiKeys(owner)).toEqual([created]);
+
+      // Another account can neither see nor revoke the key.
+      const stranger = await auth.registerAccount(
+        `api-key-stranger-${suffix}@example.test`,
+        "Stranger",
+        "password-hash",
+        "Stranger team",
+        `api-key-stranger-${suffix}`,
+      );
+      if (!stranger) throw new Error("Registration failed");
+      expect(await auth.listApiKeys(stranger.user.id)).toEqual([]);
+      expect(await auth.revokeApiKey(stranger.user.id, created.id)).toBe(false);
+
+      expect(await auth.revokeApiKey(owner, created.id)).toBe(true);
+      expect(await auth.findApiKey(`hash-${suffix}`)).toBeNull();
+      expect(await auth.revokeApiKey(owner, created.id)).toBe(false);
+
+      await auth.createApiKey(owner, account.workspaceId, "Desktop", `reset-${suffix}`);
+      await auth.createAuthToken(
+        owner,
+        "reset_password",
+        `reset-token-${suffix}`,
+        new Date(Date.now() + 60_000),
+      );
+      expect(await auth.resetPassword(`reset-token-${suffix}`, "new-hash")).toBe(true);
+      expect(await auth.findApiKey(`reset-${suffix}`)).toBeNull();
+    } finally {
+      await database.close();
+    }
+  }, 30_000);
+
   it("refuses to register the same address twice", async () => {
     if (!databaseUrl) return;
     const database = createDatabaseClient(databaseUrl, 2);

@@ -1814,6 +1814,7 @@ export class PostgresStore implements DataStore {
               )
               FROM oauth_records WHERE model = 'Client' AND id = ${clientId}
             ),
+            (SELECT name FROM api_keys WHERE 'api-key:' || id::text = ${clientId}),
             ${clientId}
           ),
           ${input.tool}, consumed.article_ids

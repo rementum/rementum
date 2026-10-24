@@ -13,6 +13,13 @@ export interface UserRecord {
   disabledAt: Date | null;
 }
 
+export interface ApiKeyRecord {
+  id: string;
+  workspaceId: string;
+  name: string;
+  createdAt: string;
+}
+
 export class AuthRepository {
   constructor(private readonly client: DatabaseClient) {}
 
@@ -185,6 +192,7 @@ export class AuthRepository {
       }
       await tx`DELETE FROM oauth_records WHERE payload->>'accountId' = ${token.user_id}`;
       await tx`DELETE FROM web_sessions WHERE user_id = ${token.user_id}`;
+      await tx`DELETE FROM api_keys WHERE user_id = ${token.user_id}`;
       await tx`
         UPDATE users SET password_hash = ${passwordHash}, email_verified_at = coalesce(email_verified_at, now())
         WHERE id = ${token.user_id}
@@ -220,6 +228,53 @@ export class AuthRepository {
 
   async revokeWebSession(tokenHash: string): Promise<void> {
     await this.client.sql`DELETE FROM web_sessions WHERE token_hash = ${tokenHash}`;
+  }
+
+  async createApiKey(
+    userId: string,
+    workspaceId: string,
+    name: string,
+    tokenHash: string,
+  ): Promise<ApiKeyRecord> {
+    const [row] = await this.client.sql<any[]>`
+      INSERT INTO api_keys (user_id, workspace_id, name, token_hash)
+      VALUES (${userId}, ${workspaceId}, ${name}, ${tokenHash})
+      RETURNING id, workspace_id, name, created_at
+    `;
+    if (!row) throw new Error("API key insert did not return a row");
+    return mapApiKey(row);
+  }
+
+  async findApiKey(
+    tokenHash: string,
+  ): Promise<{ id: string; userId: string; workspaceId: string } | null> {
+    const [row] = await this.client.sql<
+      Array<{ id: string; user_id: string; workspace_id: string }>
+    >`
+      SELECT keys.id, keys.user_id, keys.workspace_id
+      FROM api_keys keys
+      JOIN users ON users.id = keys.user_id
+      WHERE keys.token_hash = ${tokenHash} AND users.disabled_at IS NULL
+    `;
+    return row ? { id: row.id, userId: row.user_id, workspaceId: row.workspace_id } : null;
+  }
+
+  // Workspace names are left to the caller: workspaces is under RLS, and this repository
+  // runs without an actor context, so a join here would silently drop every row.
+  async listApiKeys(userId: string): Promise<ApiKeyRecord[]> {
+    const rows = await this.client.sql<any[]>`
+      SELECT id, workspace_id, name, created_at FROM api_keys
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+    `;
+    return rows.map(mapApiKey);
+  }
+
+  async revokeApiKey(userId: string, id: string): Promise<boolean> {
+    const rows = await this.client.sql`
+      DELETE FROM api_keys WHERE id = ${id} AND user_id = ${userId} RETURNING id
+    `;
+    return rows.length > 0;
   }
 
   async inspectTeamInvitation(tokenHash: string) {
@@ -475,5 +530,14 @@ function mapUser(row: any): UserRecord {
     systemOwner: row.system_owner,
     emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at) : null,
     disabledAt: row.disabled_at ? new Date(row.disabled_at) : null,
+  };
+}
+
+function mapApiKey(row: any): ApiKeyRecord {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    name: row.name,
+    createdAt: new Date(row.created_at).toISOString(),
   };
 }

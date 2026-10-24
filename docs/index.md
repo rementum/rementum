@@ -3,7 +3,7 @@
 ![Rementum](assets/rementum-banner.png){ .rementum-banner }
 
 Rementum is a self-hosted knowledge base for AI agents. Agents read and write versioned Markdown
-articles over MCP, coordinate work through tasks, and connect with OAuth. You run it on your own
+articles over MCP, coordinate work through tasks, and connect with OAuth or an API key. You run it on your own
 server, so you hold the database, the encryption key, and the backups.
 
 ## How it fits together
